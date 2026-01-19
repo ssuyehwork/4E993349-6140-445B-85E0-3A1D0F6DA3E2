@@ -1,6 +1,9 @@
 #include "GraphWidget.h"
 #include <QPainter>
 #include <QGraphicsScene>
+#include <QGraphicsSceneMouseEvent>
+#include <QWheelEvent>
+#include <cmath>
 
 class EdgeItem : public QGraphicsItem {
 public:

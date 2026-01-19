@@ -5,6 +5,10 @@
 #include <QPainterPath>
 #include <QtMath>
 #include <QRandomGenerator>
+#include <QMouseEvent>
+#include <QContextMenuEvent>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 
 FloatingBall::FloatingBall(QWidget* parent) : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool) {
     setAttribute(Qt::WA_TranslucentBackground);
