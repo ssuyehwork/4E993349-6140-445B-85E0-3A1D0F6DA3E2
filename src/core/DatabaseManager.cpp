@@ -26,7 +26,15 @@ bool DatabaseManager::init(const QString& dbPath) {
         return false;
     }
 
-    return createTables();
+    if (!createTables()) return false;
+
+    // 如果数据库为空，添加一条欢迎信息
+    QSqlQuery query("SELECT COUNT(*) FROM notes");
+    if (query.next() && query.value(0).toInt() == 0) {
+        addNote("欢迎使用极速灵感", "这是一条自动生成的欢迎笔记。你可以点击悬浮球或按 Alt+Space 开始记录！", {"入门"});
+    }
+
+    return true;
 }
 
 bool DatabaseManager::createTables() {

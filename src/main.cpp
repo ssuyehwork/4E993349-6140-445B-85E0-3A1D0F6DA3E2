@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QFile>
 #include "core/DatabaseManager.h"
 #include "core/HotkeyManager.h"
 #include "core/ClipboardMonitor.h"
@@ -10,6 +11,12 @@ int main(int argc, char *argv[]) {
     QApplication a(argc, argv);
     a.setApplicationName("RapidNotes");
     a.setOrganizationName("RapidDev");
+
+    // 加载全局样式表
+    QFile styleFile(":/qss/dark_style.qss");
+    if (styleFile.open(QFile::ReadOnly)) {
+        a.setStyleSheet(styleFile.readAll());
+    }
 
     // 1. 初始化数据库
     if (!DatabaseManager::instance().init()) {

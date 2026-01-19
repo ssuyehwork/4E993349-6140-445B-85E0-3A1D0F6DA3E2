@@ -6,13 +6,14 @@
 #include <QTabWidget>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
-    setWindowTitle("极速灵感 (RapidNotes)");
+    setWindowTitle("极速灵感 (RapidNotes) - 开发版");
     resize(1200, 800);
     initUI();
 }
 
 void MainWindow::initUI() {
     auto* centralWidget = new QWidget(this);
+    centralWidget->setObjectName("centralWidget");
     setCentralWidget(centralWidget);
     auto* mainLayout = new QHBoxLayout(centralWidget);
     mainLayout->setContentsMargins(0, 0, 0, 0);
