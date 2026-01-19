@@ -98,8 +98,27 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
     return true;
 }
 
+bool DatabaseManager::updateNote(int id, const QString& title, const QString& content, const QStringList& tags) {
+    QMutexLocker locker(&m_mutex);
+    QSqlQuery query;
+    query.prepare("UPDATE notes SET title=:title, content=:content, tags=:tags, updated_at=CURRENT_TIMESTAMP WHERE id=:id");
+    query.bindValue(":title", title);
+    query.bindValue(":content", content);
+    query.bindValue(":tags", tags.join(","));
+    query.bindValue(":id", id);
+    return query.exec();
+}
+
+bool DatabaseManager::deleteNote(int id) {
+    QMutexLocker locker(&m_mutex);
+    QSqlQuery query;
+    query.prepare("DELETE FROM notes WHERE id=:id");
+    query.bindValue(":id", id);
+    return query.exec();
+}
+
 void DatabaseManager::addNoteAsync(const QString& title, const QString& content, const QStringList& tags) {
-    QtConcurrent::run([this, title, content, tags]() {
+    (void)QtConcurrent::run([this, title, content, tags]() {
         if (addNote(title, content, tags)) {
             emit noteAdded();
         }
