@@ -11,7 +11,7 @@ public:
     static OCRManager& instance();
 
     void recognizeAsync(const QImage& image) {
-        QtConcurrent::run([this, image]() {
+        (void)QtConcurrent::run([this, image]() {
             // 这里通常调用 Windows.Media.Ocr 或 Tesseract
             // 示例逻辑：
             QString result = "识别出的文字示例";
