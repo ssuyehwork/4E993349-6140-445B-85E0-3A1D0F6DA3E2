@@ -1,6 +1,7 @@
 #include "HeaderBar.h"
 #include "IconHelper.h"
 #include <QHBoxLayout>
+#include <QSettings>
 
 HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     setFixedHeight(50);
@@ -73,8 +74,6 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     connect(btnPreview, &QPushButton::toggled, this, &HeaderBar::previewToggled);
     layout->addWidget(btnPreview);
 }
-
-#include <QSettings>
 
 void HeaderBar::setupSearchHistory() {
     QSettings settings("RapidNotes", "SearchHistory");

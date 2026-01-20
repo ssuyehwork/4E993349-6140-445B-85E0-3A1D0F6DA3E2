@@ -3,7 +3,9 @@
 #include <QMessageBox>
 #include <QCoreApplication>
 #include <QDir>
-#include <QDebug> // 必须包含
+#include <QDebug>
+#include <QDateTime>
+#include <QFileInfo>
 #include "core/DatabaseManager.h"
 #include "core/HotkeyManager.h"
 #include "core/ClipboardMonitor.h"

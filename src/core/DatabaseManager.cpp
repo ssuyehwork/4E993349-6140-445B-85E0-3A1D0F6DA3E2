@@ -144,7 +144,7 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
         query.bindValue(":content", content);
         query.bindValue(":tags", tags.join(","));
         query.bindValue(":color", color.isEmpty() ? "#2d2d2d" : color);
-        query.bindValue(":category_id", categoryId == -1 ? QVariant(QVariant::Int) : categoryId);
+        query.bindValue(":category_id", categoryId == -1 ? QVariant(QMetaType(QMetaType::Int)) : categoryId);
         query.bindValue(":item_type", itemType);
         query.bindValue(":data_blob", dataBlob);
 
@@ -343,7 +343,7 @@ int DatabaseManager::addCategory(const QString& name, int parentId, const QStrin
     QSqlQuery query(m_db);
     query.prepare("INSERT INTO categories (name, parent_id, color) VALUES (:name, :parent_id, :color)");
     query.bindValue(":name", name);
-    query.bindValue(":parent_id", parentId == -1 ? QVariant(QVariant::Int) : parentId);
+    query.bindValue(":parent_id", parentId == -1 ? QVariant(QMetaType(QMetaType::Int)) : parentId);
     query.bindValue(":color", color.isEmpty() ? "#808080" : color);
 
     if (query.exec()) return query.lastInsertId().toInt();
