@@ -9,6 +9,7 @@
 #include <QHBoxLayout>
 #include "../models/NoteModel.h"
 #include "../models/CategoryModel.h"
+#include "QuickPreview.h"
 
 class QuickWindow : public QWidget {
     Q_OBJECT
@@ -28,6 +29,7 @@ private:
     QLineEdit* m_searchEdit;
     QListView* m_listView;
     NoteModel* m_model;
+    QuickPreview* m_quickPreview;
 
     QTreeView* m_sideBar;
     CategoryModel* m_sideModel;

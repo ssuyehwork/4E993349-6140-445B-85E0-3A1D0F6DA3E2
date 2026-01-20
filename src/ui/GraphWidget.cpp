@@ -175,16 +175,22 @@ bool NodeItem::advancePosition() {
     return true;
 }
 
-QRectF NodeItem::boundingRect() const { return QRectF(-20, -20, 40, 40); }
+QRectF NodeItem::boundingRect() const { return QRectF(-60, -20, 120, 65); }
 
 void NodeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
     painter->setBrush(QColor("#4FACFE"));
     painter->setPen(QPen(Qt::white, 1));
     painter->drawEllipse(-10, -10, 20, 20);
 
-    // 绘制标题
+    // 绘制标题 - 扩大绘制区域并使用省略号处理超长文字
     painter->setPen(Qt::white);
-    painter->drawText(QRectF(-50, 12, 100, 20), Qt::AlignCenter, m_title);
+    QFont font = painter->font();
+    font.setPointSize(8);
+    painter->setFont(font);
+
+    QRectF textRect(-60, 12, 120, 30);
+    QString elidedTitle = painter->fontMetrics().elidedText(m_title, Qt::ElideRight, textRect.width());
+    painter->drawText(textRect, Qt::AlignCenter | Qt::TextWordWrap, elidedTitle);
 }
 
 QVariant NodeItem::itemChange(GraphicsItemChange change, const QVariant& value) {

@@ -23,6 +23,7 @@ set(SOURCES
     src/ui/FloatingBall.cpp
     src/ui/QuickWindow.cpp
     src/ui/MainWindow.cpp
+    src/ui/QuickPreview.h
     src/ui/HeaderBar.cpp
     src/ui/MetadataPanel.cpp
     src/ui/Toolbox.cpp

@@ -13,6 +13,7 @@
 #include "NoteEditWindow.h"
 #include "HeaderBar.h"
 #include "MetadataPanel.h"
+#include "QuickPreview.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -40,6 +41,7 @@ private:
 
     HeaderBar* m_header;
     MetadataPanel* m_metaPanel;
+    QuickPreview* m_quickPreview;
 
     Editor* m_editor;
     GraphWidget* m_graphWidget;

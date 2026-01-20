@@ -12,8 +12,9 @@
 #include <QAction>
 #include <QMessageBox>
 #include <QCursor>
+#include <QKeyEvent>
 
-MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
+MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindowHint) {
     setWindowTitle("极速灵感 (RapidNotes) - 开发版");
     resize(1200, 800);
     initUI();
@@ -54,6 +55,12 @@ void MainWindow::initUI() {
     connect(m_header, &HeaderBar::previewToggled, this, [this](bool checked){
         m_editor->togglePreview(checked);
     });
+    connect(m_header, &HeaderBar::windowClose, this, &MainWindow::close);
+    connect(m_header, &HeaderBar::windowMinimize, this, &MainWindow::showMinimized);
+    connect(m_header, &HeaderBar::windowMaximize, this, [this](){
+        if (isMaximized()) showNormal();
+        else showMaximized();
+    });
     mainLayout->addWidget(m_header);
 
     auto* splitter = new QSplitter(Qt::Horizontal);
@@ -67,6 +74,30 @@ void MainWindow::initUI() {
     m_sideBar->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_sideBar->setStyleSheet("background-color: #252526; border: none; color: #CCC;");
     m_sideBar->expandAll();
+    m_sideBar->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_sideBar, &QTreeView::customContextMenuRequested, this, [this](const QPoint& pos){
+        QModelIndex index = m_sideBar->indexAt(pos);
+        QMenu menu(this);
+        if (index.isValid()) {
+            QString type = index.data(Qt::UserRole).toString();
+            if (type == "category") {
+                int id = index.data(Qt::UserRole + 1).toInt();
+                menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名分类");
+                menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "删除分类", [this, id](){
+                    DatabaseManager::instance().deleteCategory(id);
+                    refreshData();
+                });
+            } else if (type == "trash") {
+                menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "清空回收站");
+            }
+        } else {
+            menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分类", [this](){
+                DatabaseManager::instance().addCategory("新建分类");
+                refreshData();
+            });
+        }
+        menu.exec(m_sideBar->mapToGlobal(pos));
+    });
     connect(m_sideBar, &QTreeView::clicked, this, &MainWindow::onTagSelected);
     splitter->addWidget(m_sideBar);
 
@@ -105,6 +136,26 @@ void MainWindow::initUI() {
     connect(m_metaPanel, &MetadataPanel::noteUpdated, this, &MainWindow::refreshData);
     mainTabSplitter->addWidget(m_metaPanel);
 
+    // 快捷键注册
+    auto* actionFilter = new QAction(this);
+    actionFilter->setShortcut(QKeySequence("Ctrl+G"));
+    connect(actionFilter, &QAction::triggered, this, [this](){
+        m_header->toggleSidebar(); // 暂时用切换侧边栏模拟
+    });
+    addAction(actionFilter);
+
+    auto* actionMeta = new QAction(this);
+    actionMeta->setShortcut(QKeySequence("Ctrl+I"));
+    connect(actionMeta, &QAction::triggered, this, [this](){
+        m_metaPanel->setVisible(!m_metaPanel->isVisible());
+    });
+    addAction(actionMeta);
+
+    auto* actionRefresh = new QAction(this);
+    actionRefresh->setShortcut(QKeySequence("F5"));
+    connect(actionRefresh, &QAction::triggered, this, &MainWindow::refreshData);
+    addAction(actionRefresh);
+
     splitter->addWidget(mainTabSplitter);
 
     splitter->setStretchFactor(0, 1);
@@ -112,6 +163,9 @@ void MainWindow::initUI() {
     splitter->setStretchFactor(2, 6);
 
     mainLayout->addWidget(splitter);
+
+    m_quickPreview = new QuickPreview(this);
+    m_noteList->installEventFilter(this);
 }
 
 // 【新增】增量更新逻辑
@@ -141,6 +195,23 @@ void MainWindow::onNoteSelected(const QModelIndex& index) {
     m_metaPanel->setNote(note);
 }
 
+bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == m_noteList && event->type() == QEvent::KeyPress) {
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+        if (keyEvent->key() == Qt::Key_Space && !keyEvent->isAutoRepeat()) {
+            QModelIndex index = m_noteList->currentIndex();
+            if (index.isValid()) {
+                int id = index.data(NoteModel::IdRole).toInt();
+                QVariantMap note = DatabaseManager::instance().getNoteById(id);
+                QPoint globalPos = m_noteList->mapToGlobal(m_noteList->rect().center()) - QPoint(250, 300);
+                m_quickPreview->showPreview(note["title"].toString(), note["content"].toString(), globalPos);
+                return true;
+            }
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);
+}
+
 void MainWindow::onTagSelected(const QModelIndex& index) {
     QString type = index.data(Qt::UserRole).toString();
     if (type == "category") {
@@ -163,7 +234,7 @@ void MainWindow::showContextMenu(const QPoint& pos) {
     QMenu menu(this);
     menu.setStyleSheet("QMenu { background: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item { padding: 8px 25px; } QMenu::item:selected { background: #3E3E42; }");
 
-    QAction* actEdit = menu.addAction("📝 编辑");
+    QAction* actEdit = menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "编辑");
     connect(actEdit, &QAction::triggered, [this, id](){
         NoteEditWindow* win = new NoteEditWindow(id);
         connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
@@ -172,7 +243,7 @@ void MainWindow::showContextMenu(const QPoint& pos) {
 
     menu.addSeparator();
 
-    QMenu* starMenu = menu.addMenu("⭐ 设置星级");
+    QMenu* starMenu = menu.addMenu(IconHelper::getIcon("star", "#aaaaaa"), "设置星级");
     starMenu->setStyleSheet("QMenu { background: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item:selected { background: #3E3E42; }");
     for(int i=0; i<=5; ++i) {
         QString label = (i == 0) ? "无星级" : QString("%1 星").arg(i);
@@ -184,21 +255,21 @@ void MainWindow::showContextMenu(const QPoint& pos) {
         });
     }
 
-    QAction* actLock = menu.addAction(isLocked ? "🔓 解锁" : "🔒 锁定");
+    QAction* actLock = menu.addAction(IconHelper::getIcon("lock", "#aaaaaa"), isLocked ? "解锁" : "锁定");
     connect(actLock, &QAction::triggered, [id, isLocked](){
         DatabaseManager::instance().updateNoteState(id, "is_locked", !isLocked);
     });
 
     menu.addSeparator();
 
-    QAction* actPin = menu.addAction(isPinned ? "🚫 取消置顶" : "📌 置顶");
+    QAction* actPin = menu.addAction(IconHelper::getIcon("pin", "#aaaaaa"), isPinned ? "取消置顶" : "置顶");
     connect(actPin, &QAction::triggered, [id, isPinned](){
         DatabaseManager::instance().updateNoteState(id, "is_pinned", !isPinned);
     });
 
     menu.addSeparator();
 
-    QAction* actDel = menu.addAction("🗑️ 移至回收站");
+    QAction* actDel = menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "移至回收站");
     connect(actDel, &QAction::triggered, [this, id](){
         DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
     });

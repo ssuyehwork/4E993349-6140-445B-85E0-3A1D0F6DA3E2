@@ -2,12 +2,15 @@
 #include "IconHelper.h"
 #include <QHBoxLayout>
 #include <QSettings>
+#include <QMouseEvent>
+#include <QApplication>
 
 HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     setFixedHeight(50);
     setStyleSheet("background-color: #2D2D2D; border-bottom: 1px solid #333;");
 
     QHBoxLayout* layout = new QHBoxLayout(this);
+    layout->setContentsMargins(10, 0, 10, 0);
 
     QPushButton* btnSidebar = new QPushButton();
     btnSidebar->setIcon(IconHelper::getIcon("sidebar", "#aaaaaa"));
@@ -73,6 +76,43 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     btnPreview->setStyleSheet("QPushButton { background: transparent; border: none; } QPushButton:checked { background: #444; border-radius: 4px; }");
     connect(btnPreview, &QPushButton::toggled, this, &HeaderBar::previewToggled);
     layout->addWidget(btnPreview);
+
+    layout->addSpacing(20);
+
+    // 窗口控制按钮
+    auto addWinBtn = [&](const QString& icon, const QString& hoverColor, auto signal) {
+        QPushButton* btn = new QPushButton();
+        btn->setIcon(IconHelper::getIcon(icon, "#aaaaaa", 16));
+        btn->setFixedSize(32, 32);
+        btn->setStyleSheet(QString("QPushButton { background: transparent; border: none; } QPushButton:hover { background: %1; }").arg(hoverColor));
+        connect(btn, &QPushButton::clicked, this, signal);
+        layout->addWidget(btn);
+    };
+
+    addWinBtn("minimize", "rgba(255,255,255,0.1)", &HeaderBar::windowMinimize);
+    addWinBtn("maximize", "rgba(255,255,255,0.1)", &HeaderBar::windowMaximize);
+    addWinBtn("close", "#e81123", &HeaderBar::windowClose);
+}
+
+void HeaderBar::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        m_dragPos = event->globalPosition().toPoint() - parentWidget()->frameGeometry().topLeft();
+        event->accept();
+    }
+}
+
+void HeaderBar::mouseMoveEvent(QMouseEvent* event) {
+    if (event->buttons() & Qt::LeftButton) {
+        parentWidget()->move(event->globalPosition().toPoint() - m_dragPos);
+        event->accept();
+    }
+}
+
+void HeaderBar::mouseDoubleClickEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        emit windowMaximize();
+        event->accept();
+    }
 }
 
 void HeaderBar::setupSearchHistory() {

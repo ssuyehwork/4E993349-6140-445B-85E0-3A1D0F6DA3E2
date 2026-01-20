@@ -44,6 +44,17 @@ void QuickWindow::initUI() {
 
     m_searchEdit = new QLineEdit();
     m_searchEdit->setPlaceholderText("搜索笔记或按回车保存...");
+    m_searchEdit->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_searchEdit, &QLineEdit::customContextMenuRequested, [this](const QPoint& pos){
+        QSettings settings("RapidNotes", "SearchHistory");
+        QStringList history = settings.value("list").toStringList();
+        if (history.isEmpty()) return;
+        QMenu menu(this);
+        for (const QString& item : history) {
+            menu.addAction(item, [this, item](){ m_searchEdit->setText(item); });
+        }
+        menu.exec(m_searchEdit->mapToGlobal(pos));
+    });
     layout->addWidget(m_searchEdit);
 
     auto* hLayout = new QHBoxLayout();
@@ -54,6 +65,20 @@ void QuickWindow::initUI() {
     m_sideBar->setHeaderHidden(true);
     m_sideBar->setFixedWidth(180);
     m_sideBar->expandAll();
+    m_sideBar->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_sideBar, &QTreeView::customContextMenuRequested, this, [this](const QPoint& pos){
+        QModelIndex index = m_sideBar->indexAt(pos);
+        if (!index.isValid()) return;
+        QMenu menu(this);
+        QString type = index.data(Qt::UserRole).toString();
+        if (type == "category") {
+            menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名分类");
+            menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "删除分类");
+        } else if (type == "trash") {
+            menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "清空回收站");
+        }
+        menu.exec(m_sideBar->mapToGlobal(pos));
+    });
     connect(m_sideBar, &QTreeView::clicked, this, [this](const QModelIndex& index){
         QString type = index.data(Qt::UserRole).toString();
         if (type == "category") {
@@ -68,6 +93,23 @@ void QuickWindow::initUI() {
     m_listView = new QListView();
     m_model = new NoteModel(this);
     m_listView->setModel(m_model);
+    m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_listView, &QListView::customContextMenuRequested, this, [this](const QPoint& pos){
+        QModelIndex index = m_listView->indexAt(pos);
+        if (!index.isValid()) return;
+        int id = index.data(NoteModel::IdRole).toInt();
+        QMenu menu(this);
+        menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "编辑", [this, id](){
+            NoteEditWindow* win = new NoteEditWindow(id);
+            connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
+            win->show();
+        });
+        menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "移至回收站", [this, id](){
+            DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
+            refreshData();
+        });
+        menu.exec(m_listView->mapToGlobal(pos));
+    });
     connect(m_listView, &QListView::doubleClicked, this, [this](const QModelIndex& index){
         if (!index.isValid()) return;
         int id = index.data(NoteModel::IdRole).toInt();
@@ -81,6 +123,9 @@ void QuickWindow::initUI() {
 
     mainLayout->addWidget(container);
     setFixedSize(800, 500);
+
+    m_quickPreview = new QuickPreview(this);
+    m_listView->installEventFilter(this);
 
     // 搜索逻辑
     connect(m_searchEdit, &QLineEdit::textChanged, [this](const QString& text){
@@ -123,4 +168,21 @@ bool QuickWindow::event(QEvent* event) {
         hide();
     }
     return QWidget::event(event);
+}
+
+bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == m_listView && event->type() == QEvent::KeyPress) {
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+        if (keyEvent->key() == Qt::Key_Space && !keyEvent->isAutoRepeat()) {
+            QModelIndex index = m_listView->currentIndex();
+            if (index.isValid()) {
+                int id = index.data(NoteModel::IdRole).toInt();
+                QVariantMap note = DatabaseManager::instance().getNoteById(id);
+                QPoint globalPos = m_listView->mapToGlobal(m_listView->rect().center()) - QPoint(250, 300);
+                m_quickPreview->showPreview(note["title"].toString(), note["content"].toString(), globalPos);
+                return true;
+            }
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }
