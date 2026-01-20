@@ -33,6 +33,10 @@ set(SOURCES
     src/ui/NoteEditWindow.h    # <--- 必须有
     src/ui/NoteEditWindow.cpp  # <--- 必须有
     src/ui/ScreenshotTool.h
+    src/ui/SearchLineEdit.h
+    src/ui/SearchLineEdit.cpp
+    src/ui/WritingAnimation.h
+    src/ui/WritingAnimation.cpp
     resources/resources.qrc
 )
 
