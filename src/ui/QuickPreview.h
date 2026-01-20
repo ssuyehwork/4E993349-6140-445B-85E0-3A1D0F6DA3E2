@@ -35,8 +35,10 @@ public:
     }
 
     void showPreview(const QString& title, const QString& content, const QPoint& pos) {
+        QString formattedContent = content;
+        formattedContent.replace("\n", "<br>");
         QString html = QString("<h2>%1</h2><hr/><div style='line-height: 1.5;'>%2</div>")
-                       .arg(title, content.replace("\n", "<br>"));
+                       .arg(title, formattedContent);
         m_textEdit->setHtml(html);
         move(pos);
         show();

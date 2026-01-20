@@ -29,6 +29,7 @@ private slots:
     void onNoteAdded(const QVariantMap& note);
 
     void refreshData();
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     void initUI();

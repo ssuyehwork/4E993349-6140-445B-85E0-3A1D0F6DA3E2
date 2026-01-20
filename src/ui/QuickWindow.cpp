@@ -1,10 +1,13 @@
 #include "QuickWindow.h"
 #include "NoteEditWindow.h"
+#include "IconHelper.h"
 #include "../core/DatabaseManager.h"
 #include <QGuiApplication>
 #include <QScreen>
 #include <QKeyEvent>
 #include <QGraphicsDropShadowEffect>
+#include <QSettings>
+#include <QMenu>
 
 QuickWindow::QuickWindow(QWidget* parent)
     : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint)
