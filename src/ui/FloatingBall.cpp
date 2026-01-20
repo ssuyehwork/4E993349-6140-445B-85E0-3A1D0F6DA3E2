@@ -1,5 +1,6 @@
 #include "FloatingBall.h"
 #include "../core/DatabaseManager.h"
+#include "IconHelper.h"
 #include <QGuiApplication>
 #include <QScreen>
 #include <QPainterPath>
@@ -33,6 +34,10 @@ FloatingBall::FloatingBall(QWidget* parent)
         updateParticleEffect();
         update();
     });
+
+    m_writingAnim = new WritingAnimation(this);
+    m_writingAnim->hide();
+    m_writingAnim->move(10, 10);
 }
 
 static QColor s_ballColor1 = QColor("#4FACFE");
@@ -117,8 +122,9 @@ void FloatingBall::leaveEvent(QEvent* event) {
 
 void FloatingBall::contextMenuEvent(QContextMenuEvent* event) {
     QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #2b2b2b; color: #f0f0f0; border: 1px solid #444; }");
 
-    QMenu* skinMenu = menu.addMenu("切换外观");
+    QMenu* skinMenu = menu.addMenu(IconHelper::getIcon("palette", "#aaaaaa"), "切换外观");
     skinMenu->addAction("摩卡·勃艮第", [this](){ s_ballColor1 = QColor("#5D4037"); s_ballColor2 = QColor("#8D6E63"); update(); });
     skinMenu->addAction("经典黑金", [this](){ s_ballColor1 = QColor("#212121"); s_ballColor2 = QColor("#FFD700"); update(); });
     skinMenu->addAction("皇家蓝", [this](){ s_ballColor1 = QColor("#1A237E"); s_ballColor2 = QColor("#3F51B5"); update(); });
@@ -126,10 +132,10 @@ void FloatingBall::contextMenuEvent(QContextMenuEvent* event) {
     skinMenu->addAction("默认天蓝", [this](){ s_ballColor1 = QColor("#4FACFE"); s_ballColor2 = QColor("#00F2FE"); update(); });
 
     menu.addSeparator();
-    menu.addAction("打开快速笔记", this, &FloatingBall::requestQuickWindow);
-    menu.addAction("打开主界面", this, &FloatingBall::requestMainWindow);
+    QAction* actQuick = menu.addAction(IconHelper::getIcon("zap", "#aaaaaa"), "打开快速笔记", this, &FloatingBall::requestQuickWindow);
+    QAction* actMain = menu.addAction(IconHelper::getIcon("monitor", "#aaaaaa"), "打开主界面", this, &FloatingBall::requestMainWindow);
     menu.addSeparator();
-    menu.addAction("退出程序", [](){ qApp->quit(); });
+    QAction* actQuit = menu.addAction(IconHelper::getIcon("power", "#aaaaaa"), "退出程序", [](){ qApp->quit(); });
 
     menu.exec(event->globalPos());
 }
@@ -142,11 +148,16 @@ void FloatingBall::dragEnterEvent(QDragEnterEvent* event) {
 
 void FloatingBall::dropEvent(QDropEvent* event) {
     QString content = event->mimeData()->text();
+    QString type = "text";
     if (event->mimeData()->hasUrls()) {
         content = event->mimeData()->urls().first().toLocalFile();
+        type = "file";
     }
-    DatabaseManager::instance().addNoteAsync("拖拽记录", content, {"投喂"});
+    DatabaseManager::instance().addNoteAsync("拖拽投喂", content, {"投喂"}, "", -1, type);
+
     burstParticles();
+    m_writingAnim->start();
+
     event->acceptProposedAction();
 }
 

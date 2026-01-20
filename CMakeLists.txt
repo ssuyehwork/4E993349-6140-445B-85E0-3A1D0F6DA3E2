@@ -9,7 +9,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Sql Network Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Sql Network Concurrent Svg)
 
 # 源代码列表 - 确保 NoteEditWindow 相关的两个文件都在这里
 set(SOURCES
@@ -45,6 +45,7 @@ target_link_libraries(RapidNotes PRIVATE
     Qt6::Sql
     Qt6::Network
     Qt6::Concurrent
+    Qt6::Svg
 )
 
 if(WIN32)

@@ -1,5 +1,6 @@
 #include "CategoryModel.h"
 #include "../core/DatabaseManager.h"
+#include "../ui/IconHelper.h"
 
 CategoryModel::CategoryModel(QObject* parent) : QStandardItemModel(parent) {
     refresh();
@@ -14,18 +15,19 @@ void CategoryModel::refresh() {
     systemGroup->setSelectable(false);
     root->appendRow(systemGroup);
 
-    auto addSystemItem = [&](const QString& name, const QString& type) {
+    auto addSystemItem = [&](const QString& name, const QString& type, const QString& icon) {
         QStandardItem* item = new QStandardItem(name);
         item->setData(type, Qt::UserRole);
+        item->setIcon(IconHelper::getIcon(icon, "#aaaaaa"));
         systemGroup->appendRow(item);
     };
 
-    addSystemItem("📂 全部笔记", "all");
-    addSystemItem("📅 今日笔记", "today");
-    addSystemItem("📑 未分类", "uncategorized");
-    addSystemItem("🏷️ 未标签", "untagged");
-    addSystemItem("⭐ 书签", "bookmark");
-    addSystemItem("🗑️ 回收站", "trash");
+    addSystemItem("全部笔记", "all", "all_data");
+    addSystemItem("今日笔记", "today", "today");
+    addSystemItem("未分类", "uncategorized", "uncategorized");
+    addSystemItem("未标签", "untagged", "text");
+    addSystemItem("书签", "bookmark", "bookmark");
+    addSystemItem("回收站", "trash", "trash");
 
     // 用户分类
     QStandardItem* userGroup = new QStandardItem("我的分区");
@@ -39,6 +41,7 @@ void CategoryModel::refresh() {
         QStandardItem* item = new QStandardItem(cat["name"].toString());
         item->setData("category", Qt::UserRole);
         item->setData(cat["id"], Qt::UserRole + 1);
+        item->setIcon(IconHelper::getIcon("branch", cat["color"].toString()));
         itemMap[cat["id"].toInt()] = item;
     }
 

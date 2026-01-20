@@ -1,5 +1,6 @@
 #include "MetadataPanel.h"
 #include "../core/DatabaseManager.h"
+#include "IconHelper.h"
 #include <QVBoxLayout>
 #include <QPushButton>
 
@@ -9,9 +10,17 @@ MetadataPanel::MetadataPanel(QWidget* parent) : QWidget(parent) {
 
     QVBoxLayout* layout = new QVBoxLayout(this);
 
+    QWidget* headerArea = new QWidget();
+    QHBoxLayout* headerLayout = new QHBoxLayout(headerArea);
+    headerLayout->setContentsMargins(0,0,0,0);
+    QLabel* headerIcon = new QLabel();
+    headerIcon->setPixmap(IconHelper::getIcon("all_data", "#4FACFE", 18).pixmap(18, 18));
+    headerLayout->addWidget(headerIcon);
     QLabel* header = new QLabel("元数据");
     header->setStyleSheet("font-weight: bold; font-size: 14px; color: #4FACFE;");
-    layout->addWidget(header);
+    headerLayout->addWidget(header);
+    headerLayout->addStretch();
+    layout->addWidget(headerArea);
 
     m_titleEdit = new QLineEdit();
     m_titleEdit->setPlaceholderText("标题");

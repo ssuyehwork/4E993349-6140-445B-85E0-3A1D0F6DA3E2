@@ -1,5 +1,6 @@
 #include "NoteEditWindow.h"
 #include "../core/DatabaseManager.h"
+#include "IconHelper.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -60,9 +61,10 @@ void NoteEditWindow::initUI() {
     mainLayout->addWidget(rightPanel);
 
     // 关闭按钮
-    QPushButton* closeBtn = new QPushButton("×", this);
+    QPushButton* closeBtn = new QPushButton(this);
+    closeBtn->setIcon(IconHelper::getIcon("close", "#aaaaaa"));
     closeBtn->setGeometry(width() - 40, 10, 30, 30);
-    closeBtn->setStyleSheet("QPushButton { color: #888; background: transparent; font-size: 20px; border: none; } QPushButton:hover { color: white; }");
+    closeBtn->setStyleSheet("QPushButton { background: transparent; border: none; } QPushButton:hover { background: #c42b1c; border-radius: 5px; }");
     connect(closeBtn, &QPushButton::clicked, this, &QWidget::close);
 }
 
@@ -70,14 +72,27 @@ void NoteEditWindow::setupLeftPanel(QVBoxLayout* layout) {
     QString labelStyle = "color: #888; font-size: 12px; margin-bottom: 5px; margin-top: 10px;";
     QString inputStyle = "QLineEdit, QComboBox { background: #2D2D2D; border: 1px solid #3E3E42; border-radius: 4px; padding: 8px; color: #EEE; font-size: 13px; } QLineEdit:focus { border: 1px solid #409EFF; }";
 
-    QLabel* winTitle = new QLabel("📝 记录灵感");
-    winTitle->setStyleSheet("color: #EEE; font-size: 16px; font-weight: bold; margin-bottom: 20px;");
-    layout->addWidget(winTitle);
+    QWidget* titleArea = new QWidget();
+    QHBoxLayout* titleLayout = new QHBoxLayout(titleArea);
+    titleLayout->setContentsMargins(0,0,0,0);
+    QLabel* titleIcon = new QLabel();
+    titleIcon->setPixmap(IconHelper::getIcon("edit", "#4FACFE", 24).pixmap(24, 24));
+    titleLayout->addWidget(titleIcon);
+    QLabel* winTitle = new QLabel("记录灵感");
+    winTitle->setStyleSheet("color: #EEE; font-size: 16px; font-weight: bold;");
+    titleLayout->addWidget(winTitle);
+    titleLayout->addStretch();
+    layout->addWidget(titleArea);
+    layout->addSpacing(10);
 
     QLabel* lblCat = new QLabel("分区");
     lblCat->setStyleSheet(labelStyle);
     m_categoryCombo = new QComboBox();
-    m_categoryCombo->addItems({"未分类", "工作", "学习", "生活"});
+    m_categoryCombo->addItem("未分类", -1);
+    auto categories = DatabaseManager::instance().getAllCategories();
+    for (const auto& cat : categories) {
+        m_categoryCombo->addItem(cat["name"].toString(), cat["id"]);
+    }
     m_categoryCombo->setStyleSheet(inputStyle);
     layout->addWidget(lblCat);
     layout->addWidget(m_categoryCombo);
@@ -119,7 +134,9 @@ void NoteEditWindow::setupLeftPanel(QVBoxLayout* layout) {
 
     layout->addStretch();
 
-    QPushButton* saveBtn = new QPushButton("💾  保存 (Ctrl+S)");
+    QPushButton* saveBtn = new QPushButton();
+    saveBtn->setIcon(IconHelper::getIcon("save", "#ffffff"));
+    saveBtn->setText(" 保存 (Ctrl+S)");
     saveBtn->setShortcut(QKeySequence("Ctrl+S"));
     saveBtn->setCursor(Qt::PointingHandCursor);
     saveBtn->setFixedHeight(45);
@@ -132,11 +149,13 @@ void NoteEditWindow::setupLeftPanel(QVBoxLayout* layout) {
         if(title.isEmpty()) title = "未命名灵感";
         QString content = m_contentEdit->toPlainText();
         QString tags = m_tagEdit->text();
+        int catId = m_categoryCombo->currentData().toInt();
+        QString color = m_colorGroup->checkedButton() ? m_colorGroup->checkedButton()->property("color").toString() : "";
 
         if (m_noteId == 0) {
-            DatabaseManager::instance().addNoteAsync(title, content, tags.split(","));
+            DatabaseManager::instance().addNoteAsync(title, content, tags.split(","), color, catId);
         } else {
-            DatabaseManager::instance().updateNote(m_noteId, title, content, tags.split(","));
+            DatabaseManager::instance().updateNote(m_noteId, title, content, tags.split(","), color, catId);
         }
         emit noteSaved();
         close();
@@ -148,6 +167,7 @@ QPushButton* NoteEditWindow::createColorBtn(const QString& color, int id) {
     QPushButton* btn = new QPushButton();
     btn->setCheckable(true);
     btn->setFixedSize(30, 30);
+    btn->setProperty("color", color);
     btn->setStyleSheet(QString(
         "QPushButton { background-color: %1; border-radius: 15px; border: 2px solid transparent; }"
         "QPushButton:checked { border: 2px solid white; }"
@@ -157,14 +177,25 @@ QPushButton* NoteEditWindow::createColorBtn(const QString& color, int id) {
 
 void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     QHBoxLayout* toolBar = new QHBoxLayout();
-    QStringList tools = {"↩", "↪", "☰", "🔢", "Todo", "🗑️"};
-    for(const QString& t : tools) {
-        QPushButton* btn = new QPushButton(t);
+
+    auto addTool = [&](const QString& iconName, const QString& tip) {
+        QPushButton* btn = new QPushButton();
+        btn->setIcon(IconHelper::getIcon(iconName, "#aaaaaa"));
+        btn->setToolTip(tip);
         btn->setFixedSize(35, 35);
         btn->setCursor(Qt::PointingHandCursor);
-        btn->setStyleSheet("QPushButton { background: transparent; color: #888; border: 1px solid #333; border-radius: 4px; font-size: 14px; } QPushButton:hover { background: #333; color: white; }");
+        btn->setStyleSheet("QPushButton { background: transparent; border: 1px solid #333; border-radius: 4px; } QPushButton:hover { background: #333; }");
         toolBar->addWidget(btn);
-    }
+        return btn;
+    };
+
+    addTool("undo", "撤销");
+    addTool("redo", "重做");
+    addTool("list_ul", "无序列表");
+    addTool("list_ol", "有序列表");
+    addTool("todo", "待办事项");
+    addTool("trash", "删除内容");
+
     toolBar->addStretch();
     layout->addLayout(toolBar);
 

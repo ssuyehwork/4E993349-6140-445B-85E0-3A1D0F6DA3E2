@@ -5,6 +5,7 @@
 #include <QPainter>
 #include <QDateTime>
 #include "../models/NoteModel.h"
+#include "IconHelper.h"
 
 class NoteDelegate : public QStyledItemDelegate {
     Q_OBJECT
@@ -52,9 +53,8 @@ public:
 
         // 4. 绘制置顶图标 (如果有)
         if (isPinned) {
-            painter->setPen(QColor("#FFD700")); // 金色
-            painter->setFont(QFont("Segoe UI Emoji", 10)); // 使用 Emoji 字体或其他图标字体
-            painter->drawText(rect.right() - 30, rect.top() + 25, "📌");
+            QPixmap pin = IconHelper::getIcon("pin", "#FFD700", 16).pixmap(16, 16);
+            painter->drawPixmap(rect.right() - 25, rect.top() + 10, pin);
         }
 
         // 5. 绘制内容预览 (灰色，最多2行)
@@ -70,7 +70,10 @@ public:
         painter->setPen(QColor("#666666"));
         painter->setFont(QFont("Consolas", 8));
         QRect bottomRect = rect.adjusted(10, 80, -10, -5);
-        painter->drawText(bottomRect, Qt::AlignLeft | Qt::AlignVCenter, "🕒 " + timeStr);
+
+        QPixmap clock = IconHelper::getIcon("clock", "#666666", 12).pixmap(12, 12);
+        painter->drawPixmap(bottomRect.left(), bottomRect.top() + (bottomRect.height() - 12) / 2, clock);
+        painter->drawText(bottomRect.adjusted(15, 0, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, timeStr);
 
         // 绘制一个假的标签气泡演示
         QString tags = index.data(NoteModel::TagsRole).toString();

@@ -1,4 +1,5 @@
 #include "Toolbox.h"
+#include "IconHelper.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -19,11 +20,11 @@ Toolbox::Toolbox(QWidget* parent) : QDialog(parent) {
 
     QWidget* timeTab = new QWidget();
     initTimePasteTab(timeTab);
-    tabs->addTab(timeTab, "时间助手");
+    tabs->addTab(timeTab, IconHelper::getIcon("clock", "#aaaaaa"), "时间助手");
 
     QWidget* pwdTab = new QWidget();
     initPasswordGenTab(pwdTab);
-    tabs->addTab(pwdTab, "密码生成");
+    tabs->addTab(pwdTab, IconHelper::getIcon("lock", "#aaaaaa"), "密码生成");
 
     layout->addWidget(tabs);
 }

@@ -2,9 +2,10 @@
 #define HEADERBAR_H
 
 #include <QWidget>
-#include <QLineEdit>
 #include <QPushButton>
 #include <QLabel>
+#include <QMenu>
+#include "SearchLineEdit.h"
 
 class HeaderBar : public QWidget {
     Q_OBJECT
@@ -20,7 +21,9 @@ signals:
     void previewToggled(bool checked);
 
 private:
-    QLineEdit* m_searchEdit;
+    void setupSearchHistory();
+
+    SearchLineEdit* m_searchEdit;
     QLabel* m_pageLabel;
     int m_currentPage = 1;
     int m_totalPages = 1;

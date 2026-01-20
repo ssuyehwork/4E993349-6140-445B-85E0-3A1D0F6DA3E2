@@ -77,19 +77,29 @@ int main(int argc, char *argv[]) {
     QObject::connect(ball, &FloatingBall::requestMainWindow, &mainWin, &MainWindow::showNormal);
     QObject::connect(ball, &FloatingBall::requestQuickWindow, quickWin, &QuickWindow::showCentered);
 
-    // 7. 监听剪贴板
+    // 7. 监听剪贴板 (智能标题与自动分类)
     QObject::connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected,
         [&](const QString& content, const QString& type, const QByteArray& data){
         qDebug() << "[Main] 接收到剪贴板信号:" << type;
 
         QString title;
-        if (type == "image") title = "[图片]";
-        else if (type == "file") {
-            QString firstFile = content.split(";").first();
-            title = "[文件] " + QFileInfo(firstFile).fileName();
+        if (type == "image") {
+            title = "[图片] " + QDateTime::currentDateTime().toString("MMdd_HHmm");
+        } else if (type == "file") {
+            QStringList files = content.split(";", Qt::SkipEmptyParts);
+            if (!files.isEmpty()) {
+                QString firstFileName = QFileInfo(files.first()).fileName();
+                if (files.size() > 1) title = QString("[多文件] %1 等%2个文件").arg(firstFileName).arg(files.size());
+                else title = "[文件] " + firstFileName;
+            } else title = "[未知文件]";
         } else {
-            title = content.left(30).simplified();
-            if (content.length() > 30) title += "...";
+            // 文本：取第一行
+            QString firstLine = content.section('\n', 0, 0).trimmed();
+            if (firstLine.isEmpty()) title = "无标题灵感";
+            else {
+                title = firstLine.left(40);
+                if (firstLine.length() > 40) title += "...";
+            }
         }
 
         DatabaseManager::instance().addNoteAsync(title, content, {"剪贴板"}, "", -1, type, data);

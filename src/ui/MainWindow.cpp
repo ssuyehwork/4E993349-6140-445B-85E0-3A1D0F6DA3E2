@@ -80,6 +80,13 @@ void MainWindow::initUI() {
     m_noteList->setSpacing(2);
     m_noteList->setStyleSheet("background: #1E1E1E; border: none;");
     connect(m_noteList, &QListView::clicked, this, &MainWindow::onNoteSelected);
+    connect(m_noteList, &QListView::doubleClicked, this, [this](const QModelIndex& index){
+        if (!index.isValid()) return;
+        int id = index.data(NoteModel::IdRole).toInt();
+        NoteEditWindow* win = new NoteEditWindow(id);
+        connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
+        win->show();
+    });
     splitter->addWidget(m_noteList);
 
     // 4. 右侧主展示区
@@ -87,9 +94,10 @@ void MainWindow::initUI() {
 
     auto* rightTab = new QTabWidget();
     m_editor = new Editor();
+    m_editor->togglePreview(true); // 默认开启预览模式
     m_graphWidget = new GraphWidget();
-    rightTab->addTab(m_editor, "📝 编辑器");
-    rightTab->addTab(m_graphWidget, "🕸️ 知识图谱");
+    rightTab->addTab(m_editor, IconHelper::getIcon("eye", "#aaaaaa"), "预览");
+    rightTab->addTab(m_graphWidget, IconHelper::getIcon("branch", "#aaaaaa"), "知识图谱");
     mainTabSplitter->addWidget(rightTab);
 
     // 5. 元数据面板

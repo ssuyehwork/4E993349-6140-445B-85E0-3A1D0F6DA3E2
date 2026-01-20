@@ -43,18 +43,6 @@ bool DatabaseManager::init(const QString& dbPath) {
 
     if (!createTables()) return false;
 
-    QSqlQuery query(m_db);
-    if (query.exec("SELECT COUNT(*) FROM notes")) {
-        if (query.next() && query.value(0).toInt() == 0) {
-            QSqlQuery insertQuery(m_db);
-            insertQuery.prepare("INSERT INTO notes (title, content, tags) VALUES (:title, :content, :tags)");
-            insertQuery.bindValue(":title", "欢迎使用极速灵感");
-            insertQuery.bindValue(":content", "这是一条自动生成的欢迎笔记。");
-            insertQuery.bindValue(":tags", "入门");
-            insertQuery.exec();
-        }
-    }
-
     return true;
 }
 
@@ -114,6 +102,9 @@ bool DatabaseManager::createTables() {
     // 3. 创建 tags 和关联表
     query.exec("CREATE TABLE IF NOT EXISTS tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL)");
     query.exec("CREATE TABLE IF NOT EXISTS note_tags (note_id INTEGER, tag_id INTEGER, PRIMARY KEY (note_id, tag_id))");
+
+    // 索引
+    query.exec("CREATE INDEX IF NOT EXISTS idx_notes_content_hash ON notes(content_hash)");
 
     // 4. FTS5 全文搜索
     QString createFtsTable = R"(

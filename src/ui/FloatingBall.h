@@ -11,6 +11,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
+#include "WritingAnimation.h"
 
 class FloatingBall : public QWidget {
     Q_OBJECT
@@ -43,6 +44,7 @@ private:
     QPoint m_velocity;
     QTimer* m_inertiaTimer;
     QTimer* m_particleTimer;
+    WritingAnimation* m_writingAnim;
 
     struct Particle {
         QPointF pos;

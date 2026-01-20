@@ -1,4 +1,5 @@
 #include "QuickWindow.h"
+#include "NoteEditWindow.h"
 #include "../core/DatabaseManager.h"
 #include <QGuiApplication>
 #include <QScreen>
@@ -67,6 +68,13 @@ void QuickWindow::initUI() {
     m_listView = new QListView();
     m_model = new NoteModel(this);
     m_listView->setModel(m_model);
+    connect(m_listView, &QListView::doubleClicked, this, [this](const QModelIndex& index){
+        if (!index.isValid()) return;
+        int id = index.data(NoteModel::IdRole).toInt();
+        NoteEditWindow* win = new NoteEditWindow(id);
+        connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
+        win->show();
+    });
     hLayout->addWidget(m_listView);
 
     layout->addLayout(hLayout);
