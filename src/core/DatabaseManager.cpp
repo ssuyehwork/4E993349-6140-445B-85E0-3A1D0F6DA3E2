@@ -18,6 +18,10 @@ DatabaseManager::~DatabaseManager() {
 
 bool DatabaseManager::init(const QString& dbPath) {
     QMutexLocker locker(&m_mutex);
+
+    // 如果已经打开过，先关闭
+    if (m_db.isOpen()) m_db.close();
+
     m_db = QSqlDatabase::addDatabase("QSQLITE");
     m_db.setDatabaseName(dbPath);
 
@@ -29,16 +33,18 @@ bool DatabaseManager::init(const QString& dbPath) {
     if (!createTables()) return false;
 
     // 如果数据库为空，添加一条欢迎信息
-    QSqlQuery query("SELECT COUNT(*) FROM notes");
-    if (query.next() && query.value(0).toInt() == 0) {
-        addNote("欢迎使用极速灵感", "这是一条自动生成的欢迎笔记。你可以点击悬浮球或按 Alt+Space 开始记录！", {"入门"});
+    QSqlQuery query(m_db);
+    if (query.exec("SELECT COUNT(*) FROM notes")) {
+        if (query.next() && query.value(0).toInt() == 0) {
+            addNote("欢迎使用极速灵感", "这是一条自动生成的欢迎笔记。你可以点击悬浮球或按 Alt+Space 开始记录！", {"入门"});
+        }
     }
 
     return true;
 }
 
 bool DatabaseManager::createTables() {
-    QSqlQuery query;
+    QSqlQuery query(m_db);
 
     // 普通笔记表
     QString createNotesTable = R"(
@@ -85,7 +91,9 @@ bool DatabaseManager::createTables() {
 
 bool DatabaseManager::addNote(const QString& title, const QString& content, const QStringList& tags) {
     QMutexLocker locker(&m_mutex);
-    QSqlQuery query;
+    if (!m_db.isOpen()) return false;
+
+    QSqlQuery query(m_db);
     query.prepare("INSERT INTO notes (title, content, tags) VALUES (:title, :content, :tags)");
     query.bindValue(":title", title);
     query.bindValue(":content", content);
@@ -100,7 +108,9 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
 
 bool DatabaseManager::updateNote(int id, const QString& title, const QString& content, const QStringList& tags) {
     QMutexLocker locker(&m_mutex);
-    QSqlQuery query;
+    if (!m_db.isOpen()) return false;
+
+    QSqlQuery query(m_db);
     query.prepare("UPDATE notes SET title=:title, content=:content, tags=:tags, updated_at=CURRENT_TIMESTAMP WHERE id=:id");
     query.bindValue(":title", title);
     query.bindValue(":content", content);
@@ -111,7 +121,9 @@ bool DatabaseManager::updateNote(int id, const QString& title, const QString& co
 
 bool DatabaseManager::deleteNote(int id) {
     QMutexLocker locker(&m_mutex);
-    QSqlQuery query;
+    if (!m_db.isOpen()) return false;
+
+    QSqlQuery query(m_db);
     query.prepare("DELETE FROM notes WHERE id=:id");
     query.bindValue(":id", id);
     return query.exec();
@@ -128,7 +140,9 @@ void DatabaseManager::addNoteAsync(const QString& title, const QString& content,
 QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword) {
     QMutexLocker locker(&m_mutex);
     QList<QVariantMap> results;
-    QSqlQuery query;
+    if (!m_db.isOpen()) return results;
+
+    QSqlQuery query(m_db);
 
     // 使用 FTS5 进行高效搜索
     query.prepare("SELECT notes.* FROM notes JOIN notes_fts ON notes.id = notes_fts.rowid WHERE notes_fts MATCH :keyword ORDER BY rank");
@@ -155,15 +169,18 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword) {
 QList<QVariantMap> DatabaseManager::getAllNotes() {
     QMutexLocker locker(&m_mutex);
     QList<QVariantMap> results;
-    QSqlQuery query("SELECT * FROM notes ORDER BY updated_at DESC");
+    if (!m_db.isOpen()) return results;
 
-    while (query.next()) {
-        QVariantMap map;
-        QSqlRecord rec = query.record();
-        for (int i = 0; i < rec.count(); ++i) {
-            map[rec.fieldName(i)] = query.value(i);
+    QSqlQuery query(m_db);
+    if (query.exec("SELECT * FROM notes ORDER BY updated_at DESC")) {
+        while (query.next()) {
+            QVariantMap map;
+            QSqlRecord rec = query.record();
+            for (int i = 0; i < rec.count(); ++i) {
+                map[rec.fieldName(i)] = query.value(i);
+            }
+            results.append(map);
         }
-        results.append(map);
     }
     return results;
 }

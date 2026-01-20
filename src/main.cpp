@@ -1,5 +1,7 @@
 #include <QApplication>
 #include <QFile>
+#include <QMessageBox>
+#include <QCoreApplication>
 #include "core/DatabaseManager.h"
 #include "core/HotkeyManager.h"
 #include "core/ClipboardMonitor.h"
@@ -18,8 +20,13 @@ int main(int argc, char *argv[]) {
         a.setStyleSheet(styleFile.readAll());
     }
 
-    // 1. 初始化数据库
-    if (!DatabaseManager::instance().init()) {
+    // 1. 初始化数据库 - 使用绝对路径确保稳定性
+    QString dbPath = QCoreApplication::applicationDirPath() + "/notes.db";
+    if (!DatabaseManager::instance().init(dbPath)) {
+        QMessageBox::critical(nullptr, "启动失败",
+            "数据库驱动加载失败或无法创建数据库文件！\n\n"
+            "1. 请检查目录下是否存在 [sqldrivers] 文件夹及 qsqlite.dll\n"
+            "2. 确保程序有权限在当前目录写入文件。");
         return -1;
     }
 
@@ -35,7 +42,6 @@ int main(int argc, char *argv[]) {
     QuickWindow* quickWin = new QuickWindow();
 
     // 5. 注册全局热键 (Alt+Space)
-    // 注意: MOD_ALT = 0x0001, VK_SPACE = 0x20
     HotkeyManager::instance().registerHotkey(1, 0x0001, 0x20);
 
     QObject::connect(&HotkeyManager::instance(), &HotkeyManager::hotkeyPressed, [&](int id){
@@ -51,7 +57,6 @@ int main(int argc, char *argv[]) {
     // 6. 监听剪贴板
     QObject::connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, [&](const QString& content){
         qDebug() << "检测到剪贴板新内容:" << content;
-        // 可以在这里弹出托盘通知或自动保存
     });
 
     return a.exec();

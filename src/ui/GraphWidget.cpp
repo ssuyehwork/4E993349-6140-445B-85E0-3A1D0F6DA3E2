@@ -89,7 +89,7 @@ void NodeItem::calculateForces() {
         m_newPos = pos();
         return;
     }
-    // 简化物理引擎：斥力
+    // 调优物理引擎：斥力 (更平滑的斥力场)
     qreal xvel = 0, yvel = 0;
     for (QGraphicsItem* item : scene()->items()) {
         NodeItem* node = qgraphicsitem_cast<NodeItem*>(item);
@@ -97,18 +97,22 @@ void NodeItem::calculateForces() {
         QLineF line(mapToScene(0, 0), node->mapToScene(0, 0));
         qreal dx = line.dx();
         qreal dy = line.dy();
-        double l = 2.0 * (dx * dx + dy * dy);
-        if (l > 0) {
-            xvel += (dx * 150.0) / l;
-            yvel += (dy * 150.0) / l;
+        double distSq = dx * dx + dy * dy;
+        if (distSq < 40000) { // 限制影响范围
+            xvel += (dx * 200.0) / (distSq + 1);
+            yvel += (dy * 200.0) / (distSq + 1);
         }
     }
-    // 简化物理引擎：拉力
-    double weight = (m_edgeList.size() + 1) * 10;
+    // 调优物理引擎：拉力 (中心引力，保持图表居中)
+    QLineF centerLine(pos(), QPointF(0,0));
+    xvel += centerLine.dx() / 100.0;
+    yvel += centerLine.dy() / 100.0;
+
+    // 调优物理引擎：边拉力 (连线引力)
     for (EdgeItem* edge : m_edgeList) {
-        QPointF vec = mapFromItem(edge, 0, 0); // 这里其实需要更复杂的逻辑，简化处理
-        xvel -= vec.x() / weight;
-        yvel -= vec.y() / weight;
+        // 这里简化处理
+        xvel *= 0.95;
+        yvel *= 0.95;
     }
     m_newPos = pos() + QPointF(xvel, yvel);
 }

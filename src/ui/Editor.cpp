@@ -40,6 +40,7 @@ void MarkdownHighlighter::highlightBlock(const QString& text) {
 
 #include <QMimeData>
 #include <QFileInfo>
+#include <QKeyEvent>
 
 Editor::Editor(QWidget* parent) : QPlainTextEdit(parent) {
     m_highlighter = new MarkdownHighlighter(document());
@@ -59,4 +60,17 @@ void Editor::insertFromMimeData(const QMimeData* source) {
         return;
     }
     QPlainTextEdit::insertFromMimeData(source);
+}
+
+void Editor::keyPressEvent(QKeyEvent* event) {
+    QPlainTextEdit::keyPressEvent(event);
+
+    // 检测 [[ 输入
+    if (event->text() == "[") {
+        QString fullText = toPlainText();
+        int cursor = textCursor().position();
+        if (cursor >= 2 && fullText.mid(cursor - 2, 2) == "[[") {
+            emit linkTriggered(cursorRect().bottomRight());
+        }
+    }
 }

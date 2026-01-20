@@ -1,77 +1,100 @@
-/* 全局深色主题 */
+/* 极速灵感 (RapidNotes) 商业级深色主题 */
+
 QWidget {
     background-color: #1E1E1E;
     color: #D4D4D4;
-    font-family: "Segoe UI", "Microsoft YaHei";
+    font-family: "Segoe UI", "Microsoft YaHei", "Arial";
+    font-size: 10pt;
 }
 
-QScrollBar:vertical {
-    border: none;
-    background: #2D2D2D;
-    width: 10px;
-}
-
-QScrollBar::handle:vertical {
-    background: #3E3E42;
-    min-height: 20px;
-}
-
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-    height: 0px;
-}
-
-QPushButton {
-    background-color: #0E639C;
-    color: white;
-    border: none;
-    padding: 6px 20px;
-    border-radius: 2px;
-}
-
-QPushButton:hover {
-    background-color: #1177BB;
-}
-
-QPushButton:pressed {
-    background-color: #0D598C;
-}
-
-QSplitter::handle {
+/* 侧边栏样式 */
+QTreeView {
     background-color: #252526;
+    border: none;
+    outline: none;
+    padding: 10px;
 }
 
+QTreeView::item {
+    height: 32px;
+    padding-left: 5px;
+}
+
+QTreeView::item:hover {
+    background-color: #2A2D2E;
+}
+
+QTreeView::item:selected {
+    background-color: #37373D;
+    color: white;
+}
+
+/* 分割条样式 */
+QSplitter::handle {
+    background-color: #000000;
+    width: 2px;
+    height: 2px;
+}
+
+/* 列表样式 */
 QListView {
+    background-color: #1E1E1E;
+    border: none;
     outline: none;
 }
 
-QListView::item {
-    padding: 10px;
-    border-bottom: 1px solid #2D2D2D;
-}
-
-QListView::item:selected {
-    background-color: #37373D;
-}
-
+/* 选项卡样式 */
 QTabWidget::pane {
     border: none;
-    background: #1E1E1E;
+    background-color: #1E1E1E;
 }
 
 QTabBar::tab {
-    background: #2D2D2D;
-    padding: 8px 20px;
-    margin-right: 2px;
+    background-color: #252526;
+    color: #969696;
+    padding: 8px 25px;
+    border-bottom: 2px solid transparent;
 }
 
 QTabBar::tab:selected {
-    background: #1E1E1E;
-    border-top: 2px solid #007ACC;
+    background-color: #1E1E1E;
+    color: #007ACC;
+    border-bottom: 2px solid #007ACC;
 }
 
+/* 按钮样式 */
+QPushButton {
+    background-color: #333333;
+    border: 1px solid #444444;
+    color: white;
+    padding: 5px 15px;
+    border-radius: 4px;
+}
+
+QPushButton:hover {
+    background-color: #444444;
+}
+
+QPushButton:pressed {
+    background-color: #007ACC;
+}
+
+/* 输入框样式 */
 QLineEdit {
     background-color: #2D2D2D;
     border: 1px solid #3E3E42;
-    padding: 5px;
+    padding: 8px;
+    border-radius: 4px;
     color: white;
+}
+
+QLineEdit:focus {
+    border-color: #007ACC;
+}
+
+/* 文本编辑器 */
+QTextEdit, QPlainTextEdit {
+    background-color: #1E1E1E;
+    border: none;
+    line-height: 1.6;
 }

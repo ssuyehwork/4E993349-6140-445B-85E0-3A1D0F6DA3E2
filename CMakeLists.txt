@@ -11,6 +11,8 @@ set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Sql Network Concurrent)
 
+qt_standard_project_setup()
+
 # 源代码列表
 set(SOURCES
     src/main.cpp
@@ -24,11 +26,27 @@ set(SOURCES
     src/ui/MainWindow.cpp
     src/ui/GraphWidget.cpp
     src/ui/Editor.cpp
-    src/ui/ScreenshotTool.h
     resources/resources.qrc
 )
 
-add_executable(RapidNotes ${SOURCES})
+# 头文件列表
+set(HEADERS
+    src/core/DatabaseManager.h
+    src/core/HotkeyManager.h
+    src/core/ClipboardMonitor.h
+    src/core/OCRManager.h
+    src/core/Utils.h
+    src/models/NoteModel.h
+    src/ui/FloatingBall.h
+    src/ui/QuickWindow.h
+    src/ui/MainWindow.h
+    src/ui/NoteDelegate.h
+    src/ui/GraphWidget.h
+    src/ui/Editor.h
+    src/ui/ScreenshotTool.h
+)
+
+add_executable(RapidNotes ${SOURCES} ${HEADERS})
 
 target_link_libraries(RapidNotes PRIVATE
     Qt6::Core

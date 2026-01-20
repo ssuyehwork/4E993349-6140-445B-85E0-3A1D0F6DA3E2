@@ -19,6 +19,7 @@ private:
     QTreeView* m_sideBar;
     QListView* m_noteList;
     QWidget* m_editorArea;
+    QWidget* m_metaPanel;
     NoteModel* m_model;
 };
 

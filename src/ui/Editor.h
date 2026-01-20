@@ -23,8 +23,11 @@ class Editor : public QPlainTextEdit {
     Q_OBJECT
 public:
     explicit Editor(QWidget* parent = nullptr);
+signals:
+    void linkTriggered(const QPoint& pos);
 protected:
     void insertFromMimeData(const QMimeData* source) override;
+    void keyPressEvent(QKeyEvent* event) override;
 private:
     MarkdownHighlighter* m_highlighter;
 };

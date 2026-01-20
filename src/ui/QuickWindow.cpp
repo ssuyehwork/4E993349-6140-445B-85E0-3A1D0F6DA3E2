@@ -1,9 +1,12 @@
 #include "QuickWindow.h"
 #include "../core/DatabaseManager.h"
 #include <QGuiApplication>
+#include <QClipboard>
 #include <QScreen>
 #include <QKeyEvent>
 #include <QGraphicsDropShadowEffect>
+#include <QLabel>
+#include <QListWidget>
 
 QuickWindow::QuickWindow(QWidget* parent) : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) {
     setAttribute(Qt::WA_TranslucentBackground);
@@ -31,6 +34,7 @@ void QuickWindow::initUI() {
     auto* layout = new QVBoxLayout(container);
 
     m_searchEdit = new QLineEdit();
+    m_searchEdit->installEventFilter(this); // 用于拦截上下键
     m_searchEdit->setPlaceholderText("搜索笔记或记录灵感...");
     connect(m_searchEdit, &QLineEdit::textChanged, [this](const QString& text){
         if (text.isEmpty()) {
@@ -40,13 +44,22 @@ void QuickWindow::initUI() {
         }
     });
 
+    auto* contentLayout = new QHBoxLayout();
+
     m_listView = new QListView();
     m_model = new NoteModel(this);
     m_listView->setModel(m_model);
-    m_listView->setFixedHeight(300);
+
+    auto* sideBar = new QListWidget();
+    sideBar->setFixedWidth(120);
+    sideBar->addItems({"全部", "今日", "已收藏", "回收站"});
+    sideBar->setStyleSheet("background: #252526; border: none; font-size: 12px; color: #888;");
+
+    contentLayout->addWidget(sideBar);
+    contentLayout->addWidget(m_listView);
 
     layout->addWidget(m_searchEdit);
-    layout->addWidget(m_listView);
+    layout->addLayout(contentLayout);
 
     mainLayout->addWidget(container);
     setFixedSize(600, 400);
@@ -64,5 +77,31 @@ bool QuickWindow::event(QEvent* event) {
     if (event->type() == QEvent::WindowDeactivate) {
         hide();
     }
+    if (event->type() == QEvent::KeyPress) {
+        QKeyEvent* ke = static_cast<QKeyEvent*>(event);
+        if (ke->key() == Qt::Key_Return || ke->key() == Qt::Key_Enter) {
+            QModelIndex idx = m_listView->currentIndex();
+            if (idx.isValid()) {
+                QGuiApplication::clipboard()->setText(idx.data(Qt::UserRole + 3).toString());
+                hide();
+            }
+        }
+    }
     return QWidget::event(event);
+}
+
+bool QuickWindow::eventFilter(QObject* obj, QEvent* event) {
+    if (obj == m_searchEdit && event->type() == QEvent::KeyPress) {
+        QKeyEvent* ke = static_cast<QKeyEvent*>(event);
+        if (ke->key() == Qt::Key_Up) {
+            int row = m_listView->currentIndex().row();
+            m_listView->setCurrentIndex(m_model->index(qMax(0, row - 1), 0));
+            return true;
+        } else if (ke->key() == Qt::Key_Down) {
+            int row = m_listView->currentIndex().row();
+            m_listView->setCurrentIndex(m_model->index(qMin(m_model->rowCount() - 1, row + 1), 0));
+            return true;
+        }
+    }
+    return QWidget::eventFilter(obj, event);
 }
