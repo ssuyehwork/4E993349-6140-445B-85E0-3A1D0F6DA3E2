@@ -1,0 +1,19 @@
+cmake_minimum_required(VERSION 3.16)
+project(RapidNotes VERSION 1.0.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(SOURCES
+    src/main.cpp
+    src/core/DatabaseManager.cpp
+    src/core/HotkeyManager.cpp
+    src/core/ClipboardMonitor.cpp
+    src/core/OCRManager.cpp
+    src/models/NoteModel.cpp
+    src/ui/FloatingBall.cpp
+    src/ui/QuickWindow.cpp
+    src/ui/MainWindow.cpp
+    src/ui/GraphWidget.cpp
+    src/ui/Editor.cpp
+    src/ui/ScreenshotTool.h
+    resources/resources.qrc
+)
+add_executable(RapidNotes ${SOURCES})
