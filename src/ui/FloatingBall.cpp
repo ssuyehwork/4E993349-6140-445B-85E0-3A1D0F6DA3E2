@@ -130,7 +130,7 @@ void FloatingBall::burstParticles() {
     for(int i=0; i<20; ++i) {
         Particle p;
         p.pos = rect().center();
-        double angle = QRandomGenerator::global()->generateDouble() * 2 * M_PI;
+        double angle = QRandomGenerator::global()->generateDouble() * 2 * 3.14159265358979323846;
         double speed = QRandomGenerator::global()->generateDouble() * 5 + 2;
         p.velocity = QPointF(cos(angle) * speed, sin(angle) * speed);
         p.life = 1.0;

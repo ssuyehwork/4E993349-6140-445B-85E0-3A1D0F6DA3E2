@@ -7,6 +7,8 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QPixmap>
+#include <QPainter>
+#include <QPaintEvent>
 
 class ScreenshotTool : public QWidget {
     Q_OBJECT

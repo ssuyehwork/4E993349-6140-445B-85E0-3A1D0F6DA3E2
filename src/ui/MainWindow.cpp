@@ -2,6 +2,7 @@
 #include "GraphWidget.h"
 #include "../core/DatabaseManager.h"
 #include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QHeaderView>
 #include <QTabWidget>
 
