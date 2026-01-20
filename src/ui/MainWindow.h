@@ -44,8 +44,6 @@ private:
     QuickPreview* m_quickPreview;
 
     Editor* m_editor;
-
-    QWidget* m_editorArea;
 };
 
 #endif // MAINWINDOW_H

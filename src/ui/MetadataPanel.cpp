@@ -43,11 +43,14 @@ MetadataPanel::MetadataPanel(QWidget* parent) : QWidget(parent) {
     layout->addWidget(createCapsule("星级", "rating"));
     layout->addWidget(createCapsule("状态", "status"));
 
-    layout->addStretch();
+    // 标签编辑 (紧随其后，不加 Stretch)
+    layout->addSpacing(10);
+    QLabel* tagTitle = new QLabel("标签 (双击更多):");
+    tagTitle->setStyleSheet("color: #888; font-size: 11px; font-weight: bold; border: none; background: transparent;");
+    layout->addWidget(tagTitle);
 
-    // 标签编辑
     m_tagEdit = new QLineEdit();
-    m_tagEdit->setPlaceholderText("标签 (逗号分隔)");
+    m_tagEdit->setPlaceholderText("输入标签...");
     m_tagEdit->setStyleSheet("background: rgba(255,255,255,0.05); border: 1px solid #444; border-radius: 8px; color: #eee; padding: 8px; font-size: 12px;");
     connect(m_tagEdit, &QLineEdit::editingFinished, [this](){
         if(m_currentNoteId != -1) {
@@ -55,26 +58,30 @@ MetadataPanel::MetadataPanel(QWidget* parent) : QWidget(parent) {
             emit noteUpdated();
         }
     });
-    layout->addWidget(new QLabel("标签:"));
     layout->addWidget(m_tagEdit);
+
+    layout->addStretch(); // 将所有内容推向顶部
 }
 
 QWidget* MetadataPanel::createCapsule(const QString& label, const QString& key) {
     QWidget* row = new QWidget();
     QHBoxLayout* layout = new QHBoxLayout(row);
-    layout->setContentsMargins(10, 8, 10, 8);
-    layout->setSpacing(10);
+    layout->setContentsMargins(12, 8, 12, 8);
+    layout->setSpacing(0);
 
-    row->setStyleSheet("background: rgba(255,255,255,0.03); border: 1px solid #3a3a3a; border-radius: 8px;");
+    row->setStyleSheet("QWidget#CapsuleRow { background: rgba(255,255,255,0.04); border: 1px solid #3a3a3a; border-radius: 10px; } QWidget#CapsuleRow:hover { background: rgba(255,255,255,0.07); border-color: #4a90e2; }");
+    row->setObjectName("CapsuleRow");
 
     QLabel* lblLabel = new QLabel(label);
-    lblLabel->setStyleSheet("color: #888; font-size: 11px; min-width: 40px; border: none; background: transparent;");
+    lblLabel->setStyleSheet("color: #999; font-size: 11px; font-weight: bold; border: none; background: transparent;");
 
     QLabel* lblValue = new QLabel("-");
-    lblValue->setStyleSheet("color: #ddd; font-size: 12px; font-weight: bold; border: none; background: transparent;");
-    lblValue->setWordWrap(true);
+    lblValue->setStyleSheet("color: #eee; font-size: 12px; font-weight: bold; border: none; background: transparent;");
+    lblValue->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    lblValue->setWordWrap(false); // 固定布局下尽量保持单行，或者自动省略
 
     layout->addWidget(lblLabel);
+    layout->addStretch(); // 标签在左，值在右
     layout->addWidget(lblValue);
 
     m_capsules[key] = lblValue;

@@ -5,7 +5,6 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QHeaderView>
-#include <QTabWidget>
 #include <QLabel>
 #include <QSplitter>
 #include <QMenu>
@@ -65,9 +64,11 @@ void MainWindow::initUI() {
 
     auto* splitter = new QSplitter(Qt::Horizontal);
     splitter->setHandleWidth(1);
+    splitter->setChildrenCollapsible(false);
 
-    // 2. 左侧侧边栏
+    // 2. 左侧侧边栏 (固定最小宽度)
     m_sideBar = new QTreeView();
+    m_sideBar->setFixedWidth(220); // 彻底固定
     m_sideModel = new CategoryModel(this);
     m_sideBar->setModel(m_sideModel);
     m_sideBar->setHeaderHidden(true);
@@ -120,20 +121,23 @@ void MainWindow::initUI() {
     });
     splitter->addWidget(m_noteList);
 
-    // 4. 右侧编辑器 + 元数据面板 (固定布局)
-    auto* rightSplitter = new QSplitter(Qt::Horizontal);
-    rightSplitter->setHandleWidth(1);
+    // 4. 右侧内容容器 (编辑器 + 元数据)
+    // 为了实现“固定”感，这里不再使用嵌套 Splitter，而是使用 QHBoxLayout
+    QWidget* rightContainer = new QWidget();
+    QHBoxLayout* rightLayout = new QHBoxLayout(rightContainer);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->setSpacing(0);
 
     m_editor = new Editor();
-    m_editor->togglePreview(false); // 默认编辑模式
-    rightSplitter->addWidget(m_editor);
+    m_editor->togglePreview(false);
+    rightLayout->addWidget(m_editor, 4); // 编辑器占 4 份
 
-    // 5. 元数据面板
     m_metaPanel = new MetadataPanel(this);
+    m_metaPanel->setFixedWidth(240); // 元数据面板强制固定宽度
     connect(m_metaPanel, &MetadataPanel::noteUpdated, this, &MainWindow::refreshData);
-    rightSplitter->addWidget(m_metaPanel);
+    rightLayout->addWidget(m_metaPanel, 1);
 
-    splitter->addWidget(rightSplitter);
+    splitter->addWidget(rightContainer);
 
     // 快捷键注册
     auto* actionFilter = new QAction(this);
@@ -157,10 +161,10 @@ void MainWindow::initUI() {
 
     splitter->setStretchFactor(0, 1); // 侧边栏
     splitter->setStretchFactor(1, 2); // 笔记列表
-    splitter->setStretchFactor(2, 6); // 内容区
+    splitter->setStretchFactor(2, 8); // 内容区
 
-    rightSplitter->setStretchFactor(0, 4); // 编辑器
-    rightSplitter->setStretchFactor(1, 1); // 元数据面板
+    // 显式设置初始大小比例
+    splitter->setSizes({220, 300, 800});
 
     mainLayout->addWidget(splitter);
 

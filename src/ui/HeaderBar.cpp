@@ -6,8 +6,8 @@
 #include <QApplication>
 
 HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
-    setFixedHeight(50);
-    setStyleSheet("background-color: #2D2D2D; border-bottom: 1px solid #333;");
+    setFixedHeight(40);
+    setStyleSheet("background-color: #252526; border-bottom: 1px solid #333;");
 
     QHBoxLayout* layout = new QHBoxLayout(this);
     layout->setContentsMargins(10, 0, 10, 0);
