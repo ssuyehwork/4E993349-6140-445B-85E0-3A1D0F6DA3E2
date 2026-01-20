@@ -45,19 +45,8 @@ void QuickWindow::initUI() {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    m_searchEdit = new QLineEdit();
+    m_searchEdit = new SearchLineEdit();
     m_searchEdit->setPlaceholderText("搜索笔记或按回车保存...");
-    m_searchEdit->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(m_searchEdit, &QLineEdit::customContextMenuRequested, [this](const QPoint& pos){
-        QSettings settings("RapidNotes", "SearchHistory");
-        QStringList history = settings.value("list").toStringList();
-        if (history.isEmpty()) return;
-        QMenu menu(this);
-        for (const QString& item : history) {
-            menu.addAction(item, [this, item](){ m_searchEdit->setText(item); });
-        }
-        menu.exec(m_searchEdit->mapToGlobal(pos));
-    });
     layout->addWidget(m_searchEdit);
 
     auto* hLayout = new QHBoxLayout();
@@ -139,6 +128,7 @@ void QuickWindow::initUI() {
     connect(m_searchEdit, &QLineEdit::returnPressed, [this](){
         QString text = m_searchEdit->text();
         if (!text.isEmpty()) {
+            m_searchEdit->addHistoryEntry(text);
             DatabaseManager::instance().addNoteAsync("快速记录", text, {"Quick"});
             m_searchEdit->clear();
             hide();

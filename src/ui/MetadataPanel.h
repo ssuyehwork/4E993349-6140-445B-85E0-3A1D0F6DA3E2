@@ -16,12 +16,14 @@ signals:
     void noteUpdated();
 
 private:
+    void updateCapsule(const QString& key, const QString& value);
+    QWidget* createCapsule(const QString& label, const QString& key);
+
     int m_currentNoteId = -1;
     QLineEdit* m_titleEdit;
     QLineEdit* m_tagEdit;
-    QLabel* m_createdLabel;
-    QLabel* m_updatedLabel;
-    QLabel* m_ratingLabel;
+
+    QMap<QString, QLabel*> m_capsules;
 };
 
 #endif // METADATAPANEL_H

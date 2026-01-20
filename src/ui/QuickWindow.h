@@ -2,7 +2,7 @@
 #define QUICKWINDOW_H
 
 #include <QWidget>
-#include <QLineEdit>
+#include "SearchLineEdit.h"
 #include <QListView>
 #include <QTreeView>
 #include <QVBoxLayout>
@@ -27,7 +27,7 @@ protected:
 private:
     void initUI();
 
-    QLineEdit* m_searchEdit;
+    SearchLineEdit* m_searchEdit;
     QListView* m_listView;
     NoteModel* m_model;
     QuickPreview* m_quickPreview;

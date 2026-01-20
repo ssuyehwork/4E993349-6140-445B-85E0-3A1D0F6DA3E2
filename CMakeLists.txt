@@ -28,7 +28,6 @@ set(SOURCES
     src/ui/MetadataPanel.cpp
     src/ui/Toolbox.cpp
     src/ui/SystemTray.cpp
-    src/ui/GraphWidget.cpp
     src/ui/Editor.cpp
     src/ui/NoteDelegate.h
     src/ui/NoteEditWindow.h    # <--- 必须有

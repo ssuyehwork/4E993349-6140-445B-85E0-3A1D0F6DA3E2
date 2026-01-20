@@ -29,8 +29,6 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent* event) override;
 
 private:
-    void setupSearchHistory();
-
     SearchLineEdit* m_searchEdit;
     QLabel* m_pageLabel;
     int m_currentPage = 1;

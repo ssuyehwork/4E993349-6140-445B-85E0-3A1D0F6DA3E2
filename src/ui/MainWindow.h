@@ -9,7 +9,6 @@
 #include "../models/NoteModel.h"
 #include "../models/CategoryModel.h"
 #include "Editor.h"
-#include "GraphWidget.h"
 #include "NoteEditWindow.h"
 #include "HeaderBar.h"
 #include "MetadataPanel.h"
@@ -45,7 +44,6 @@ private:
     QuickPreview* m_quickPreview;
 
     Editor* m_editor;
-    GraphWidget* m_graphWidget;
 
     QWidget* m_editorArea;
 };

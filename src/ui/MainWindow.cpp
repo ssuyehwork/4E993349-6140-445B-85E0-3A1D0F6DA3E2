@@ -120,21 +120,20 @@ void MainWindow::initUI() {
     });
     splitter->addWidget(m_noteList);
 
-    // 4. 右侧主展示区
-    auto* mainTabSplitter = new QSplitter(Qt::Horizontal);
+    // 4. 右侧编辑器 + 元数据面板 (固定布局)
+    auto* rightSplitter = new QSplitter(Qt::Horizontal);
+    rightSplitter->setHandleWidth(1);
 
-    auto* rightTab = new QTabWidget();
     m_editor = new Editor();
-    m_editor->togglePreview(true); // 默认开启预览模式
-    m_graphWidget = new GraphWidget();
-    rightTab->addTab(m_editor, IconHelper::getIcon("eye", "#aaaaaa"), "预览");
-    rightTab->addTab(m_graphWidget, IconHelper::getIcon("branch", "#aaaaaa"), "知识图谱");
-    mainTabSplitter->addWidget(rightTab);
+    m_editor->togglePreview(false); // 默认编辑模式
+    rightSplitter->addWidget(m_editor);
 
     // 5. 元数据面板
     m_metaPanel = new MetadataPanel(this);
     connect(m_metaPanel, &MetadataPanel::noteUpdated, this, &MainWindow::refreshData);
-    mainTabSplitter->addWidget(m_metaPanel);
+    rightSplitter->addWidget(m_metaPanel);
+
+    splitter->addWidget(rightSplitter);
 
     // 快捷键注册
     auto* actionFilter = new QAction(this);
@@ -156,11 +155,12 @@ void MainWindow::initUI() {
     connect(actionRefresh, &QAction::triggered, this, &MainWindow::refreshData);
     addAction(actionRefresh);
 
-    splitter->addWidget(mainTabSplitter);
+    splitter->setStretchFactor(0, 1); // 侧边栏
+    splitter->setStretchFactor(1, 2); // 笔记列表
+    splitter->setStretchFactor(2, 6); // 内容区
 
-    splitter->setStretchFactor(0, 1);
-    splitter->setStretchFactor(1, 3);
-    splitter->setStretchFactor(2, 6);
+    rightSplitter->setStretchFactor(0, 4); // 编辑器
+    rightSplitter->setStretchFactor(1, 1); // 元数据面板
 
     mainLayout->addWidget(splitter);
 
@@ -175,15 +175,11 @@ void MainWindow::onNoteAdded(const QVariantMap& note) {
 
     // 2. 列表滚动到顶部
     m_noteList->scrollToTop();
-
-    // 3. (可选) 如果你想图谱也增量更新，可以在 GraphWidget 加 addSingleNode 接口
-    // 这里暂时不做，因为图谱不一定开着
 }
 
 void MainWindow::refreshData() {
     auto allNotes = DatabaseManager::instance().getAllNotes();
     m_noteModel->setNotes(allNotes);
-    m_graphWidget->loadNotes(allNotes);
     m_sideModel->refresh();
 }
 

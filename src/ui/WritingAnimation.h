@@ -26,25 +26,80 @@ protected:
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
 
-        // 绘制简单的笔和纸动画
-        p.translate(width()/2, height()/2);
+        float cx = width() / 2.0f;
+        float cy = height() / 2.0f;
 
-        // 纸
-        p.setBrush(QColor("#f5f0e1"));
-        p.drawRoundedRect(-15, -15, 30, 30, 2, 2);
+        // 1. 绘制书本
+        p.save();
+        p.translate(cx, cy + m_bookY);
+        p.scale(0.4, 0.4);
+        drawBook(&p);
+        p.restore();
 
-        // 笔
+        // 2. 绘制钢笔
+        p.save();
+        p.translate(cx + m_penX, cy + m_penY - 5);
+        p.scale(0.4, 0.4);
         p.rotate(m_angle);
-        p.setBrush(QColor("#8b4513"));
-        p.drawRect(-2, -10, 4, 20);
+        drawPen(&p);
+        p.restore();
+    }
+
+private:
+    void drawBook(QPainter* p) {
+        // 模仿 Python 版的 Mocha 书本
+        p->setPen(Qt::NoPen);
+        p->setBrush(QColor("#f5f0e1")); // 纸张
+        p->drawRoundedRect(QRectF(-22, -32, 56, 76), 3, 3);
+
+        QLinearGradient grad(-28, -38, 28, 38);
+        grad.setColorAt(0, QColor("#5a3c32"));
+        grad.setColorAt(1, QColor("#321e19"));
+        p->setBrush(grad); // 封面
+        p->drawRoundedRect(QRectF(-28, -38, 56, 76), 3, 3);
+
+        p->setBrush(QColor("#78141e")); // 书脊装饰
+        p->drawRect(QRectF(13, -38, 8, 76));
+    }
+
+    void drawPen(QPainter* p) {
+        // 模仿 Python 版的通用钢笔
+        p->setPen(Qt::NoPen);
+        QLinearGradient bodyGrad(-6, 0, 6, 0);
+        bodyGrad.setColorAt(0, QColor("#b43c46"));
+        bodyGrad.setColorAt(0.5, QColor("#8c141e"));
+        bodyGrad.setColorAt(1, QColor("#3c050a"));
+        p->setBrush(bodyGrad);
+        p->drawRoundedRect(QRectF(-6, -23, 12, 46), 5, 5);
+
+        // 笔尖
+        QPainterPath tipPath;
+        tipPath.moveTo(-3, 23);
+        tipPath.lineTo(3, 23);
+        tipPath.lineTo(0, 37);
+        tipPath.closeSubpath();
+        p->setBrush(QColor("#f0e6b4"));
+        p->drawPath(tipPath);
     }
 
 private slots:
     void updatePhysics() {
         m_time += 0.1;
-        m_angle = -45 + 20 * qSin(m_time * 5);
+
+        // 模拟物理惯性与书写抖动
+        float targetAngle = -65.0f;
+        float speed = m_time * 3.0f;
+        float targetX = qSin(speed) * 4.0f;
+        float targetY = 2.0f + qCos(speed * 2.0f) * 1.0f;
+
+        float easing = 0.1f;
+        m_angle += (targetAngle - m_angle) * easing;
+        m_penX += (targetX - m_penX) * easing;
+        m_penY += (targetY - m_penY) * easing;
+        m_bookY += (-1.0f - m_bookY) * easing;
+
         update();
-        if (m_time > 3.0) {
+        if (m_time > 5.0) {
             m_timer->stop();
             hide();
         }
@@ -54,6 +109,7 @@ private:
     QTimer* m_timer;
     float m_time = 0;
     float m_angle = -45;
+    float m_penX = 0, m_penY = 0, m_bookY = 0;
 };
 
 #endif // WRITINGANIMATION_H

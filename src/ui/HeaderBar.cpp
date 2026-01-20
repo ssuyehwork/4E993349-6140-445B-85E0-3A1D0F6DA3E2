@@ -20,21 +20,13 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     layout->addWidget(btnSidebar);
 
     m_searchEdit = new SearchLineEdit();
-    m_searchEdit->setPlaceholderText("搜索灵感 (双击历史)...");
+    m_searchEdit->setPlaceholderText("搜索灵感 (双击查看历史)...");
     m_searchEdit->setFixedWidth(300);
     m_searchEdit->setStyleSheet("background: #1e1e1e; border-radius: 15px; padding: 5px 15px; border: 1px solid #444; color: white;");
     connect(m_searchEdit, &QLineEdit::textChanged, this, &HeaderBar::searchChanged);
     connect(m_searchEdit, &QLineEdit::returnPressed, [this](){
-        QString text = m_searchEdit->text().trimmed();
-        if (text.isEmpty()) return;
-        QSettings settings("RapidNotes", "SearchHistory");
-        QStringList history = settings.value("list").toStringList();
-        history.removeAll(text);
-        history.prepend(text);
-        if (history.size() > 20) history = history.mid(0, 20);
-        settings.setValue("list", history);
+        m_searchEdit->addHistoryEntry(m_searchEdit->text().trimmed());
     });
-    connect(m_searchEdit, &SearchLineEdit::doubleClicked, this, &HeaderBar::setupSearchHistory);
     layout->addWidget(m_searchEdit);
 
     layout->addStretch();
@@ -113,30 +105,4 @@ void HeaderBar::mouseDoubleClickEvent(QMouseEvent* event) {
         emit windowMaximize();
         event->accept();
     }
-}
-
-void HeaderBar::setupSearchHistory() {
-    QSettings settings("RapidNotes", "SearchHistory");
-    QStringList history = settings.value("list").toStringList();
-
-    if (history.isEmpty()) return;
-
-    QMenu* menu = new QMenu(this);
-    menu->setStyleSheet("QMenu { background-color: #2D2D2D; color: white; border: 1px solid #444; } QMenu::item:selected { background-color: #37373D; }");
-
-    for (const QString& item : history) {
-        QAction* act = menu->addAction(item);
-        connect(act, &QAction::triggered, [this, item](){
-            m_searchEdit->setText(item);
-        });
-    }
-
-    menu->addSeparator();
-    QAction* clearAct = menu->addAction("清空历史");
-    connect(clearAct, &QAction::triggered, [](){
-        QSettings settings("RapidNotes", "SearchHistory");
-        settings.setValue("list", QStringList());
-    });
-
-    menu->exec(m_searchEdit->mapToGlobal(QPoint(0, m_searchEdit->height())));
 }
