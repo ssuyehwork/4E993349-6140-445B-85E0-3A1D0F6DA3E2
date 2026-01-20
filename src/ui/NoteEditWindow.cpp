@@ -8,6 +8,8 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QGraphicsDropShadowEffect>
+#include <QWindow>
+#include <QMouseEvent>
 
 NoteEditWindow::NoteEditWindow(int noteId, QWidget* parent)
     : QWidget(parent, Qt::Window | Qt::FramelessWindowHint), m_noteId(noteId)
@@ -29,6 +31,15 @@ void NoteEditWindow::paintEvent(QPaintEvent* event) {
     painter.setBrush(QColor("#252526"));
     painter.setPen(Qt::NoPen);
     painter.drawRoundedRect(rect(), 10, 10);
+}
+
+void NoteEditWindow::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        if (auto* handle = windowHandle()) {
+            handle->startSystemMove();
+        }
+        event->accept();
+    }
 }
 
 void NoteEditWindow::initUI() {

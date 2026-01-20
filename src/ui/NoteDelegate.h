@@ -28,7 +28,7 @@ public:
         // 1. 获取数据
         QString title = index.data(NoteModel::TitleRole).toString();
         QString content = index.data(NoteModel::ContentRole).toString();
-        QString timeStr = index.data(NoteModel::TimeRole).toDateTime().toString("yyyy-MM-dd HH:mm");
+        QString timeStr = index.data(NoteModel::TimeRole).toDateTime().toString("yyyy-MM-dd HH:mm:ss");
         bool isPinned = index.data(NoteModel::PinnedRole).toBool();
 
         // 2. 处理选中状态和背景 (更精致的配色与阴影感)

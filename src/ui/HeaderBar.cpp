@@ -4,6 +4,7 @@
 #include <QSettings>
 #include <QMouseEvent>
 #include <QApplication>
+#include <QWindow>
 
 HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     setFixedHeight(40);
@@ -88,16 +89,17 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
 
 void HeaderBar::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        m_dragPos = event->globalPosition().toPoint() - parentWidget()->frameGeometry().topLeft();
+        if (auto* win = window()) {
+            if (auto* handle = win->windowHandle()) {
+                handle->startSystemMove();
+            }
+        }
         event->accept();
     }
 }
 
 void HeaderBar::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() & Qt::LeftButton) {
-        parentWidget()->move(event->globalPosition().toPoint() - m_dragPos);
-        event->accept();
-    }
+    QWidget::mouseMoveEvent(event);
 }
 
 void HeaderBar::mouseDoubleClickEvent(QMouseEvent* event) {

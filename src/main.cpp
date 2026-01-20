@@ -6,6 +6,8 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QFileInfo>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include "core/DatabaseManager.h"
 #include "core/HotkeyManager.h"
 #include "core/ClipboardMonitor.h"
@@ -18,6 +20,22 @@ int main(int argc, char *argv[]) {
     QApplication a(argc, argv);
     a.setApplicationName("RapidNotes");
     a.setOrganizationName("RapidDev");
+
+    // 单实例运行保护
+    QString serverName = "RapidNotes_SingleInstance_Server";
+    QLocalSocket socket;
+    socket.connectToServer(serverName);
+    if (socket.waitForConnected(500)) {
+        // 如果已经运行，发送 SHOW 信号并退出当前进程
+        socket.write("SHOW");
+        socket.waitForBytesWritten(1000);
+        return 0;
+    }
+    QLocalServer::removeServer(serverName);
+    QLocalServer server;
+    if (!server.listen(serverName)) {
+        qWarning() << "无法启动单实例服务器";
+    }
 
     // 加载全局样式表
     QFile styleFile(":/qss/dark_style.qss");
@@ -67,6 +85,17 @@ int main(int argc, char *argv[]) {
     });
 
     // 6. 系统托盘
+    QObject::connect(&server, &QLocalServer::newConnection, [&](){
+        QLocalSocket* conn = server.nextPendingConnection();
+        if (conn->waitForReadyRead(500)) {
+            QByteArray data = conn->readAll();
+            if (data == "SHOW") {
+                quickWin->showCentered();
+            }
+            conn->disconnectFromServer();
+        }
+    });
+
     SystemTray* tray = new SystemTray(&a);
     QObject::connect(tray, &SystemTray::showMainWindow, &mainWin, &MainWindow::showNormal);
     QObject::connect(tray, &SystemTray::showQuickWindow, quickWin, &QuickWindow::showCentered);

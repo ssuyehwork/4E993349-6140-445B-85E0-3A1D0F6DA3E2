@@ -1,5 +1,6 @@
 #include "Toolbox.h"
 #include "IconHelper.h"
+#include "../core/KeyboardHook.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -12,25 +13,49 @@
 #include <QApplication>
 #include <QDateTime>
 #include <QRandomGenerator>
+#include <QRadioButton>
+#include <QButtonGroup>
 #include "../core/Utils.h"
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 Toolbox::Toolbox(QWidget* parent) : QDialog(parent) {
     setWindowTitle("工具箱");
-    resize(450, 400);
+    resize(450, 450);
     setStyleSheet("QDialog { background-color: #1e1e1e; color: #ccc; } QTabWidget::pane { border: 1px solid #333; background: #252526; } QTabBar::tab { background: #2d2d2d; padding: 10px 20px; border-right: 1px solid #1e1e1e; } QTabBar::tab:selected { background: #252526; color: #4a90e2; }");
 
     QVBoxLayout* layout = new QVBoxLayout(this);
-    QTabWidget* tabs = new QTabWidget(this);
+    m_tabs = new QTabWidget(this);
 
     QWidget* timeTab = new QWidget();
     initTimePasteTab(timeTab);
-    tabs->addTab(timeTab, IconHelper::getIcon("clock", "#aaaaaa"), " 时间助手");
+    m_tabs->addTab(timeTab, IconHelper::getIcon("clock", "#aaaaaa"), " 时间助手");
 
     QWidget* pwdTab = new QWidget();
     initPasswordGenTab(pwdTab);
-    tabs->addTab(pwdTab, IconHelper::getIcon("lock", "#aaaaaa"), " 密码生成");
+    m_tabs->addTab(pwdTab, IconHelper::getIcon("lock", "#aaaaaa"), " 密码生成");
 
-    layout->addWidget(tabs);
+    layout->addWidget(m_tabs);
+
+    connect(&KeyboardHook::instance(), &KeyboardHook::digitPressed, this, &Toolbox::onDigitPressed);
+}
+
+Toolbox::~Toolbox() {
+    KeyboardHook::instance().stop();
+}
+
+void Toolbox::showEvent(QShowEvent* event) {
+    QDialog::showEvent(event);
+    if (m_tabs->currentIndex() == 0) {
+        KeyboardHook::instance().start();
+    }
+}
+
+void Toolbox::hideEvent(QHideEvent* event) {
+    KeyboardHook::instance().stop();
+    QDialog::hideEvent(event);
 }
 
 void Toolbox::initTimePasteTab(QWidget* tab) {
@@ -41,6 +66,23 @@ void Toolbox::initTimePasteTab(QWidget* tab) {
     QLabel* info = new QLabel("🕒 快速格式化输出当前时间");
     info->setStyleSheet("font-weight: bold; color: #4a90e2;");
     layout->addWidget(info);
+
+    // 模式选择
+    QHBoxLayout* modeLayout = new QHBoxLayout();
+    QRadioButton* rbRetreat = new QRadioButton("退 (往前 N 分钟)");
+    QRadioButton* rbAdvance = new QRadioButton("进 (往后 N 分钟)");
+    rbRetreat->setChecked(true);
+    modeLayout->addWidget(rbRetreat);
+    modeLayout->addWidget(rbAdvance);
+    layout->addLayout(modeLayout);
+
+    connect(rbRetreat, &QRadioButton::toggled, [this](bool checked){ if(checked) m_timeMode = 0; });
+    connect(rbAdvance, &QRadioButton::toggled, [this](bool checked){ if(checked) m_timeMode = 1; });
+
+    QLabel* tip = new QLabel("提示: 开启此页面后，按主键盘数字键 0-9 可直接输出偏移时间。");
+    tip->setStyleSheet("color: #888; font-size: 11px;");
+    tip->setWordWrap(true);
+    layout->addWidget(tip);
 
     auto addTimeBtn = [&](const QString& text, const QString& format) {
         QPushButton* btn = new QPushButton(text);
@@ -57,6 +99,27 @@ void Toolbox::initTimePasteTab(QWidget* tab) {
     addTimeBtn("仅时间 (17:00:35)", "HH:mm:ss");
 
     layout->addStretch();
+}
+
+void Toolbox::onDigitPressed(int digit) {
+    // 只有在时间助手标签页处于激活状态时才响应
+    if (m_tabs->currentIndex() != 0) return;
+
+    QDateTime target = QDateTime::currentDateTime();
+    if (m_timeMode == 0) // 退
+        target = target.addSecs(-digit * 60);
+    else // 进
+        target = target.addSecs(digit * 60);
+
+    QString timeStr = target.toString("HH:mm");
+    QApplication::clipboard()->setText(timeStr);
+
+#ifdef Q_OS_WIN
+    keybd_event(VK_CONTROL, 0, 0, 0);
+    keybd_event('V', 0, 0, 0);
+    keybd_event('V', 0, KEYEVENTF_KEYUP, 0);
+    keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+#endif
 }
 
 void Toolbox::initPasswordGenTab(QWidget* tab) {

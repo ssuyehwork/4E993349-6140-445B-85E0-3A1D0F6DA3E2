@@ -8,6 +8,7 @@
 #include <QGraphicsDropShadowEffect>
 #include <QSettings>
 #include <QMenu>
+#include <QWindow>
 
 QuickWindow::QuickWindow(QWidget* parent)
     : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint)
@@ -161,6 +162,15 @@ bool QuickWindow::event(QEvent* event) {
         hide();
     }
     return QWidget::event(event);
+}
+
+void QuickWindow::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        if (auto* handle = windowHandle()) {
+            handle->startSystemMove();
+        }
+        event->accept();
+    }
 }
 
 bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {

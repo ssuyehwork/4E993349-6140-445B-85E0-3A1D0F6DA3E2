@@ -22,6 +22,7 @@ public slots:
 
 protected:
     bool event(QEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:

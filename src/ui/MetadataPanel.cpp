@@ -100,8 +100,8 @@ void MetadataPanel::setNote(const QVariantMap& note) {
     m_titleEdit->setText(note["title"].toString());
     m_tagEdit->setText(note["tags"].toString());
 
-    m_capsules["created"]->setText(note["created_at"].toString().left(16).replace("T", " "));
-    m_capsules["updated"]->setText(note["updated_at"].toString().left(16).replace("T", " "));
+    m_capsules["created"]->setText(note["created_at"].toString().left(19).replace("T", " "));
+    m_capsules["updated"]->setText(note["updated_at"].toString().left(19).replace("T", " "));
 
     int rating = note["rating"].toInt();
     QString stars = QString("★").repeated(rating) + QString("☆").repeated(5 - rating);

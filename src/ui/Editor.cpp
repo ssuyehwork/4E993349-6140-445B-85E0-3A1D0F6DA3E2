@@ -81,23 +81,31 @@ void MarkdownHighlighter::highlightBlock(const QString& text) {
 #include <QMimeData>
 #include <QUrl>
 
-InternalEditor::InternalEditor(QWidget* parent) : QPlainTextEdit(parent) {
+InternalEditor::InternalEditor(QWidget* parent) : QTextEdit(parent) {
     setStyleSheet("background: #1E1E1E; color: #D4D4D4; font-family: 'Consolas', 'Courier New'; font-size: 13pt; border: none; padding: 10px;");
+    setAcceptRichText(false); // 强制纯文本编辑，除非是插入图片
 }
 
 void InternalEditor::insertFromMimeData(const QMimeData* source) {
     if (source->hasImage()) {
-        appendPlainText("\n[图片已粘贴 - 待实现存储逻辑]\n");
-        return;
+        QImage image = qvariant_cast<QImage>(source->imageData());
+        if (!image.isNull()) {
+            // 自动缩放宽图
+            if (image.width() > 600) {
+                image = image.scaledToWidth(600, Qt::SmoothTransformation);
+            }
+            textCursor().insertImage(image);
+            return;
+        }
     }
     if (source->hasUrls()) {
         for (const QUrl& url : source->urls()) {
-            if (url.isLocalFile()) appendPlainText(QString("\n[文件引用: %1]\n").arg(url.toLocalFile()));
-            else appendPlainText(QString("\n[链接: %1]\n").arg(url.toString()));
+            if (url.isLocalFile()) insertPlainText(QString("\n[文件引用: %1]\n").arg(url.toLocalFile()));
+            else insertPlainText(QString("\n[链接: %1]\n").arg(url.toString()));
         }
         return;
     }
-    QPlainTextEdit::insertFromMimeData(source);
+    QTextEdit::insertFromMimeData(source);
 }
 
 Editor::Editor(QWidget* parent) : QWidget(parent) {
@@ -133,7 +141,52 @@ void Editor::setPlaceholderText(const QString& text) {
 
 void Editor::togglePreview(bool preview) {
     if (preview) {
-        QString html = "<html><body style='font-family: sans-serif;'>" + m_edit->toPlainText().replace("\n", "<br>") + "</body></html>";
+        QString text = m_edit->toPlainText();
+        QString html = "<html><head><style>"
+                       "body { font-family: 'Microsoft YaHei'; color: #ddd; background-color: #1e1e1e; line-height: 1.6; padding: 20px; }"
+                       "h1 { color: #569CD6; border-bottom: 1px solid #333; padding-bottom: 5px; }"
+                       "h2 { color: #569CD6; border-bottom: 1px solid #222; }"
+                       "code { background-color: #333; padding: 2px 4px; border-radius: 3px; font-family: Consolas; color: #98C379; }"
+                       "pre { background-color: #252526; padding: 10px; border-radius: 5px; border: 1px solid #444; }"
+                       "blockquote { border-left: 4px solid #569CD6; padding-left: 15px; color: #888; font-style: italic; background: #252526; margin: 10px 0; }"
+                       "p { margin: 10px 0; }"
+                       "</style></head><body>";
+
+        QStringList lines = text.split("\n");
+        bool inCodeBlock = false;
+
+        for (QString line : lines) {
+            if (line.startsWith("```")) {
+                if (!inCodeBlock) { html += "<pre><code>"; inCodeBlock = true; }
+                else { html += "</code></pre>"; inCodeBlock = false; }
+                continue;
+            }
+
+            if (inCodeBlock) {
+                html += line.toHtmlEscaped() + "<br>";
+                continue;
+            }
+
+            if (line.startsWith("###### ")) html += "<h6>" + line.mid(7).toHtmlEscaped() + "</h6>";
+            else if (line.startsWith("##### ")) html += "<h5>" + line.mid(6).toHtmlEscaped() + "</h5>";
+            else if (line.startsWith("#### ")) html += "<h4>" + line.mid(5).toHtmlEscaped() + "</h4>";
+            else if (line.startsWith("### ")) html += "<h3>" + line.mid(4).toHtmlEscaped() + "</h3>";
+            else if (line.startsWith("## ")) html += "<h2>" + line.mid(3).toHtmlEscaped() + "</h2>";
+            else if (line.startsWith("# ")) html += "<h1>" + line.mid(2).toHtmlEscaped() + "</h1>";
+            else if (line.startsWith("> ")) html += "<blockquote>" + line.mid(2).toHtmlEscaped() + "</blockquote>";
+            else if (line.startsWith("- [ ] ")) html += "<p><span style='color:#E5C07B;'>☐</span> " + line.mid(6).toHtmlEscaped() + "</p>";
+            else if (line.startsWith("- [x] ")) html += "<p><span style='color:#6A9955;'>☑</span> " + line.mid(6).toHtmlEscaped() + "</p>";
+            else if (line.isEmpty()) html += "<br>";
+            else {
+                // 处理行内代码 `code`
+                QString processedLine = line.toHtmlEscaped();
+                QRegularExpression inlineCode("`(.*?)`");
+                processedLine.replace(inlineCode, "<code>\\1</code>");
+                html += "<p>" + processedLine + "</p>";
+            }
+        }
+
+        html += "</body></html>";
         m_preview->setHtml(html);
         m_stack->setCurrentWidget(m_preview);
     } else {

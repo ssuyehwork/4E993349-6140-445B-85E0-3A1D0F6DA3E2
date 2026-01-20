@@ -17,6 +17,7 @@ set(SOURCES
     src/core/DatabaseManager.cpp
     src/core/HotkeyManager.cpp
     src/core/ClipboardMonitor.cpp
+    src/core/KeyboardHook.cpp
     src/core/OCRManager.cpp
     src/models/NoteModel.cpp
     src/models/CategoryModel.cpp

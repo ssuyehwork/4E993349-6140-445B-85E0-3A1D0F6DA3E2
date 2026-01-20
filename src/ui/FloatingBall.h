@@ -54,6 +54,9 @@ private:
     };
     QList<Particle> m_particles;
 
+    QColor m_color1 = QColor("#4FACFE");
+    QColor m_color2 = QColor("#00F2FE");
+
 signals:
     void doubleClicked();
     void requestMainWindow();
