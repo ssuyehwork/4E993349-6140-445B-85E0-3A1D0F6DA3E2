@@ -1,5 +1,0 @@
-G:/C++/Inspirenote/Inspirenote/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug/CMakeFiles/RapidNotes.dir
-G:/C++/Inspirenote/Inspirenote/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug/CMakeFiles/edit_cache.dir
-G:/C++/Inspirenote/Inspirenote/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug/CMakeFiles/rebuild_cache.dir
-G:/C++/Inspirenote/Inspirenote/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug/CMakeFiles/RapidNotes_autogen_timestamp_deps.dir
-G:/C++/Inspirenote/Inspirenote/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug/CMakeFiles/RapidNotes_autogen.dir
