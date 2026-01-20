@@ -1,0 +1,77 @@
+/* 全局深色主题 */
+QWidget {
+    background-color: #1E1E1E;
+    color: #D4D4D4;
+    font-family: "Segoe UI", "Microsoft YaHei";
+}
+
+QScrollBar:vertical {
+    border: none;
+    background: #2D2D2D;
+    width: 10px;
+}
+
+QScrollBar::handle:vertical {
+    background: #3E3E42;
+    min-height: 20px;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+QPushButton {
+    background-color: #0E639C;
+    color: white;
+    border: none;
+    padding: 6px 20px;
+    border-radius: 2px;
+}
+
+QPushButton:hover {
+    background-color: #1177BB;
+}
+
+QPushButton:pressed {
+    background-color: #0D598C;
+}
+
+QSplitter::handle {
+    background-color: #252526;
+}
+
+QListView {
+    outline: none;
+}
+
+QListView::item {
+    padding: 10px;
+    border-bottom: 1px solid #2D2D2D;
+}
+
+QListView::item:selected {
+    background-color: #37373D;
+}
+
+QTabWidget::pane {
+    border: none;
+    background: #1E1E1E;
+}
+
+QTabBar::tab {
+    background: #2D2D2D;
+    padding: 8px 20px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected {
+    background: #1E1E1E;
+    border-top: 2px solid #007ACC;
+}
+
+QLineEdit {
+    background-color: #2D2D2D;
+    border: 1px solid #3E3E42;
+    padding: 5px;
+    color: white;
+}
