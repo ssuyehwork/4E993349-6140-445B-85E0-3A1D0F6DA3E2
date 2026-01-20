@@ -4,6 +4,8 @@
 #include <QWidget>
 #include <QTimer>
 #include <QPainter>
+#include <QPainterPath>
+#include <QLinearGradient>
 #include <QtMath>
 
 class WritingAnimation : public QWidget {

@@ -3,6 +3,7 @@
 
 #include <QStyledItemDelegate>
 #include <QPainter>
+#include <QPainterPath>
 #include <QDateTime>
 #include "../models/NoteModel.h"
 #include "IconHelper.h"
@@ -57,7 +58,7 @@ public:
         QFont titleFont("Microsoft YaHei", 10, QFont::Bold);
         painter->setFont(titleFont);
         QRect titleRect = rect.adjusted(12, 10, -35, -70);
-        painter->drawText(titleRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextElideRight, title);
+        painter->drawText(titleRect, Qt::AlignLeft | Qt::AlignTop, painter->fontMetrics().elidedText(title, Qt::ElideRight, titleRect.width()));
 
         // 4. 绘制置顶/星级标识
         if (isPinned) {
