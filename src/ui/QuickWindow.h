@@ -15,6 +15,10 @@
 #include "QuickToolbar.h"
 #include "DropTreeView.h"
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 class QuickWindow : public QWidget {
     Q_OBJECT
 public:
@@ -36,9 +40,25 @@ protected:
 
 private:
     void initUI();
+    void activateNote(const QModelIndex& index);
+    void setupShortcuts();
     void updatePartitionStatus(const QString& name);
     int getResizeArea(const QPoint& pos);
     void setCursorShape(int area);
+
+    // 快捷键处理函数
+    void doDeleteSelected();
+    void doToggleFavorite();
+    void doTogglePin();
+    void doLockSelected();
+    void doNewIdea();
+    void doExtractContent();
+    void doEditSelected();
+    void doSetRating(int rating);
+    void doPreview();
+    void toggleStayOnTop(bool checked);
+    void toggleSidebar();
+    void showListContextMenu(const QPoint& pos);
     
     SearchLineEdit* m_searchEdit;
     QListView* m_listView;
@@ -60,6 +80,10 @@ private:
     QPoint m_resizeStartPos;
     QRect m_resizeStartGeometry;
     static const int RESIZE_MARGIN = 8;
+
+#ifdef Q_OS_WIN
+    HWND m_lastActiveHwnd = nullptr;
+#endif
 };
 
 #endif // QUICKWINDOW_H

@@ -88,3 +88,7 @@ void QuickToolbar::setPageInfo(int current, int total) {
 void QuickToolbar::setStayOnTop(bool onTop) {
     m_btnStayTop->setChecked(onTop);
 }
+
+bool QuickToolbar::isStayOnTop() const {
+    return m_btnStayTop->isChecked();
+}
