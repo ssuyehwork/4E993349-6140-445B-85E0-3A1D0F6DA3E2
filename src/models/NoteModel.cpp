@@ -7,6 +7,7 @@
 #include <QBuffer>
 #include <QPixmap>
 #include <QByteArray>
+#include <QUrl>
 
 static QString getIconHtml(const QString& name, const QString& color) {
     QIcon icon = IconHelper::getIcon(name, color, 16);
