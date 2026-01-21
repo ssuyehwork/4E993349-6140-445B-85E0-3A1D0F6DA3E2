@@ -45,7 +45,23 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
         bool isKeyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
         bool isKeyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
 
-        // 1. Shift + Space -> Shift + Enter (实现换行)
+        // 1. Ctrl + Shift + Space -> Ctrl+A then Backspace (实现全选删除)
+        if (pKey->vkCode == VK_SPACE && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
+            if (isKeyDown) {
+                // 模拟 Ctrl+A
+                keybd_event(VK_CONTROL, 0, 0, 0);
+                keybd_event('A', 0, 0, 0);
+                keybd_event('A', 0, KEYEVENTF_KEYUP, 0);
+                keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+
+                // 模拟 Backspace
+                keybd_event(VK_BACK, 0, 0, 0);
+                keybd_event(VK_BACK, 0, KEYEVENTF_KEYUP, 0);
+            }
+            return 1;
+        }
+
+        // 2. Shift + Space -> Shift + Enter (实现换行) - 排除 Ctrl 按下的情况
         if (pKey->vkCode == VK_SPACE && (GetKeyState(VK_SHIFT) & 0x8000)) {
             if (isKeyDown) {
                 keybd_event(VK_RETURN, 0, 0, 0);
@@ -55,7 +71,7 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
             return 1;
         }
 
-        // 2. CapsLock -> Enter
+        // 3. CapsLock -> Enter
         if (pKey->vkCode == VK_CAPITAL) {
             if (isKeyDown) {
                 keybd_event(VK_RETURN, 0, 0, 0);
@@ -65,7 +81,7 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
             return 1;
         }
 
-        // 3. 反引号 (`) -> Backspace
+        // 4. 反引号 (`) -> Backspace
         if (pKey->vkCode == VK_OEM_3) {
             if (isKeyDown) {
                 keybd_event(VK_BACK, 0, 0, 0);
@@ -75,7 +91,7 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
             return 1;
         }
 
-        // 4. 工具箱数字拦截 (仅在使能时且按下时触发)
+        // 5. 工具箱数字拦截 (仅在使能时且按下时触发)
         if (isKeyDown && KeyboardHook::instance().m_digitInterceptEnabled) {
             if (pKey->vkCode >= 0x30 && pKey->vkCode <= 0x39) {
                 int digit = pKey->vkCode - 0x30;
