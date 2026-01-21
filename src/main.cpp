@@ -16,6 +16,7 @@
 #include "ui/QuickWindow.h"
 #include "ui/SystemTray.h"
 #include "ui/Toolbox.h"
+#include "core/KeyboardHook.h"
 
 int main(int argc, char *argv[]) {
     QApplication a(argc, argv);
@@ -100,7 +101,10 @@ int main(int argc, char *argv[]) {
         }
     });
 
-    // 5. 注册全局热键
+    // 5. 开启全局键盘钩子 (支持快捷键重映射)
+    KeyboardHook::instance().start();
+
+    // 6. 注册全局热键
     // Alt+Space (0x0001 = MOD_ALT, 0x20 = VK_SPACE)
     HotkeyManager::instance().registerHotkey(1, 0x0001, 0x20);
     // Ctrl+Shift+E (0x0002 = MOD_CONTROL, 0x0004 = MOD_SHIFT, 0x45 = 'E')
@@ -120,7 +124,7 @@ int main(int argc, char *argv[]) {
         }
     });
 
-    // 6. 系统托盘
+    // 7. 系统托盘
     QObject::connect(&server, &QLocalServer::newConnection, [&](){
         QLocalSocket* conn = server.nextPendingConnection();
         if (conn->waitForReadyRead(500)) {
@@ -144,7 +148,7 @@ int main(int argc, char *argv[]) {
     QObject::connect(ball, &FloatingBall::requestMainWindow, mainWin, &MainWindow::showNormal);
     QObject::connect(ball, &FloatingBall::requestQuickWindow, quickWin, &QuickWindow::showCentered);
 
-    // 7. 监听剪贴板 (智能标题与自动分类)
+    // 8. 监听剪贴板 (智能标题与自动分类)
     QObject::connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, 
         [&](const QString& content, const QString& type, const QByteArray& data){
         qDebug() << "[Main] 接收到剪贴板信号:" << type;

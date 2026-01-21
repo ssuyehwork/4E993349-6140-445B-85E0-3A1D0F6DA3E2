@@ -40,13 +40,48 @@ void KeyboardHook::stop() {
 
 #ifdef Q_OS_WIN
 LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode == HC_ACTION && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)) {
+    if (nCode == HC_ACTION) {
         KBDLLHOOKSTRUCT* pKey = (KBDLLHOOKSTRUCT*)lParam;
-        // 检查是否是主键盘数字键 0-9 (VK_0 to VK_9)
-        if (pKey->vkCode >= 0x30 && pKey->vkCode <= 0x39) {
-            int digit = pKey->vkCode - 0x30;
-            emit KeyboardHook::instance().digitPressed(digit);
-            return 1; // 拦截按键
+        bool isKeyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
+        bool isKeyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
+
+        // 1. Shift + Space -> Shift + Enter (实现换行)
+        if (pKey->vkCode == VK_SPACE && (GetKeyState(VK_SHIFT) & 0x8000)) {
+            if (isKeyDown) {
+                keybd_event(VK_RETURN, 0, 0, 0);
+            } else if (isKeyUp) {
+                keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0);
+            }
+            return 1;
+        }
+
+        // 2. CapsLock -> Enter
+        if (pKey->vkCode == VK_CAPITAL) {
+            if (isKeyDown) {
+                keybd_event(VK_RETURN, 0, 0, 0);
+            } else if (isKeyUp) {
+                keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0);
+            }
+            return 1;
+        }
+
+        // 3. 反引号 (`) -> Backspace
+        if (pKey->vkCode == VK_OEM_3) {
+            if (isKeyDown) {
+                keybd_event(VK_BACK, 0, 0, 0);
+            } else if (isKeyUp) {
+                keybd_event(VK_BACK, 0, KEYEVENTF_KEYUP, 0);
+            }
+            return 1;
+        }
+
+        // 4. 工具箱数字拦截 (仅在使能时且按下时触发)
+        if (isKeyDown && KeyboardHook::instance().m_digitInterceptEnabled) {
+            if (pKey->vkCode >= 0x30 && pKey->vkCode <= 0x39) {
+                int digit = pKey->vkCode - 0x30;
+                emit KeyboardHook::instance().digitPressed(digit);
+                return 1;
+            }
         }
     }
     return CallNextHookEx(g_hHook, nCode, wParam, lParam);
