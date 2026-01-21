@@ -215,6 +215,8 @@ void QuickWindow::initUI() {
     m_splitter->setSizes({550, 150});
     leftLayout->addWidget(m_splitter);
 
+    applyListTheme(""); // 【核心修复】初始化时即应用深色主题
+
     m_statusLabel = new QLabel("当前分区: 全部数据");
     m_statusLabel->setStyleSheet("font-size: 11px; color: #888; padding-left: 2px;");
     m_statusLabel->setFixedHeight(32);
@@ -223,60 +225,63 @@ void QuickWindow::initUI() {
     containerLayout->addWidget(leftContent);
 
     // --- 右侧垂直工具栏 (Custom Toolbar Implementation) ---
-    // 替代原有的 m_toolbar = new QuickToolbar(this);
-    // 直接在这里构建 UI 以匹配截图设计
+    // 【核心修正】根据图二 1:1 还原，压缩宽度，修正图标名，重构分页布局
     
     QWidget* customToolbar = new QWidget(this);
-    customToolbar->setFixedWidth(46); // 窄条宽度
+    customToolbar->setFixedWidth(40); // 压缩至 40px
     customToolbar->setStyleSheet(
-        "QWidget { background-color: #262626; border-top-right-radius: 10px; border-bottom-right-radius: 10px; }"
+        "QWidget { background-color: #252526; border-top-right-radius: 10px; border-bottom-right-radius: 10px; border-left: 1px solid #333; }"
         "QPushButton { border: none; border-radius: 4px; background: transparent; padding: 0px; }"
-        "QPushButton:hover { background-color: #3e3e3e; }"
+        "QPushButton:hover { background-color: #3e3e42; }"
         "QPushButton:pressed { background-color: #2d2d2d; }"
-        "QLabel { color: #888; font-size: 12px; }"
+        "QLabel { color: #888; font-size: 11px; }"
+        "QLineEdit { background: transparent; border: 1px solid #444; border-radius: 4px; color: white; font-size: 11px; font-weight: bold; padding: 0; }"
     );
     
     QVBoxLayout* toolLayout = new QVBoxLayout(customToolbar);
-    toolLayout->setContentsMargins(5, 10, 5, 10);
-    toolLayout->setSpacing(8);
+    toolLayout->setContentsMargins(4, 8, 4, 8); // 对齐 Python 版边距
+    toolLayout->setSpacing(4); // 紧凑间距，匹配图二
 
-    // 辅助函数：创建图标按钮
-    auto createToolBtn = [](QString iconName, QString color, QString tooltip) {
+    // 辅助函数：创建图标按钮，支持旋转
+    auto createToolBtn = [](QString iconName, QString color, QString tooltip, int rotate = 0) {
         QPushButton* btn = new QPushButton();
-        btn->setIcon(IconHelper::getIcon(iconName, color));
-        btn->setIconSize(QSize(18, 18)); // 稍微大一点的图标
-        btn->setFixedSize(36, 36);
+        QIcon icon = IconHelper::getIcon(iconName, color);
+        if (rotate != 0) {
+            QPixmap pix = icon.pixmap(32, 32);
+            QTransform trans;
+            trans.rotate(rotate);
+            btn->setIcon(QIcon(pix.transformed(trans, Qt::SmoothTransformation)));
+        } else {
+            btn->setIcon(icon);
+        }
+        btn->setIconSize(QSize(18, 18));
+        btn->setFixedSize(32, 32);
         btn->setToolTip(tooltip);
         btn->setCursor(Qt::PointingHandCursor);
         return btn;
     };
 
-    // 1. 顶部窗口控制区
+    // 1. 顶部窗口控制区 (修正图标名为 SvgIcons 中存在的名称)
     QPushButton* btnClose = createToolBtn("close", "#aaaaaa", "关闭");
     connect(btnClose, &QPushButton::clicked, this, &QuickWindow::hide);
 
-    QPushButton* btnFull = createToolBtn("window_maximize", "#aaaaaa", "切换主窗口"); // 方块图标
+    QPushButton* btnFull = createToolBtn("maximize", "#aaaaaa", "切换主窗口");
     connect(btnFull, &QPushButton::clicked, [this](){ emit toggleMainWindowRequested(); hide(); });
 
-    QPushButton* btnMin = createToolBtn("window_minimize", "#aaaaaa", "最小化"); // 横线图标
+    QPushButton* btnMin = createToolBtn("minimize", "#aaaaaa", "最小化");
     connect(btnMin, &QPushButton::clicked, this, &QuickWindow::showMinimized);
 
-    toolLayout->addWidget(btnClose);
-    toolLayout->addWidget(btnFull);
-    toolLayout->addWidget(btnMin);
+    toolLayout->addWidget(btnClose, 0, Qt::AlignHCenter);
+    toolLayout->addWidget(btnFull, 0, Qt::AlignHCenter);
+    toolLayout->addWidget(btnMin, 0, Qt::AlignHCenter);
 
-    toolLayout->addSpacing(10); // 分隔
+    toolLayout->addSpacing(8);
 
     // 2. 功能按钮区
     QPushButton* btnPin = createToolBtn("pin_tilted", "#aaaaaa", "置顶");
     btnPin->setCheckable(true);
-    btnPin->setObjectName("btnPin"); // 给个名字方便后续查找
-    // 置顶选中样式：蓝色背景
-    btnPin->setStyleSheet(
-        "QPushButton:checked { background-color: #3A90FF; border-radius: 4px; }"
-        "QPushButton:checked:hover { background-color: #5AA0FF; }"
-    );
-    // 同步初始状态
+    btnPin->setObjectName("btnPin");
+    btnPin->setStyleSheet("QPushButton:checked { background-color: #3A90FF; }");
     if (windowFlags() & Qt::WindowStaysOnTopHint) {
         btnPin->setChecked(true);
         btnPin->setIcon(IconHelper::getIcon("pin_vertical", "#ffffff"));
@@ -286,11 +291,8 @@ void QuickWindow::initUI() {
     QPushButton* btnSidebar = createToolBtn("eye", "#aaaaaa", "显示/隐藏侧边栏");
     btnSidebar->setObjectName("btnSidebar");
     btnSidebar->setCheckable(true);
-    btnSidebar->setChecked(true); // 默认显示
-    btnSidebar->setStyleSheet(
-        "QPushButton:checked { background-color: #3A90FF; border-radius: 4px; }"
-        "QPushButton:checked:hover { background-color: #5AA0FF; }"
-    );
+    btnSidebar->setChecked(true);
+    btnSidebar->setStyleSheet("QPushButton:checked { background-color: #3A90FF; }");
     connect(btnSidebar, &QPushButton::clicked, this, &QuickWindow::toggleSidebar);
 
     QPushButton* btnRefresh = createToolBtn("refresh", "#aaaaaa", "刷新");
@@ -299,59 +301,60 @@ void QuickWindow::initUI() {
     QPushButton* btnToolbox = createToolBtn("toolbox", "#aaaaaa", "工具箱");
     connect(btnToolbox, &QPushButton::clicked, this, &QuickWindow::toolboxRequested);
 
-    toolLayout->addWidget(btnPin);
-    toolLayout->addWidget(btnSidebar);
-    toolLayout->addWidget(btnRefresh);
-    toolLayout->addWidget(btnToolbox);
+    toolLayout->addWidget(btnPin, 0, Qt::AlignHCenter);
+    toolLayout->addWidget(btnSidebar, 0, Qt::AlignHCenter);
+    toolLayout->addWidget(btnRefresh, 0, Qt::AlignHCenter);
+    toolLayout->addWidget(btnToolbox, 0, Qt::AlignHCenter);
 
-    toolLayout->addStretch(); // 弹簧撑开中间
+    toolLayout->addStretch();
 
-    // 3. 分页区 (上下箭头 + 数字)
-    QPushButton* btnPrev = createToolBtn("arrow_up", "#aaaaaa", "上一页"); // 向上箭头
-    btnPrev->setFixedSize(36, 24); // 稍微扁一点
+    // 3. 分页区 (完全复刻图二布局：箭头+输入框+下方总数)
+    QPushButton* btnPrev = createToolBtn("nav_prev", "#aaaaaa", "上一页", 90);
+    btnPrev->setFixedSize(32, 20);
     connect(btnPrev, &QPushButton::clicked, [this](){
         if (m_currentPage > 1) { m_currentPage--; refreshData(); }
     });
 
-    QLabel* pageLabel = new QLabel("1/1");
-    pageLabel->setObjectName("pageLabel");
-    pageLabel->setAlignment(Qt::AlignCenter);
-    pageLabel->setStyleSheet("border: 1px solid #444; border-radius: 4px; color: #888; font-size: 10px; font-weight: bold;");
-    pageLabel->setFixedSize(36, 24);
+    QLineEdit* pageInput = new QLineEdit("1");
+    pageInput->setObjectName("pageInput");
+    pageInput->setAlignment(Qt::AlignCenter);
+    pageInput->setFixedSize(28, 20);
+    connect(pageInput, &QLineEdit::returnPressed, [this, pageInput](){
+        int p = pageInput->text().toInt();
+        if (p > 0 && p <= m_totalPages) { m_currentPage = p; refreshData(); }
+    });
 
-    QPushButton* btnNext = createToolBtn("arrow_down", "#aaaaaa", "下一页"); // 向下箭头
-    btnNext->setFixedSize(36, 24);
+    QLabel* totalLabel = new QLabel("1");
+    totalLabel->setObjectName("totalLabel");
+    totalLabel->setAlignment(Qt::AlignCenter);
+    totalLabel->setStyleSheet("color: #666; font-size: 10px; border: none; background: transparent;");
+
+    QPushButton* btnNext = createToolBtn("nav_next", "#aaaaaa", "下一页", 90);
+    btnNext->setFixedSize(32, 20);
     connect(btnNext, &QPushButton::clicked, [this](){
         if (m_currentPage < m_totalPages) { m_currentPage++; refreshData(); }
     });
 
-    toolLayout->addWidget(btnPrev);
-    toolLayout->addWidget(pageLabel);
-    toolLayout->addWidget(btnNext);
+    toolLayout->addWidget(btnPrev, 0, Qt::AlignHCenter);
+    toolLayout->addWidget(pageInput, 0, Qt::AlignHCenter);
+    toolLayout->addWidget(totalLabel, 0, Qt::AlignHCenter);
+    toolLayout->addWidget(btnNext, 0, Qt::AlignHCenter);
 
-    toolLayout->addSpacing(15);
+    toolLayout->addSpacing(20); // 增加分页与标题间距
 
     // 4. 垂直标题 "快速笔记"
     QLabel* verticalTitle = new QLabel("快\n速\n笔\n记");
     verticalTitle->setAlignment(Qt::AlignCenter);
-    verticalTitle->setStyleSheet("background-color: #333333; color: #666; border-radius: 10px; font-size: 11px; padding: 6px 0; font-weight: bold;");
-    verticalTitle->setFixedWidth(24);
-    
-    // 居中容器
-    QHBoxLayout* titleHBox = new QHBoxLayout();
-    titleHBox->setContentsMargins(0,0,0,0);
-    titleHBox->addWidget(verticalTitle);
-    QWidget* titleWidget = new QWidget();
-    titleWidget->setLayout(titleHBox);
-    toolLayout->addWidget(titleWidget);
+    verticalTitle->setStyleSheet("color: #444; font-size: 11px; font-weight: bold; border: none; background: transparent; line-height: 1.1;");
+    toolLayout->addWidget(verticalTitle, 0, Qt::AlignHCenter);
 
-    toolLayout->addSpacing(10);
+    toolLayout->addSpacing(12);
 
-    // 5. 底部 Logo (闪电)
-    QPushButton* btnLogo = createToolBtn("lightning", "#3A90FF", "RapidNotes"); // 蓝色闪电
-    btnLogo->setCursor(Qt::ArrowCursor); // 仅展示，不做按钮用
+    // 5. 底部 Logo (修正为 zap 图标以匹配图二蓝闪电)
+    QPushButton* btnLogo = createToolBtn("zap", "#3A90FF", "RapidNotes");
+    btnLogo->setCursor(Qt::ArrowCursor);
     btnLogo->setStyleSheet("background: transparent; border: none;");
-    toolLayout->addWidget(btnLogo);
+    toolLayout->addWidget(btnLogo, 0, Qt::AlignHCenter);
 
     containerLayout->addWidget(customToolbar);
     
@@ -458,11 +461,12 @@ void QuickWindow::refreshData() {
 
     m_model->setNotes(DatabaseManager::instance().searchNotes(keyword, m_currentFilterType, m_currentFilterValue, m_currentPage, pageSize));
     
-    // 更新工具栏页码 (通过 objectName 查找)
-    auto* pageLabel = findChild<QLabel*>("pageLabel");
-    if (pageLabel) {
-        pageLabel->setText(QString("%1/%2").arg(m_currentPage).arg(m_totalPages));
-    }
+    // 更新工具栏页码 (对齐新版 1:1 布局)
+    auto* pageInput = findChild<QLineEdit*>("pageInput");
+    if (pageInput) pageInput->setText(QString::number(m_currentPage));
+
+    auto* totalLabel = findChild<QLabel*>("totalLabel");
+    if (totalLabel) totalLabel->setText(QString::number(m_totalPages));
 }
 
 void QuickWindow::updatePartitionStatus(const QString& name) {
