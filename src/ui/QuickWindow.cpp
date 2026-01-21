@@ -90,10 +90,10 @@ void QuickWindow::initUI() {
     container->setMouseTracking(true); // 确保容器不阻断鼠标追踪
     container->setStyleSheet(
         "QWidget#container { background: #1E1E1E; border-radius: 10px; border: 1px solid #333; }"
-        "QLineEdit { background: transparent; border: none; color: white; font-size: 18px; padding: 10px; border-bottom: 1px solid #333; }"
         "QListView, QTreeView { background: transparent; border: none; color: #BBB; outline: none; }"
-        "QListView::item, QTreeView::item { padding: 8px; }"
-        "QListView::item:selected, QTreeView::item:selected { background: #37373D; border-radius: 4px; }"
+        "QTreeView::item { height: 25px; padding: 0px 4px; }"
+        "QListView::item { padding: 6px; border-bottom: 1px solid #2A2A2A; }"
+        "QListView::item:selected, QTreeView::item:selected { background: #4a90e2; color: white; }"
     );
     
     auto* shadow = new QGraphicsDropShadowEffect(this);
