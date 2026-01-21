@@ -55,8 +55,8 @@ int main(int argc, char *argv[]) {
     }
 
     // 2. 初始化主界面
-    MainWindow mainWin;
-    mainWin.show();
+    MainWindow* mainWin = new MainWindow();
+    mainWin->show();
 
     // 3. 初始化悬浮球
     FloatingBall* ball = new FloatingBall();
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
 
     quickWin->setObjectName("QuickWindow");
     QObject::connect(quickWin, &QuickWindow::toolboxRequested, [=](){ toggleToolbox(quickWin); });
-    QObject::connect(&mainWin, &MainWindow::toolboxRequested, [=](){ toggleToolbox(&mainWin); });
+    QObject::connect(mainWin, &MainWindow::toolboxRequested, [=](){ toggleToolbox(mainWin); });
 
     // 5. 注册全局热键
     // Alt+Space (0x0001 = MOD_ALT, 0x20 = VK_SPACE)
@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
     });
 
     SystemTray* tray = new SystemTray(&a);
-    QObject::connect(tray, &SystemTray::showMainWindow, &mainWin, &MainWindow::showNormal);
+    QObject::connect(tray, &SystemTray::showMainWindow, mainWin, &MainWindow::showNormal);
     QObject::connect(tray, &SystemTray::showQuickWindow, quickWin, &QuickWindow::showCentered);
     QObject::connect(tray, &SystemTray::quitApp, &a, &QApplication::quit);
     tray->show();
@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
     QObject::connect(ball, &FloatingBall::doubleClicked, [&](){
         quickWin->showCentered();
     });
-    QObject::connect(ball, &FloatingBall::requestMainWindow, &mainWin, &MainWindow::showNormal);
+    QObject::connect(ball, &FloatingBall::requestMainWindow, mainWin, &MainWindow::showNormal);
     QObject::connect(ball, &FloatingBall::requestQuickWindow, quickWin, &QuickWindow::showCentered);
 
     // 7. 监听剪贴板 (智能标题与自动分类)
