@@ -4,6 +4,8 @@
 #include "../ui/IconHelper.h"
 #include <QFileInfo>
 #include <QBuffer>
+#include <QPixmap>
+#include <QByteArray>
 
 static QString getIconHtml(const QString& name, const QString& color) {
     QIcon icon = IconHelper::getIcon(name, color, 16);
@@ -103,7 +105,15 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
                      getIconHtml("eye", "#aaa"), statusStr,
                      preview);
         }
-        case Qt::DisplayRole:
+        case Qt::DisplayRole: {
+            QString type = note.value("item_type").toString();
+            QString title = note.value("title").toString();
+            QString content = note.value("content").toString();
+            if (type == "text" || type.isEmpty()) {
+                return content.replace('\n', ' ').replace('\r', ' ').trimmed().left(150);
+            }
+            return title;
+        }
         case TitleRole:
             return note.value("title");
         case ContentRole:

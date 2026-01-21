@@ -15,6 +15,11 @@
 #include <QMimeData>
 #include <QTimer>
 #include <QApplication>
+#include <QUrl>
+#include <QToolTip>
+#include <QImage>
+#include <QMap>
+#include <QFileInfo>
 
 QuickWindow::QuickWindow(QWidget* parent) 
     : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) 
@@ -69,6 +74,8 @@ void QuickWindow::initUI() {
     m_listView = new QListView();
     m_listView->setDragEnabled(true);
     m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_listView->setIconSize(QSize(28, 28));
+    m_listView->setAlternatingRowColors(true);
     m_model = new NoteModel(this);
     m_listView->setModel(m_model);
     m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -101,10 +108,13 @@ void QuickWindow::initUI() {
         m_currentFilterType = index.data(Qt::UserRole).toString();
         QString name = index.data(Qt::DisplayRole).toString();
         updatePartitionStatus(name);
+
         if (m_currentFilterType == "category") {
             m_currentFilterValue = index.data(Qt::UserRole + 1).toInt();
+            applyListTheme(index.data(Qt::UserRole + 2).toString()); // 假设 Role+2 是颜色
         } else {
             m_currentFilterValue = -1;
+            applyListTheme("");
         }
         m_currentPage = 1;
         refreshData();
@@ -116,6 +126,15 @@ void QuickWindow::initUI() {
             if (type == "category") {
                 int catId = targetIndex.data(Qt::UserRole + 1).toInt();
                 DatabaseManager::instance().updateNoteState(id, "category_id", catId);
+
+                // 更新最近使用的分类
+                QSettings settings("RapidNotes", "QuickWindow");
+                QVariantList recentCats = settings.value("recentCategories").toList();
+                recentCats.removeAll(catId);
+                recentCats.prepend(catId);
+                while (recentCats.size() > 15) recentCats.removeLast();
+                settings.setValue("recentCategories", recentCats);
+
             } else if (type == "bookmark") {
                 DatabaseManager::instance().updateNoteState(id, "is_favorite", 1);
             } else if (type == "trash") {
@@ -173,10 +192,13 @@ void QuickWindow::initUI() {
         if (page >= 1 && page <= m_totalPages) { m_currentPage = page; refreshData(); }
     });
     
-    // 搜索逻辑
+    // 搜索逻辑 (带 300ms 延迟，对标 Python)
+    m_searchTimer = new QTimer(this);
+    m_searchTimer->setSingleShot(true);
+    connect(m_searchTimer, &QTimer::timeout, this, &QuickWindow::refreshData);
     connect(m_searchEdit, &QLineEdit::textChanged, [this](const QString& text){
         m_currentPage = 1;
-        refreshData();
+        m_searchTimer->start(300);
     });
 
     // 回车逻辑优化：仅在空搜索或特定条件下新增，否则保存历史
@@ -195,7 +217,32 @@ void QuickWindow::initUI() {
     });
 
     setupShortcuts();
+    restoreState();
     refreshData();
+}
+
+void QuickWindow::saveState() {
+    QSettings settings("RapidNotes", "QuickWindow");
+    settings.setValue("geometry", saveGeometry());
+    settings.setValue("splitter", m_splitter->saveState());
+    settings.setValue("sidebarHidden", m_sideBar->isHidden());
+    settings.setValue("stayOnTop", m_toolbar->isStayOnTop());
+}
+
+void QuickWindow::restoreState() {
+    QSettings settings("RapidNotes", "QuickWindow");
+    if (settings.contains("geometry")) {
+        restoreGeometry(settings.value("geometry").toByteArray());
+    }
+    if (settings.contains("splitter")) {
+        m_splitter->restoreState(settings.value("splitter").toByteArray());
+    }
+    if (settings.contains("sidebarHidden")) {
+        m_sideBar->setHidden(settings.value("sidebarHidden").toBool());
+    }
+    if (settings.contains("stayOnTop")) {
+        toggleStayOnTop(settings.value("stayOnTop").toBool());
+    }
 }
 
 void QuickWindow::setupShortcuts() {
@@ -241,7 +288,33 @@ void QuickWindow::refreshData() {
 }
 
 void QuickWindow::updatePartitionStatus(const QString& name) {
-    m_statusLabel->setText(QString("当前分区: %1").arg(name));
+    if (m_sideBar->isHidden()) {
+        m_statusLabel->setText(QString("当前分区: %1").arg(name.isEmpty() ? "全部数据" : name));
+        m_statusLabel->show();
+    } else {
+        m_statusLabel->hide();
+    }
+}
+
+void QuickWindow::applyListTheme(const QString& colorHex) {
+    QString style;
+    if (!colorHex.isEmpty()) {
+        QColor c(colorHex);
+        QString bgColor = c.darker(350).name();
+        QString altBgColor = c.darker(450).name();
+        QString selColor = c.darker(110).name();
+        style = QString("QListView { border: none; background-color: %1; alternate-background-color: %2; color: #eee; outline: none; } "
+                        "QListView::item { padding: 8px; border-bottom: 1px solid rgba(0,0,0,0.2); } "
+                        "QListView::item:selected { background-color: %3; color: white; border-radius: 4px; } "
+                        "QListView::item:hover { background-color: rgba(255,255,255,0.1); }")
+                .arg(bgColor, altBgColor, selColor);
+    } else {
+        style = "QListView { border: none; background-color: #1e1e1e; alternate-background-color: #151515; color: #eee; outline: none; } "
+                "QListView::item { padding: 8px; border-bottom: 1px solid #2a2a2a; } "
+                "QListView::item:selected { background-color: #4a90e2; color: white; border-radius: 4px; } "
+                "QListView::item:hover { background-color: #333333; }";
+    }
+    m_listView->setStyleSheet(style);
 }
 
 void QuickWindow::activateNote(const QModelIndex& index) {
@@ -250,14 +323,41 @@ void QuickWindow::activateNote(const QModelIndex& index) {
     int id = index.data(NoteModel::IdRole).toInt();
     QVariantMap note = DatabaseManager::instance().getNoteById(id);
 
-    // 1. 复制内容到剪贴板
+    // 1. 准备剪贴板数据
     QString itemType = note["item_type"].toString();
+    QString content = note["content"].toString();
+
     if (itemType == "image") {
         QImage img;
         img.loadFromData(note["data_blob"].toByteArray());
         QApplication::clipboard()->setImage(img);
+    } else if (itemType != "text" && !itemType.isEmpty()) {
+        // 对标 Python：处理文件路径 URLs
+        QStringList rawPaths = content.split(';', Qt::SkipEmptyParts);
+        QList<QUrl> validUrls;
+        QStringList missingFiles;
+
+        for (const QString& p : rawPaths) {
+            QString path = p.trimmed().remove('\"');
+            if (QFileInfo::exists(path)) {
+                validUrls << QUrl::fromLocalFile(path);
+            } else {
+                missingFiles << QFileInfo(path).fileName();
+            }
+        }
+
+        if (!validUrls.isEmpty()) {
+            QMimeData* mimeData = new QMimeData();
+            mimeData->setUrls(validUrls);
+            QApplication::clipboard()->setMimeData(mimeData);
+        } else {
+            QApplication::clipboard()->setText(content);
+            if (!missingFiles.isEmpty()) {
+                QToolTip::showText(QCursor::pos(), "⚠️ 原文件已丢失，已复制路径文本", this);
+            }
+        }
     } else {
-        QApplication::clipboard()->setText(note["content"].toString());
+        QApplication::clipboard()->setText(content);
     }
 
     // 2. 隐藏当前窗口
@@ -392,6 +492,7 @@ void QuickWindow::toggleStayOnTop(bool checked) {
 
 void QuickWindow::toggleSidebar() {
     m_sideBar->setVisible(!m_sideBar->isVisible());
+    updatePartitionStatus(m_sideBar->currentIndex().data().toString());
 }
 
 void QuickWindow::showListContextMenu(const QPoint& pos) {
@@ -431,12 +532,59 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
 
     menu.addAction(IconHelper::getIcon("bookmark", "#ff6b81"), "收藏/取消收藏 (Ctrl+E)", this, &QuickWindow::doToggleFavorite);
     menu.addAction(IconHelper::getIcon("pin", "#e74c3c"), "置顶/取消置顶 (Ctrl+P)", this, &QuickWindow::doTogglePin);
-    menu.addAction(IconHelper::getIcon("lock", "#2ecc71"), "锁定/解锁 (Ctrl+S)", this, &QuickWindow::doLockSelected);
+
+    bool isLocked = selected.first().data(NoteModel::LockedRole).toBool();
+    menu.addAction(IconHelper::getIcon("lock", isLocked ? "#2ecc71" : "#aaaaaa"),
+                   isLocked ? "解锁选中项" : "锁定选中项 (Ctrl+S)", this, &QuickWindow::doLockSelected);
+
+    menu.addSeparator();
+
+    auto* catMenu = menu.addMenu(IconHelper::getIcon("branch", "#cccccc"), QString("移动选中项到分类 (%1)").arg(selCount));
+    catMenu->addAction("⚠️ 未分类", [this]() { doMoveToCategory(-1); });
+
+    QSettings settings("RapidNotes", "QuickWindow");
+    QVariantList recentCats = settings.value("recentCategories").toList();
+    auto allCategories = DatabaseManager::instance().getAllCategories();
+    QMap<int, QVariantMap> catMap;
+    for (const auto& cat : allCategories) catMap[cat["id"].toInt()] = cat;
+
+    int count = 0;
+    for (const auto& v : recentCats) {
+        if (count >= 15) break;
+        int cid = v.toInt();
+        if (catMap.contains(cid)) {
+            const auto& cat = catMap[cid];
+            catMenu->addAction(IconHelper::getIcon("branch", cat["color"].toString()), cat["name"].toString(), [this, cid]() {
+                doMoveToCategory(cid);
+            });
+            count++;
+        }
+    }
 
     menu.addSeparator();
     menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "移至回收站 (Delete)", this, &QuickWindow::doDeleteSelected);
 
     menu.exec(m_listView->mapToGlobal(pos));
+}
+
+void QuickWindow::doMoveToCategory(int catId) {
+    auto selected = m_listView->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+
+    if (catId != -1) {
+        QSettings settings("RapidNotes", "QuickWindow");
+        QVariantList recentCats = settings.value("recentCategories").toList();
+        recentCats.removeAll(catId);
+        recentCats.prepend(catId);
+        while (recentCats.size() > 15) recentCats.removeLast();
+        settings.setValue("recentCategories", recentCats);
+    }
+
+    for (const auto& index : selected) {
+        int id = index.data(NoteModel::IdRole).toInt();
+        DatabaseManager::instance().updateNoteState(id, "category_id", catId == -1 ? QVariant() : catId);
+    }
+    refreshData();
 }
 
 void QuickWindow::showCentered() {
@@ -504,6 +652,11 @@ void QuickWindow::mouseReleaseEvent(QMouseEvent* event) {
     QWidget::mouseReleaseEvent(event);
 }
 
+void QuickWindow::hideEvent(QHideEvent* event) {
+    saveState();
+    QWidget::hideEvent(event);
+}
+
 int QuickWindow::getResizeArea(const QPoint& pos) {
     int area = 0;
     int x = pos.x();
@@ -513,6 +666,14 @@ int QuickWindow::getResizeArea(const QPoint& pos) {
     if (y < RESIZE_MARGIN) area |= 0x4;
     else if (y > height() - RESIZE_MARGIN) area |= 0x8;
     return area;
+}
+
+void QuickWindow::keyPressEvent(QKeyEvent* event) {
+    if (event->key() == Qt::Key_Escape) {
+        hide();
+        return;
+    }
+    QWidget::keyPressEvent(event);
 }
 
 void QuickWindow::setCursorShape(int area) {
@@ -526,6 +687,14 @@ void QuickWindow::setCursorShape(int area) {
 bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
     if (watched == m_listView && event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+        if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
+            activateNote(m_listView->currentIndex());
+            return true;
+        }
+        if (keyEvent->key() == Qt::Key_Escape) {
+            hide();
+            return true;
+        }
         if (keyEvent->key() == Qt::Key_Space && !keyEvent->isAutoRepeat()) {
             QModelIndex index = m_listView->currentIndex();
             if (index.isValid()) {

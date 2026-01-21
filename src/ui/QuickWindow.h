@@ -24,6 +24,8 @@ class QuickWindow : public QWidget {
 public:
     explicit QuickWindow(QWidget* parent = nullptr);
     void showCentered();
+    void saveState();
+    void restoreState();
 
 public slots:
     void refreshData();
@@ -36,6 +38,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
@@ -43,6 +46,7 @@ private:
     void activateNote(const QModelIndex& index);
     void setupShortcuts();
     void updatePartitionStatus(const QString& name);
+    void applyListTheme(const QString& colorHex);
     int getResizeArea(const QPoint& pos);
     void setCursorShape(int area);
 
@@ -55,6 +59,7 @@ private:
     void doExtractContent();
     void doEditSelected();
     void doSetRating(int rating);
+    void doMoveToCategory(int catId);
     void doPreview();
     void toggleStayOnTop(bool checked);
     void toggleSidebar();
@@ -67,6 +72,7 @@ private:
     
     DropTreeView* m_sideBar;
     CategoryModel* m_sideModel;
+    QTimer* m_searchTimer;
     QSplitter* m_splitter;
     QuickToolbar* m_toolbar;
     QLabel* m_statusLabel;

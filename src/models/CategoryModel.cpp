@@ -41,6 +41,7 @@ void CategoryModel::refresh() {
         QStandardItem* item = new QStandardItem(cat["name"].toString());
         item->setData("category", Qt::UserRole);
         item->setData(cat["id"], Qt::UserRole + 1);
+        item->setData(cat["color"], Qt::UserRole + 2);
         item->setIcon(IconHelper::getIcon("branch", cat["color"].toString()));
         itemMap[cat["id"].toInt()] = item;
     }
