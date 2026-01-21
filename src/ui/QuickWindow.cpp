@@ -238,7 +238,7 @@ void QuickWindow::initUI() {
     customToolbar->setFixedWidth(40); // 压缩至 40px
     customToolbar->setStyleSheet(
         "QWidget { background-color: #252526; border-top-right-radius: 10px; border-bottom-right-radius: 10px; border-left: 1px solid #333; }"
-        "QPushButton { border: none; border-radius: 4px; background: transparent; padding: 0px; }"
+        "QPushButton { border: none; border-radius: 4px; background: transparent; padding: 0px; outline: none; }"
         "QPushButton:hover { background-color: #3e3e42; }"
         "QPushButton#btnClose:hover { background-color: #E81123; }"
         "QPushButton:pressed { background-color: #2d2d2d; }"
@@ -266,6 +266,7 @@ void QuickWindow::initUI() {
         btn->setFixedSize(32, 32);
         btn->setToolTip(tooltip);
         btn->setCursor(Qt::PointingHandCursor);
+        btn->setFocusPolicy(Qt::NoFocus);
         return btn;
     };
 
@@ -445,7 +446,8 @@ void QuickWindow::setupShortcuts() {
         toggleStayOnTop(!(windowFlags() & Qt::WindowStaysOnTopHint)); 
     });
     
-    new QShortcut(QKeySequence("Alt+W"), this, [this](){ emit toggleMainWindowRequested(); hide(); });
+    new QShortcut(QKeySequence("Alt+W"), this, [this](){ emit toggleMainWindowRequested(); });
+    new QShortcut(QKeySequence("Ctrl+Shift+T"), this, [this](){ emit toolboxRequested(); });
     new QShortcut(QKeySequence("Ctrl+B"), this, [this](){ doEditSelected(); });
     new QShortcut(QKeySequence("Ctrl+Q"), this, [this](){ toggleSidebar(); });
     new QShortcut(QKeySequence("Alt+S"), this, [this](){ if(m_currentPage > 1) { m_currentPage--; refreshData(); } });
