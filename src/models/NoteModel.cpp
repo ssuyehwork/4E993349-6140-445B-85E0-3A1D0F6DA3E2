@@ -177,12 +177,39 @@ QStringList NoteModel::mimeTypes() const {
 QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
     QMimeData* mimeData = new QMimeData();
     QStringList ids;
+    QStringList texts;
+    QList<QUrl> urls;
+
     for (const QModelIndex& index : indexes) {
         if (index.isValid()) {
             ids << QString::number(data(index, IdRole).toInt());
+
+            QString content = data(index, ContentRole).toString();
+            QString type = data(index, TypeRole).toString();
+
+            if (type == "text" || type.isEmpty()) {
+                texts << content;
+            } else if (type == "file" || type == "folder" || type == "files") {
+                QStringList rawPaths = content.split(';', Qt::SkipEmptyParts);
+                for (const QString& p : rawPaths) {
+                    QString path = p.trimmed().remove('\"');
+                    if (QFileInfo::exists(path)) {
+                        urls << QUrl::fromLocalFile(path);
+                    }
+                }
+                texts << content; // 同时也作为文本
+            }
         }
     }
+
     mimeData->setData("application/x-note-ids", ids.join(",").toUtf8());
+    if (!texts.isEmpty()) {
+        mimeData->setText(texts.join("\n---\n"));
+    }
+    if (!urls.isEmpty()) {
+        mimeData->setUrls(urls);
+    }
+
     return mimeData;
 }
 

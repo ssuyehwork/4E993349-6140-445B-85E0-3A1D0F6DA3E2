@@ -109,6 +109,8 @@ void QuickWindow::initUI() {
 
     // --- 左侧内容区域 ---
     auto* leftContent = new QWidget();
+    leftContent->setObjectName("leftContent");
+    leftContent->setStyleSheet("QWidget#leftContent { background: #1E1E1E; border-top-left-radius: 10px; border-bottom-left-radius: 10px; }");
     leftContent->setMouseTracking(true);
     auto* leftLayout = new QVBoxLayout(leftContent);
     leftLayout->setContentsMargins(10, 10, 10, 5);
@@ -128,6 +130,8 @@ void QuickWindow::initUI() {
     m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_listView->setIconSize(QSize(28, 28));
     m_listView->setAlternatingRowColors(true);
+    m_listView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_listView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_listView->setMouseTracking(true);
     m_listView->setItemDelegate(new QuickNoteDelegate(this));
     m_model = new NoteModel(this);
@@ -148,6 +152,7 @@ void QuickWindow::initUI() {
     m_systemTree->setModel(m_systemModel);
     m_systemTree->setHeaderHidden(true);
     m_systemTree->setFixedHeight(150);
+    m_systemTree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_systemTree->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_systemTree, &QTreeView::customContextMenuRequested, this, &QuickWindow::showSidebarMenu);
 
@@ -155,6 +160,7 @@ void QuickWindow::initUI() {
     m_partitionModel = new CategoryModel(CategoryModel::User, this);
     m_partitionTree->setModel(m_partitionModel);
     m_partitionTree->setHeaderHidden(true);
+    m_partitionTree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_partitionTree->expandAll();
     m_partitionTree->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_partitionTree, &QTreeView::customContextMenuRequested, this, &QuickWindow::showSidebarMenu);
@@ -234,6 +240,7 @@ void QuickWindow::initUI() {
         "QWidget { background-color: #252526; border-top-right-radius: 10px; border-bottom-right-radius: 10px; border-left: 1px solid #333; }"
         "QPushButton { border: none; border-radius: 4px; background: transparent; padding: 0px; }"
         "QPushButton:hover { background-color: #3e3e42; }"
+        "QPushButton#btnClose:hover { background-color: #E81123; }"
         "QPushButton:pressed { background-color: #2d2d2d; }"
         "QLabel { color: #888; font-size: 11px; }"
         "QLineEdit { background: transparent; border: 1px solid #444; border-radius: 4px; color: white; font-size: 11px; font-weight: bold; padding: 0; }"
@@ -264,10 +271,11 @@ void QuickWindow::initUI() {
 
     // 1. 顶部窗口控制区 (修正图标名为 SvgIcons 中存在的名称)
     QPushButton* btnClose = createToolBtn("close", "#aaaaaa", "关闭");
+    btnClose->setObjectName("btnClose");
     connect(btnClose, &QPushButton::clicked, this, &QuickWindow::hide);
 
-    QPushButton* btnFull = createToolBtn("maximize", "#aaaaaa", "切换主窗口");
-    connect(btnFull, &QPushButton::clicked, [this](){ emit toggleMainWindowRequested(); hide(); });
+    QPushButton* btnFull = createToolBtn("maximize", "#aaaaaa", "打开/关闭主窗口");
+    connect(btnFull, &QPushButton::clicked, [this](){ emit toggleMainWindowRequested(); });
 
     QPushButton* btnMin = createToolBtn("minimize", "#aaaaaa", "最小化");
     connect(btnMin, &QPushButton::clicked, this, &QuickWindow::showMinimized);
