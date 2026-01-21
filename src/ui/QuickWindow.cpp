@@ -16,6 +16,8 @@
 #include <QMimeData>
 #include <QTimer>
 #include <QApplication>
+#include <QActionGroup>
+#include <QAction>
 #include <QUrl>
 #include <QToolTip>
 #include <QImage>
