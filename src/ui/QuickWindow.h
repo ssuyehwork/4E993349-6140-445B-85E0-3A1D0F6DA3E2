@@ -55,6 +55,9 @@ private:
     int getResizeArea(const QPoint& pos);
     void setCursorShape(int area);
 
+public:
+    QString currentCategoryColor() const { return m_currentCategoryColor; }
+
     // 快捷键处理函数
     void doDeleteSelected();
     void doToggleFavorite();
@@ -91,6 +94,7 @@ private:
     int m_totalPages = 1;
     QString m_currentFilterType = "all";
     int m_currentFilterValue = -1;
+    QString m_currentCategoryColor = "#4a90e2"; // 默认蓝色
 
     int m_resizeArea = 0;
     QPoint m_resizeStartPos;

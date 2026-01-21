@@ -6,6 +6,7 @@
 #include <QDateTime>
 #include "../models/NoteModel.h"
 #include "IconHelper.h"
+#include "QuickWindow.h"
 
 class QuickNoteDelegate : public QStyledItemDelegate {
     Q_OBJECT
@@ -33,10 +34,13 @@ public:
         }
         painter->fillRect(rect, bgColor);
 
-        // 2. 绘制选中高亮 (仅左侧 5 像素指示条)
+        // 2. 绘制选中高亮 (仅左侧 5 像素指示条，颜色联动当前分类)
         if (isSelected) {
-            QColor highlightColor = option.palette.color(QPalette::Highlight);
-            if (highlightColor.lightness() > 200) highlightColor = QColor("#4a90e2");
+            QColor highlightColor("#4a90e2"); // 默认蓝
+            QuickWindow* win = qobject_cast<QuickWindow*>(parent());
+            if (win) {
+                highlightColor = QColor(win->currentCategoryColor());
+            }
 
             // 绘制左侧 5px 指示条
             painter->fillRect(QRect(rect.left(), rect.top(), 5, rect.height()), highlightColor);

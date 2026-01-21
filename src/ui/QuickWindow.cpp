@@ -97,9 +97,10 @@ void QuickWindow::initUI() {
     container->setStyleSheet(
         "QWidget#container { background: #1E1E1E; border-radius: 10px; border: 1px solid #333; }"
         "QListView, QTreeView { background: transparent; border: none; color: #BBB; outline: none; }"
-        "QTreeView::item { height: 25px; padding: 0px 4px; }"
+        "QTreeView::item { height: 30px; padding: 0px 4px; border-radius: 4px; }"
+        "QTreeView::item:hover { background-color: #2a2d2e; }"
+        "QTreeView::item:selected { background-color: #37373d; color: white; }"
         "QListView::item { padding: 6px; border-bottom: 1px solid #2A2A2A; }"
-        "QListView::item:selected, QTreeView::item:selected { background: #4a90e2; color: white; }"
     );
     
     auto* shadow = new QGraphicsDropShadowEffect(this);
@@ -189,9 +190,12 @@ void QuickWindow::initUI() {
         updatePartitionStatus(name);
         if (m_currentFilterType == "category") {
             m_currentFilterValue = index.data(CategoryModel::IdRole).toInt();
-            applyListTheme(index.data(CategoryModel::ColorRole).toString());
+            m_currentCategoryColor = index.data(CategoryModel::ColorRole).toString();
+            if (m_currentCategoryColor.isEmpty()) m_currentCategoryColor = "#4a90e2";
+            applyListTheme(m_currentCategoryColor);
         } else {
             m_currentFilterValue = -1;
+            m_currentCategoryColor = "#4a90e2";
             applyListTheme("");
         }
         m_currentPage = 1;
@@ -501,25 +505,21 @@ void QuickWindow::applyListTheme(const QString& colorHex) {
     QString style;
     if (!colorHex.isEmpty()) {
         QColor c(colorHex);
-        QString bgColor = c.darker(350).name();
-        QString altBgColor = c.darker(450).name();
-        QString selColor = c.darker(110).name();
-        // 对齐 Python 版，QPalette::Highlight 对应选中色，Base/AlternateBase 对应斑马纹
+        // 对齐 Python 版，背景保持深色，高亮色由 Delegate 处理，这里主要设置斑马纹
         style = QString("QListView { "
                         "  border: none; "
-                        "  background-color: %1; "
-                        "  alternate-background-color: %2; "
-                        "  selection-background-color: %3; "
+                        "  background-color: #1e1e1e; "
+                        "  alternate-background-color: #252526; "
+                        "  selection-background-color: transparent; "
                         "  color: #eee; "
                         "  outline: none; "
-                        "}")
-                .arg(bgColor, altBgColor, selColor);
+                        "}");
     } else {
         style = "QListView { "
                 "  border: none; "
                 "  background-color: #1e1e1e; "
-                "  alternate-background-color: #151515; "
-                "  selection-background-color: #4a90e2; "
+                "  alternate-background-color: #252526; "
+                "  selection-background-color: transparent; "
                 "  color: #eee; "
                 "  outline: none; "
                 "}";

@@ -527,11 +527,22 @@ int DatabaseManager::addCategory(const QString& name, int parentId, const QStrin
     QMutexLocker locker(&m_mutex);
     if (!m_db.isOpen()) return -1;
 
+    QString chosenColor = color;
+    if (chosenColor.isEmpty()) {
+        // 使用 Python 版的调色盘
+        static const QStringList palette = {
+            "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD",
+            "#D4A5A5", "#9B59B6", "#3498DB", "#E67E22", "#2ECC71",
+            "#E74C3C", "#F1C40F", "#1ABC9C", "#34495E", "#95A5A6"
+        };
+        chosenColor = palette.at(QRandomGenerator::global()->bounded(palette.size()));
+    }
+
     QSqlQuery query(m_db);
     query.prepare("INSERT INTO categories (name, parent_id, color) VALUES (:name, :parent_id, :color)");
     query.bindValue(":name", name);
     query.bindValue(":parent_id", parentId == -1 ? QVariant(QMetaType::fromType<int>()) : parentId);
-    query.bindValue(":color", color.isEmpty() ? "#808080" : color);
+    query.bindValue(":color", chosenColor);
 
     if (query.exec()) {
         emit categoriesChanged();

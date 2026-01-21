@@ -39,6 +39,13 @@ void CategoryModel::refresh() {
         userGroup->setSelectable(false);
         userGroup->setEditable(false);
         userGroup->setIcon(IconHelper::getIcon("branch", "#FFFFFF"));
+
+        // 设为粗体白色
+        QFont font = userGroup->font();
+        font.setBold(true);
+        userGroup->setFont(font);
+        userGroup->setForeground(QColor("#FFFFFF"));
+
         root->appendRow(userGroup);
 
         auto categories = DatabaseManager::instance().getAllCategories();
