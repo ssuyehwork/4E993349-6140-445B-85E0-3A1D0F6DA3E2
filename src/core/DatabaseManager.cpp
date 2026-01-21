@@ -690,6 +690,13 @@ QVariantMap DatabaseManager::getCounts() {
     counts["bookmark"] = getCount("is_deleted = 0 AND is_favorite = 1");
     counts["trash"] = getCount("is_deleted = 1");
 
+    // 获取分类统计
+    if (query.exec("SELECT category_id, COUNT(*) FROM notes WHERE is_deleted = 0 AND category_id IS NOT NULL GROUP BY category_id")) {
+        while (query.next()) {
+            counts["cat_" + query.value(0).toString()] = query.value(1).toInt();
+        }
+    }
+
     return counts;
 }
 

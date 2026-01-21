@@ -11,11 +11,16 @@ CategoryModel::CategoryModel(Type type, QObject* parent)
 void CategoryModel::refresh() {
     clear();
     QStandardItem* root = invisibleRootItem();
+    QVariantMap counts = DatabaseManager::instance().getCounts();
 
     if (m_type == System || m_type == Both) {
         auto addSystemItem = [&](const QString& name, const QString& type, const QString& icon, const QString& color = "#aaaaaa") {
-            QStandardItem* item = new QStandardItem(name);
-            item->setData(type, Qt::UserRole);
+            int count = counts.value(type, 0).toInt();
+            QString display = QString("%1 (%2)").arg(name).arg(count);
+            QStandardItem* item = new QStandardItem(display);
+            item->setData(type, TypeRole);
+            item->setData(name, NameRole);
+            item->setEditable(false); // 系统项目不可重命名
             item->setIcon(IconHelper::getIcon(icon, color));
             root->appendRow(item);
         };
@@ -32,6 +37,7 @@ void CategoryModel::refresh() {
         // 用户分类
         QStandardItem* userGroup = new QStandardItem("我的分区");
         userGroup->setSelectable(false);
+        userGroup->setEditable(false);
         userGroup->setIcon(IconHelper::getIcon("branch", "#FFFFFF"));
         root->appendRow(userGroup);
 
@@ -39,10 +45,15 @@ void CategoryModel::refresh() {
         QMap<int, QStandardItem*> itemMap;
 
         for (const auto& cat : categories) {
-            QStandardItem* item = new QStandardItem(cat["name"].toString());
-            item->setData("category", Qt::UserRole);
-            item->setData(cat["id"], Qt::UserRole + 1);
-            item->setData(cat["color"], Qt::UserRole + 2);
+            int id = cat["id"].toInt();
+            int count = counts.value("cat_" + QString::number(id), 0).toInt();
+            QString name = cat["name"].toString();
+            QString display = QString("%1 (%2)").arg(name).arg(count);
+            QStandardItem* item = new QStandardItem(display);
+            item->setData("category", TypeRole);
+            item->setData(id, IdRole);
+            item->setData(cat["color"], ColorRole);
+            item->setData(name, NameRole);
             item->setIcon(IconHelper::getIcon("circle_filled", cat["color"].toString()));
             itemMap[cat["id"].toInt()] = item;
         }

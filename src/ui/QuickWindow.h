@@ -50,6 +50,7 @@ private:
     void activateNote(const QModelIndex& index);
     void setupShortcuts();
     void updatePartitionStatus(const QString& name);
+    void refreshSidebar();
     void applyListTheme(const QString& colorHex);
     int getResizeArea(const QPoint& pos);
     void setCursorShape(int area);
