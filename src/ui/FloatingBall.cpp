@@ -11,9 +11,9 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 
-// 修复点：移除了 Qt::Tool，防止在 MinGW 环境下与透明背景冲突导致崩溃
+// 修复点：使用 Qt::Tool 隐藏任务栏图标
 FloatingBall::FloatingBall(QWidget* parent) 
-    : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) 
+    : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool)
 {
     setAttribute(Qt::WA_TranslucentBackground);
     setAcceptDrops(true);

@@ -33,6 +33,7 @@ set(SOURCES
     src/ui/SystemTray.cpp
     src/ui/Editor.cpp
     src/ui/NoteDelegate.h
+    src/ui/QuickNoteDelegate.h
     src/ui/NoteEditWindow.h    # <--- 必须有
     src/ui/NoteEditWindow.cpp  # <--- 必须有
     src/ui/ScreenshotTool.h

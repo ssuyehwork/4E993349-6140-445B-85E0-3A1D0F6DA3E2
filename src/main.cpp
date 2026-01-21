@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
 
     // 2. 初始化主界面
     MainWindow* mainWin = new MainWindow();
-    mainWin->show();
+    // mainWin->show(); // 默认启动不显示主界面
 
     // 3. 初始化悬浮球
     FloatingBall* ball = new FloatingBall();
@@ -64,6 +64,7 @@ int main(int argc, char *argv[]) {
 
     // 4. 初始化快速记录窗口与工具箱
     QuickWindow* quickWin = new QuickWindow();
+    quickWin->showCentered(); // 默认启动显示极速窗口
     Toolbox* toolbox = new Toolbox();
 
     auto toggleToolbox = [toolbox](QWidget* parentWin) {

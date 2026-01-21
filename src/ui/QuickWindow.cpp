@@ -135,6 +135,7 @@ void QuickWindow::initUI() {
     // 列表在右
     m_listView = new QListView();
     m_listView->setDragEnabled(true);
+    m_listView->setAlternatingRowColors(false); // 禁用斑马纹
     m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_listView->setIconSize(QSize(28, 28));
     m_model = new NoteModel(this);
@@ -440,15 +441,14 @@ void QuickWindow::applyListTheme(const QString& colorHex) {
     if (!colorHex.isEmpty()) {
         QColor c(colorHex);
         QString bgColor = c.darker(350).name();
-        QString altBgColor = c.darker(450).name();
         QString selColor = c.darker(110).name();
-        style = QString("QListView { border: none; background-color: %1; alternate-background-color: %2; color: #eee; outline: none; } "
+        style = QString("QListView { border: none; background-color: %1; color: #eee; outline: none; } "
                         "QListView::item { padding: 8px; border-bottom: 1px solid rgba(0,0,0,0.2); } "
-                        "QListView::item:selected { background-color: %3; color: white; border-radius: 4px; } "
+                        "QListView::item:selected { background-color: %2; color: white; border-radius: 4px; } "
                         "QListView::item:hover { background-color: rgba(255,255,255,0.1); }")
-                .arg(bgColor, altBgColor, selColor);
+                .arg(bgColor, selColor);
     } else {
-        style = "QListView { border: none; background-color: #1e1e1e; alternate-background-color: #151515; color: #eee; outline: none; } "
+        style = "QListView { border: none; background-color: #1e1e1e; color: #eee; outline: none; } "
                 "QListView::item { padding: 8px; border-bottom: 1px solid #2a2a2a; } "
                 "QListView::item:selected { background-color: #4a90e2; color: white; border-radius: 4px; } "
                 "QListView::item:hover { background-color: #333333; }";
