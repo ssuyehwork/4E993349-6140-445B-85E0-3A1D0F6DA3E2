@@ -31,7 +31,7 @@
 #include <QRandomGenerator>
 
 // 定义调整大小的边缘触发区域宽度
-#define RESIZE_MARGIN 20 
+#define RESIZE_MARGIN 10
 
 QuickWindow::QuickWindow(QWidget* parent) 
     : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) 
@@ -105,7 +105,7 @@ QuickWindow::QuickWindow(QWidget* parent)
 
 void QuickWindow::initUI() {
     auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(15, 15, 15, 15); // 给阴影留出空间
+    mainLayout->setContentsMargins(10, 10, 10, 10); // 缩小边距
 
     auto* container = new QWidget();
     container->setObjectName("container");
@@ -113,7 +113,7 @@ void QuickWindow::initUI() {
     container->setStyleSheet(
         "QWidget#container { background: #1E1E1E; border-radius: 10px; border: 1px solid #333; }"
         "QListView, QTreeView { background: transparent; border: none; color: #BBB; outline: none; }"
-        "QTreeView::item { height: 30px; padding: 0px 4px; border-radius: 4px; }"
+        "QTreeView::item { height: 26px; padding: 0px 4px; border-radius: 4px; }"
         "QTreeView::item:hover { background-color: #2a2d2e; }"
         "QTreeView::item:selected { background-color: #37373d; color: white; }"
         "QListView::item { padding: 6px; border-bottom: 1px solid #2A2A2A; }"
