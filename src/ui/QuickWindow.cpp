@@ -20,6 +20,7 @@
 #include <QActionGroup>
 #include <QAction>
 #include <QUrl>
+#include <QBuffer>
 #include <QToolTip>
 #include <QImage>
 #include <QMap>
