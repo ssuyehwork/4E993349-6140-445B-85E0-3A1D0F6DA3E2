@@ -93,7 +93,8 @@ private:
 
 #ifdef Q_OS_WIN
     HWND m_lastActiveHwnd = nullptr;
-    HWND m_myHwnd = nullptr;
+    HWND m_lastFocusHwnd = nullptr;
+    DWORD m_lastThreadId = 0;
 #endif
 };
 

@@ -50,6 +50,13 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
                 iconColor = "#e67e22";
             } else {
                 // Smart recognition for text
+                QString cleanPath = content;
+                if (cleanPath.startsWith("\"") && cleanPath.endsWith("\"")) {
+                    cleanPath = cleanPath.mid(1, cleanPath.length() - 2);
+                } else if (cleanPath.startsWith("'") && cleanPath.endsWith("'")) {
+                    cleanPath = cleanPath.mid(1, cleanPath.length() - 2);
+                }
+
                 if (content.startsWith("http://") || content.startsWith("https://") || content.startsWith("www.")) {
                     iconName = "link";
                     iconColor = "#3498db";
@@ -58,9 +65,9 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
                            content.startsWith("function") || content.startsWith("var ") || content.startsWith("const ")) {
                     iconName = "code";
                     iconColor = "#2ecc71";
-                } else if (content.length() < 260 && (content.contains(":/") || content.startsWith("/") || content.startsWith("\\\\") ||
-                           content.startsWith("./") || content.startsWith("../"))) {
-                    QFileInfo info(content.remove('\"'));
+                } else if (cleanPath.length() < 260 && (cleanPath.contains(":/") || cleanPath.startsWith("/") || cleanPath.startsWith("\\\\") ||
+                           cleanPath.startsWith("./") || cleanPath.startsWith("../"))) {
+                    QFileInfo info(cleanPath);
                     if (info.exists()) {
                         if (info.isDir()) {
                             iconName = "folder";
@@ -77,7 +84,6 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
         case Qt::ToolTipRole: {
             QString title = note.value("title").toString();
             QString content = note.value("content").toString();
-            QString updatedAt = note.value("updated_at").toString();
             int catId = note.value("category_id").toInt();
             QString tags = note.value("tags").toString();
             bool pinned = note.value("is_pinned").toBool();
@@ -95,27 +101,27 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             if (statusStr.isEmpty()) statusStr = "无";
 
             QString ratingStr;
-            for(int i=0; i<rating; ++i) ratingStr += getIconHtml("star_filled", "#f39c12");
+            for(int i=0; i<rating; ++i) ratingStr += getIconHtml("star_filled", "#f39c12") + " ";
             if (ratingStr.isEmpty()) ratingStr = "无";
 
-            QString preview = content.left(400).replace("\n", "<br>").trimmed();
+            QString preview = content.left(400).toHtmlEscaped().replace("\n", "<br>").trimmed();
             if (content.length() > 400) preview += "...";
-            if (preview.isEmpty()) preview = title;
+            if (preview.isEmpty()) preview = title.toHtmlEscaped();
 
             return QString("<html><body style='color: #ddd;'>"
                            "<table border='0' cellpadding='2' cellspacing='0'>"
-                           "<tr><td width='20'>%1</td><td><b>分区:</b> %2</td></tr>"
-                           "<tr><td width='20'>%3</td><td><b>标签:</b> %4</td></tr>"
-                           "<tr><td width='20'>%5</td><td><b>评级:</b> %6</td></tr>"
-                           "<tr><td width='20'>%7</td><td><b>状态:</b> %8</td></tr>"
+                           "<tr><td width='22'>%1</td><td><b>分区:</b> %2</td></tr>"
+                           "<tr><td width='22'>%3</td><td><b>标签:</b> %4</td></tr>"
+                           "<tr><td width='22'>%5</td><td><b>评级:</b> %6</td></tr>"
+                           "<tr><td width='22'>%7</td><td><b>状态:</b> %8</td></tr>"
                            "</table>"
                            "<hr style='border: 0; border-top: 1px solid #555; margin: 5px 0;'>"
                            "<div style='color: #ccc; font-size: 12px; line-height: 1.4;'>%9</div>"
                            "</body></html>")
                 .arg(getIconHtml("branch", "#4a90e2"), catName,
-                     getIconHtml("text", "#FFAB91"), tags,
+                     getIconHtml("tag", "#FFAB91"), tags,
                      getIconHtml("star", "#f39c12"), ratingStr,
-                     getIconHtml("pin", "#aaa"), statusStr,
+                     getIconHtml("pin_tilted", "#aaa"), statusStr,
                      preview);
         }
         case Qt::DisplayRole: {

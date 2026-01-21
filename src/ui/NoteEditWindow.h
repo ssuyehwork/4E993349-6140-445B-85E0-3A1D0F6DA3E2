@@ -16,6 +16,7 @@ class NoteEditWindow : public QWidget {
 public:
     // mode: 0=新建, >0=编辑(传入笔记ID)
     explicit NoteEditWindow(int noteId = 0, QWidget* parent = nullptr);
+    void setDefaultCategory(int catId);
 
 signals:
     void noteSaved(); // 保存成功后通知主界面刷新

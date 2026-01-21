@@ -23,6 +23,10 @@
 #include <QImage>
 #include <QMap>
 #include <QFileInfo>
+#include <QInputDialog>
+#include <QColorDialog>
+#include <QMessageBox>
+#include <QRandomGenerator>
 
 QuickWindow::QuickWindow(QWidget* parent) 
     : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) 
@@ -40,13 +44,28 @@ QuickWindow::QuickWindow(QWidget* parent)
         refreshData();
     });
 
+    connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, [this](){
+        m_sideModel->refresh();
+        m_model->updateCategoryMap();
+        refreshData();
+    });
+
 #ifdef Q_OS_WIN
     m_monitorTimer = new QTimer(this);
     connect(m_monitorTimer, &QTimer::timeout, [this]() {
         HWND currentHwnd = GetForegroundWindow();
-        if (currentHwnd == 0 || currentHwnd == m_myHwnd) return;
+        if (currentHwnd == 0 || currentHwnd == (HWND)winId()) return;
         if (currentHwnd != m_lastActiveHwnd) {
             m_lastActiveHwnd = currentHwnd;
+            m_lastThreadId = GetWindowThreadProcessId(m_lastActiveHwnd, nullptr);
+
+            GUITHREADINFO gti;
+            gti.cbSize = sizeof(GUITHREADINFO);
+            if (GetGUIThreadInfo(m_lastThreadId, &gti)) {
+                m_lastFocusHwnd = gti.hwndFocus;
+            } else {
+                m_lastFocusHwnd = nullptr;
+            }
         }
     });
     m_monitorTimer->start(200);
@@ -113,14 +132,91 @@ void QuickWindow::initUI() {
     m_sideBar->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_sideBar, &QTreeView::customContextMenuRequested, this, [this](const QPoint& pos){
         QModelIndex index = m_sideBar->indexAt(pos);
-        if (!index.isValid()) return;
         QMenu menu(this);
+        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; }");
+
+        menu.addAction(IconHelper::getIcon("refresh", "#aaaaaa"), "刷新", [this](){
+            m_sideModel->refresh();
+            refreshData();
+        });
+        menu.addSeparator();
+
+        if (!index.isValid() || index.data(Qt::DisplayRole).toString() == "我的分区") {
+            menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "➕ 新建分组", [this](){
+                bool ok;
+                QString text = QInputDialog::getText(this, "新建分组", "分组名称:", QLineEdit::Normal, "", &ok);
+                if (ok && !text.isEmpty()) {
+                    DatabaseManager::instance().addCategory(text);
+                }
+            });
+            menu.exec(m_sideBar->mapToGlobal(pos));
+            return;
+        }
+
         QString type = index.data(Qt::UserRole).toString();
         if (type == "category") {
-            menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名分类");
-            menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "删除分类");
+            int catId = index.data(Qt::UserRole + 1).toInt();
+            QString name = index.data(Qt::DisplayRole).toString();
+
+            menu.addAction(IconHelper::getIcon("add", "#4a90e2"), "新建灵感", [this, catId](){
+                NoteEditWindow* win = new NoteEditWindow();
+                win->setDefaultCategory(catId);
+                connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
+                win->show();
+            });
+            menu.addSeparator();
+
+            menu.addAction(IconHelper::getIcon("palette", "#aaaaaa"), "设置颜色", [this, catId](){
+                QColor color = QColorDialog::getColor(Qt::gray, this, "选择分类颜色");
+                if (color.isValid()) {
+                    DatabaseManager::instance().setCategoryColor(catId, color.name());
+                }
+            });
+
+            menu.addAction(IconHelper::getIcon("palette", "#aaaaaa"), "随机颜色", [this, catId](){
+                QColor color = QColor::fromHsl(QRandomGenerator::global()->bounded(360), 150, 100);
+                DatabaseManager::instance().setCategoryColor(catId, color.name());
+            });
+
+            menu.addAction(IconHelper::getIcon("text", "#aaaaaa"), "设置预设标签", [this, catId](){
+                QString current = DatabaseManager::instance().getCategoryPresetTags(catId);
+                bool ok;
+                QString tags = QInputDialog::getText(this, "预设标签", "自动绑定的标签 (逗号分隔):", QLineEdit::Normal, current, &ok);
+                if (ok) {
+                    DatabaseManager::instance().setCategoryPresetTags(catId, tags);
+                }
+            });
+
+            menu.addSeparator();
+            menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分组", [this](){
+                bool ok;
+                QString text = QInputDialog::getText(this, "新建分组", "分组名称:", QLineEdit::Normal, "", &ok);
+                if (ok && !text.isEmpty()) DatabaseManager::instance().addCategory(text);
+            });
+            menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分区", [this, catId](){
+                bool ok;
+                QString text = QInputDialog::getText(this, "新建分区", "分区名称:", QLineEdit::Normal, "", &ok);
+                if (ok && !text.isEmpty()) DatabaseManager::instance().addCategory(text, catId);
+            });
+
+            menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名", [this, catId, name](){
+                bool ok;
+                QString text = QInputDialog::getText(this, "重命名", "新名称:", QLineEdit::Normal, name, &ok);
+                if (ok && !text.isEmpty()) DatabaseManager::instance().renameCategory(catId, text);
+            });
+
+            menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "删除", [this, catId](){
+                if (QMessageBox::Yes == QMessageBox::question(this, "确认删除", "确认删除此分类？(内容将移至未分类)")) {
+                    DatabaseManager::instance().deleteCategory(catId);
+                }
+            });
         } else if (type == "trash") {
-            menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "清空回收站");
+            menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "清空回收站", [this](){
+                if (QMessageBox::Yes == QMessageBox::warning(this, "警告", "清空回收站不可恢复，确定吗？")) {
+                    DatabaseManager::instance().emptyTrash();
+                    refreshData();
+                }
+            });
         }
         menu.exec(m_sideBar->mapToGlobal(pos));
     });
@@ -387,19 +483,32 @@ void QuickWindow::activateNote(const QModelIndex& index) {
     // 3. 执行“Ditto式”自动粘贴
 #ifdef Q_OS_WIN
     if (m_lastActiveHwnd && IsWindow(m_lastActiveHwnd)) {
-        // 确保窗口不在最小化状态
+        DWORD currThread = GetCurrentThreadId();
+        bool attached = false;
+        if (m_lastThreadId != 0 && m_lastThreadId != currThread) {
+            attached = AttachThreadInput(currThread, m_lastThreadId, TRUE);
+        }
+
         if (IsIconic(m_lastActiveHwnd)) {
             ShowWindow(m_lastActiveHwnd, SW_RESTORE);
         }
-
         SetForegroundWindow(m_lastActiveHwnd);
 
-        // 延迟一小会儿，确保目标窗口已准备好接收输入
-        QTimer::singleShot(100, [this]() {
+        if (m_lastFocusHwnd && IsWindow(m_lastFocusHwnd)) {
+            SetFocus(m_lastFocusHwnd);
+        }
+
+        // 延迟 200ms，确保目标窗口已准备好接收输入 (对标 Python 版 0.1s + 额外缓冲)
+        DWORD lastThread = m_lastThreadId;
+        QTimer::singleShot(200, [lastThread, attached]() {
             keybd_event(VK_CONTROL, 0, 0, 0);
             keybd_event('V', 0, 0, 0);
             keybd_event('V', 0, KEYEVENTF_KEYUP, 0);
             keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+
+            if (attached) {
+                AttachThreadInput(GetCurrentThreadId(), lastThread, FALSE);
+            }
         });
     }
 #endif
@@ -408,12 +517,13 @@ void QuickWindow::activateNote(const QModelIndex& index) {
 void QuickWindow::doDeleteSelected() {
     auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
+    QList<int> ids;
     for (const auto& index : selected) {
-        int id = index.data(NoteModel::IdRole).toInt();
         if (!index.data(NoteModel::LockedRole).toBool()) {
-            DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
+            ids << index.data(NoteModel::IdRole).toInt();
         }
     }
+    DatabaseManager::instance().updateNoteStateBatch(ids, "is_deleted", 1);
     refreshData();
 }
 
@@ -422,8 +532,7 @@ void QuickWindow::doToggleFavorite() {
     if (selected.isEmpty()) return;
     for (const auto& index : selected) {
         int id = index.data(NoteModel::IdRole).toInt();
-        bool fav = index.data(NoteModel::FavoriteRole).toBool();
-        DatabaseManager::instance().updateNoteState(id, "is_favorite", !fav);
+        DatabaseManager::instance().toggleNoteState(id, "is_favorite");
     }
     refreshData();
 }
@@ -433,8 +542,7 @@ void QuickWindow::doTogglePin() {
     if (selected.isEmpty()) return;
     for (const auto& index : selected) {
         int id = index.data(NoteModel::IdRole).toInt();
-        bool pinned = index.data(NoteModel::PinnedRole).toBool();
-        DatabaseManager::instance().updateNoteState(id, "is_pinned", !pinned);
+        DatabaseManager::instance().toggleNoteState(id, "is_pinned");
     }
     refreshData();
 }
@@ -442,11 +550,15 @@ void QuickWindow::doTogglePin() {
 void QuickWindow::doLockSelected() {
     auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
-    for (const auto& index : selected) {
-        int id = index.data(NoteModel::IdRole).toInt();
-        bool locked = index.data(NoteModel::LockedRole).toBool();
-        DatabaseManager::instance().updateNoteState(id, "is_locked", !locked);
-    }
+
+    int firstId = selected.first().data(NoteModel::IdRole).toInt();
+    bool firstState = selected.first().data(NoteModel::LockedRole).toBool();
+    bool targetState = !firstState;
+
+    QList<int> ids;
+    for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+
+    DatabaseManager::instance().updateNoteStateBatch(ids, "is_locked", targetState);
     refreshData();
 }
 
@@ -615,18 +727,28 @@ void QuickWindow::doMoveToCategory(int catId) {
         settings.setValue("recentCategories", recentCats);
     }
 
-    for (const auto& index : selected) {
-        int id = index.data(NoteModel::IdRole).toInt();
-        DatabaseManager::instance().updateNoteState(id, "category_id", catId == -1 ? QVariant() : catId);
-    }
+    QList<int> ids;
+    for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+
+    DatabaseManager::instance().moveNotesToCategory(ids, catId);
     refreshData();
 }
 
 void QuickWindow::showCentered() {
 #ifdef Q_OS_WIN
-    if (!m_myHwnd) m_myHwnd = (HWND)winId();
+    HWND myHwnd = (HWND)winId();
     HWND current = GetForegroundWindow();
-    if (current != m_myHwnd) m_lastActiveHwnd = current;
+    if (current != myHwnd) {
+        m_lastActiveHwnd = current;
+        m_lastThreadId = GetWindowThreadProcessId(m_lastActiveHwnd, nullptr);
+        GUITHREADINFO gti;
+        gti.cbSize = sizeof(GUITHREADINFO);
+        if (GetGUIThreadInfo(m_lastThreadId, &gti)) {
+            m_lastFocusHwnd = gti.hwndFocus;
+        } else {
+            m_lastFocusHwnd = nullptr;
+        }
+    }
 #endif
     QScreen *screen = QGuiApplication::primaryScreen();
     if (screen) {

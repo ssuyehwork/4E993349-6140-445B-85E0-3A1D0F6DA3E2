@@ -23,6 +23,13 @@ NoteEditWindow::NoteEditWindow(int noteId, QWidget* parent)
     }
 }
 
+void NoteEditWindow::setDefaultCategory(int catId) {
+    int index = m_categoryCombo->findData(catId);
+    if (index != -1) {
+        m_categoryCombo->setCurrentIndex(index);
+    }
+}
+
 void NoteEditWindow::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
     QPainter painter(this);
