@@ -17,17 +17,18 @@ set(SOURCES
     src/core/DatabaseManager.cpp
     src/core/HotkeyManager.cpp
     src/core/ClipboardMonitor.cpp
+    src/core/KeyboardHook.cpp
     src/core/OCRManager.cpp
     src/models/NoteModel.cpp
     src/models/CategoryModel.cpp
     src/ui/FloatingBall.cpp
     src/ui/QuickWindow.cpp
     src/ui/MainWindow.cpp
+    src/ui/QuickPreview.h
     src/ui/HeaderBar.cpp
     src/ui/MetadataPanel.cpp
     src/ui/Toolbox.cpp
     src/ui/SystemTray.cpp
-    src/ui/GraphWidget.cpp
     src/ui/Editor.cpp
     src/ui/NoteDelegate.h
     src/ui/NoteEditWindow.h    # <--- 必须有

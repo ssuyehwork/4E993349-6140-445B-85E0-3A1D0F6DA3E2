@@ -2,13 +2,14 @@
 #define QUICKWINDOW_H
 
 #include <QWidget>
-#include <QLineEdit>
+#include "SearchLineEdit.h"
 #include <QListView>
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include "../models/NoteModel.h"
 #include "../models/CategoryModel.h"
+#include "QuickPreview.h"
 
 class QuickWindow : public QWidget {
     Q_OBJECT
@@ -21,13 +22,16 @@ public slots:
 
 protected:
     bool event(QEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     void initUI();
     
-    QLineEdit* m_searchEdit;
+    SearchLineEdit* m_searchEdit;
     QListView* m_listView;
     NoteModel* m_model;
+    QuickPreview* m_quickPreview;
     
     QTreeView* m_sideBar;
     CategoryModel* m_sideModel;

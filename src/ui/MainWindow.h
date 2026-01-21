@@ -9,10 +9,10 @@
 #include "../models/NoteModel.h"
 #include "../models/CategoryModel.h"
 #include "Editor.h"
-#include "GraphWidget.h"
 #include "NoteEditWindow.h"
 #include "HeaderBar.h"
 #include "MetadataPanel.h"
+#include "QuickPreview.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -28,6 +28,7 @@ private slots:
     void onNoteAdded(const QVariantMap& note);
     
     void refreshData();
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     void initUI();
@@ -40,11 +41,9 @@ private:
 
     HeaderBar* m_header;
     MetadataPanel* m_metaPanel;
+    QuickPreview* m_quickPreview;
     
     Editor* m_editor;
-    GraphWidget* m_graphWidget;
-    
-    QWidget* m_editorArea;
 };
 
 #endif // MAINWINDOW_H

@@ -1,7 +1,7 @@
 #ifndef EDITOR_H
 #define EDITOR_H
 
-#include <QPlainTextEdit>
+#include <QTextEdit>
 #include <QSyntaxHighlighter>
 #include <QRegularExpression>
 
@@ -20,9 +20,8 @@ private:
 };
 
 #include <QStackedWidget>
-#include <QTextEdit>
 
-class InternalEditor : public QPlainTextEdit {
+class InternalEditor : public QTextEdit {
     Q_OBJECT
 public:
     explicit InternalEditor(QWidget* parent = nullptr);

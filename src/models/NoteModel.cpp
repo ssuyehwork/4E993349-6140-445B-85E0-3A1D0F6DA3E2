@@ -30,6 +30,8 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             return note.value("is_locked");
         case FavoriteRole:
             return note.value("is_favorite");
+        case TypeRole:
+            return note.value("item_type");
         default:
             return QVariant();
     }

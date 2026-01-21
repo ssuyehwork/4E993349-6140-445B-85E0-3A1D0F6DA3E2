@@ -16,7 +16,8 @@ public:
         TimeRole,
         PinnedRole,
         LockedRole,
-        FavoriteRole
+        FavoriteRole,
+        TypeRole
     };
 
     explicit NoteModel(QObject* parent = nullptr);

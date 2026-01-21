@@ -5,19 +5,59 @@ QWidget {
     font-family: "Segoe UI", "Microsoft YaHei";
 }
 
+/* 现代滚动条样式 */
 QScrollBar:vertical {
     border: none;
-    background: #2D2D2D;
-    width: 10px;
+    background: transparent;
+    width: 8px;
+    margin: 0px;
 }
 
 QScrollBar::handle:vertical {
-    background: #3E3E42;
-    min-height: 20px;
+    background: #444;
+    min-height: 30px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #555;
+}
+
+QScrollBar::handle:vertical:pressed {
+    background: #4FACFE;
 }
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+QScrollBar:horizontal {
+    border: none;
+    background: transparent;
+    height: 8px;
+    margin: 0px;
+}
+
+QScrollBar::handle:horizontal {
+    background: #444;
+    min-width: 30px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: #555;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
 }
 
 QPushButton {
@@ -74,4 +114,57 @@ QLineEdit {
     border: 1px solid #3E3E42;
     padding: 5px;
     color: white;
+    border-radius: 4px;
+}
+
+QLineEdit:focus {
+    border: 1px solid #4FACFE;
+}
+
+QComboBox {
+    background-color: #2D2D2D;
+    border: 1px solid #3E3E42;
+    border-radius: 4px;
+    padding: 5px;
+    color: white;
+}
+
+QComboBox:on {
+    border: 1px solid #4FACFE;
+}
+
+QComboBox::drop-down {
+    border: none;
+    width: 20px;
+}
+
+QMenu {
+    background-color: #2b2b2b;
+    color: #f0f0f0;
+    border: 1px solid #444;
+    border-radius: 5px;
+    padding: 5px;
+}
+
+QMenu::item {
+    padding: 6px 20px;
+    border-radius: 3px;
+}
+
+QMenu::item:selected {
+    background-color: #37373d;
+}
+
+QMenu::separator {
+    height: 1px;
+    background: #444;
+    margin: 4px 10px;
+}
+
+QToolTip {
+    color: #ffffff;
+    background-color: #2D2D2D;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 4px;
 }

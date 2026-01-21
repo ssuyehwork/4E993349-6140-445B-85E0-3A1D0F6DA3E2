@@ -19,14 +19,21 @@ signals:
     void pageChanged(int page);
     void toolboxRequested();
     void previewToggled(bool checked);
+    void windowClose();
+    void windowMinimize();
+    void windowMaximize();
+
+protected:
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
 
 private:
-    void setupSearchHistory();
-
     SearchLineEdit* m_searchEdit;
     QLabel* m_pageLabel;
     int m_currentPage = 1;
     int m_totalPages = 1;
+    QPoint m_dragPos;
 };
 
 #endif // HEADERBAR_H

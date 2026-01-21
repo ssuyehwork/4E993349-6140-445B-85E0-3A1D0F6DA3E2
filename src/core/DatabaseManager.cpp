@@ -3,6 +3,7 @@
 #include <QSqlRecord>
 #include <QtConcurrent>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QFile>
 #include <QDir>
 
@@ -28,7 +29,14 @@ bool DatabaseManager::init(const QString& dbPath) {
         QString backupDir = QCoreApplication::applicationDirPath() + "/backups";
         QDir().mkpath(backupDir);
         QString backupPath = backupDir + "/backup_" + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".db";
-        QFile::copy(dbPath, backupPath);
+        if (QFile::copy(dbPath, backupPath)) {
+            // 清理旧备份 (保留 20 份)
+            QDir dir(backupDir);
+            QFileInfoList list = dir.entryInfoList(QStringList() << "*.db", QDir::Files, QDir::Time);
+            while (list.size() > 20) {
+                QFile::remove(list.takeLast().absoluteFilePath());
+            }
+        }
     }
 
     if (m_db.isOpen()) m_db.close();
@@ -132,14 +140,15 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
                              const QString& itemType, const QByteArray& dataBlob) {
     QVariantMap newNoteMap;
     bool success = false;
+    QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
 
     {   // === 锁的作用域开始 ===
         QMutexLocker locker(&m_mutex);
         if (!m_db.isOpen()) return false;
 
         QSqlQuery query(m_db);
-        query.prepare("INSERT INTO notes (title, content, tags, color, category_id, item_type, data_blob) "
-                      "VALUES (:title, :content, :tags, :color, :category_id, :item_type, :data_blob)");
+        query.prepare("INSERT INTO notes (title, content, tags, color, category_id, item_type, data_blob, created_at, updated_at) "
+                      "VALUES (:title, :content, :tags, :color, :category_id, :item_type, :data_blob, :created_at, :updated_at)");
         query.bindValue(":title", title);
         query.bindValue(":content", content);
         query.bindValue(":tags", tags.join(","));
@@ -147,6 +156,8 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
         query.bindValue(":category_id", categoryId == -1 ? QVariant(QMetaType::fromType<int>()) : categoryId);
         query.bindValue(":item_type", itemType);
         query.bindValue(":data_blob", dataBlob);
+        query.bindValue(":created_at", currentTime);
+        query.bindValue(":updated_at", currentTime);
         
         if (query.exec()) {
             success = true;
@@ -175,12 +186,13 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
 bool DatabaseManager::updateNote(int id, const QString& title, const QString& content, const QStringList& tags,
                                 const QString& color, int categoryId) {
     bool success = false;
+    QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
     {
         QMutexLocker locker(&m_mutex);
         if (!m_db.isOpen()) return false;
 
         QSqlQuery query(m_db);
-        QString sql = "UPDATE notes SET title=:title, content=:content, tags=:tags, updated_at=CURRENT_TIMESTAMP";
+        QString sql = "UPDATE notes SET title=:title, content=:content, tags=:tags, updated_at=:updated_at";
         if (!color.isEmpty()) sql += ", color=:color";
         if (categoryId != -1) sql += ", category_id=:category_id";
         sql += " WHERE id=:id";
@@ -189,6 +201,7 @@ bool DatabaseManager::updateNote(int id, const QString& title, const QString& co
         query.bindValue(":title", title);
         query.bindValue(":content", content);
         query.bindValue(":tags", tags.join(","));
+        query.bindValue(":updated_at", currentTime);
         if (!color.isEmpty()) query.bindValue(":color", color);
         if (categoryId != -1) query.bindValue(":category_id", categoryId);
         query.bindValue(":id", id);
@@ -203,17 +216,19 @@ bool DatabaseManager::updateNote(int id, const QString& title, const QString& co
 // 【修复核心】防止死锁的 updateNoteState
 bool DatabaseManager::updateNoteState(int id, const QString& column, const QVariant& value) {
     bool success = false;
+    QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
     {
         QMutexLocker locker(&m_mutex);
         if (!m_db.isOpen()) return false;
         
-        QStringList allowedColumns = {"is_pinned", "is_locked", "is_favorite", "is_deleted"};
+        QStringList allowedColumns = {"is_pinned", "is_locked", "is_favorite", "is_deleted", "tags"};
         if (!allowedColumns.contains(column)) return false;
 
         QSqlQuery query(m_db);
-        QString sql = QString("UPDATE notes SET %1 = :val WHERE id = :id").arg(column);
+        QString sql = QString("UPDATE notes SET %1 = :val, updated_at = :updated_at WHERE id = :id").arg(column);
         query.prepare(sql);
         query.bindValue(":val", value);
+        query.bindValue(":updated_at", currentTime);
         query.bindValue(":id", id);
         
         success = query.exec();
@@ -264,7 +279,7 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
             params << filterValue;
         }
     } else if (filterType == "today") {
-        whereClause += "AND date(updated_at, 'localtime') = date('now', 'localtime') ";
+        whereClause += "AND date(updated_at) = date('now', 'localtime') ";
     } else if (filterType == "bookmark") {
         whereClause += "AND is_favorite = 1 ";
     } else if (filterType == "trash") {
@@ -421,7 +436,7 @@ QVariantMap DatabaseManager::getCounts() {
     };
 
     counts["all"] = getCount("is_deleted = 0");
-    counts["today"] = getCount("is_deleted = 0 AND date(updated_at, 'localtime') = date('now', 'localtime')");
+    counts["today"] = getCount("is_deleted = 0 AND date(updated_at) = date('now', 'localtime')");
     counts["uncategorized"] = getCount("is_deleted = 0 AND category_id IS NULL");
     counts["untagged"] = getCount("is_deleted = 0 AND (tags IS NULL OR tags = '')");
     counts["bookmark"] = getCount("is_deleted = 0 AND is_favorite = 1");

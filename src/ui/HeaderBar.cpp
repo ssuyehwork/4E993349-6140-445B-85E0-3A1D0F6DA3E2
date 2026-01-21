@@ -2,12 +2,16 @@
 #include "IconHelper.h"
 #include <QHBoxLayout>
 #include <QSettings>
+#include <QMouseEvent>
+#include <QApplication>
+#include <QWindow>
 
 HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
-    setFixedHeight(50);
-    setStyleSheet("background-color: #2D2D2D; border-bottom: 1px solid #333;");
+    setFixedHeight(40);
+    setStyleSheet("background-color: #252526; border-bottom: 1px solid #333;");
 
     QHBoxLayout* layout = new QHBoxLayout(this);
+    layout->setContentsMargins(10, 0, 10, 0);
     
     QPushButton* btnSidebar = new QPushButton();
     btnSidebar->setIcon(IconHelper::getIcon("sidebar", "#aaaaaa"));
@@ -17,21 +21,13 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     layout->addWidget(btnSidebar);
 
     m_searchEdit = new SearchLineEdit();
-    m_searchEdit->setPlaceholderText("搜索灵感 (双击历史)...");
+    m_searchEdit->setPlaceholderText("搜索灵感 (双击查看历史)...");
     m_searchEdit->setFixedWidth(300);
     m_searchEdit->setStyleSheet("background: #1e1e1e; border-radius: 15px; padding: 5px 15px; border: 1px solid #444; color: white;");
     connect(m_searchEdit, &QLineEdit::textChanged, this, &HeaderBar::searchChanged);
     connect(m_searchEdit, &QLineEdit::returnPressed, [this](){
-        QString text = m_searchEdit->text().trimmed();
-        if (text.isEmpty()) return;
-        QSettings settings("RapidNotes", "SearchHistory");
-        QStringList history = settings.value("list").toStringList();
-        history.removeAll(text);
-        history.prepend(text);
-        if (history.size() > 20) history = history.mid(0, 20);
-        settings.setValue("list", history);
+        m_searchEdit->addHistoryEntry(m_searchEdit->text().trimmed());
     });
-    connect(m_searchEdit, &SearchLineEdit::doubleClicked, this, &HeaderBar::setupSearchHistory);
     layout->addWidget(m_searchEdit);
 
     layout->addStretch();
@@ -73,30 +69,43 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     btnPreview->setStyleSheet("QPushButton { background: transparent; border: none; } QPushButton:checked { background: #444; border-radius: 4px; }");
     connect(btnPreview, &QPushButton::toggled, this, &HeaderBar::previewToggled);
     layout->addWidget(btnPreview);
+
+    layout->addSpacing(20);
+
+    // 窗口控制按钮
+    auto addWinBtn = [&](const QString& icon, const QString& hoverColor, auto signal) {
+        QPushButton* btn = new QPushButton();
+        btn->setIcon(IconHelper::getIcon(icon, "#aaaaaa", 16));
+        btn->setFixedSize(32, 32);
+        btn->setStyleSheet(QString("QPushButton { background: transparent; border: none; } QPushButton:hover { background: %1; }").arg(hoverColor));
+        connect(btn, &QPushButton::clicked, this, signal);
+        layout->addWidget(btn);
+    };
+
+    addWinBtn("minimize", "rgba(255,255,255,0.1)", &HeaderBar::windowMinimize);
+    addWinBtn("maximize", "rgba(255,255,255,0.1)", &HeaderBar::windowMaximize);
+    addWinBtn("close", "#e81123", &HeaderBar::windowClose);
 }
 
-void HeaderBar::setupSearchHistory() {
-    QSettings settings("RapidNotes", "SearchHistory");
-    QStringList history = settings.value("list").toStringList();
-    
-    if (history.isEmpty()) return;
-
-    QMenu* menu = new QMenu(this);
-    menu->setStyleSheet("QMenu { background-color: #2D2D2D; color: white; border: 1px solid #444; } QMenu::item:selected { background-color: #37373D; }");
-    
-    for (const QString& item : history) {
-        QAction* act = menu->addAction(item);
-        connect(act, &QAction::triggered, [this, item](){
-            m_searchEdit->setText(item);
-        });
+void HeaderBar::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        if (auto* win = window()) {
+            if (auto* handle = win->windowHandle()) {
+                handle->startSystemMove();
+            }
+        }
+        event->accept();
     }
-
-    menu->addSeparator();
-    QAction* clearAct = menu->addAction("清空历史");
-    connect(clearAct, &QAction::triggered, [](){
-        QSettings settings("RapidNotes", "SearchHistory");
-        settings.setValue("list", QStringList());
-    });
-
-    menu->exec(m_searchEdit->mapToGlobal(QPoint(0, m_searchEdit->height())));
 }
+
+void HeaderBar::mouseMoveEvent(QMouseEvent* event) {
+    QWidget::mouseMoveEvent(event);
+}
+
+void HeaderBar::mouseDoubleClickEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        emit windowMaximize();
+        event->accept();
+    }
+}
+

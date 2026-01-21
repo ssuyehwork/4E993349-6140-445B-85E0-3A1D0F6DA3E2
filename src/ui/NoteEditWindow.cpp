@@ -8,6 +8,8 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QGraphicsDropShadowEffect>
+#include <QWindow>
+#include <QMouseEvent>
 
 NoteEditWindow::NoteEditWindow(int noteId, QWidget* parent) 
     : QWidget(parent, Qt::Window | Qt::FramelessWindowHint), m_noteId(noteId) 
@@ -29,6 +31,15 @@ void NoteEditWindow::paintEvent(QPaintEvent* event) {
     painter.setBrush(QColor("#252526")); 
     painter.setPen(Qt::NoPen);
     painter.drawRoundedRect(rect(), 10, 10);
+}
+
+void NoteEditWindow::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        if (auto* handle = windowHandle()) {
+            handle->startSystemMove();
+        }
+        event->accept();
+    }
 }
 
 void NoteEditWindow::initUI() {
@@ -70,7 +81,7 @@ void NoteEditWindow::initUI() {
 
 void NoteEditWindow::setupLeftPanel(QVBoxLayout* layout) {
     QString labelStyle = "color: #888; font-size: 12px; margin-bottom: 5px; margin-top: 10px;";
-    QString inputStyle = "QLineEdit, QComboBox { background: #2D2D2D; border: 1px solid #3E3E42; border-radius: 4px; padding: 8px; color: #EEE; font-size: 13px; } QLineEdit:focus { border: 1px solid #409EFF; }";
+    QString inputStyle = "QLineEdit, QComboBox { background: #2D2D2D; border: 1px solid #3E3E42; border-radius: 4px; padding: 8px; color: #EEE; font-size: 13px; }";
 
     QWidget* titleArea = new QWidget();
     QHBoxLayout* titleLayout = new QHBoxLayout(titleArea);
@@ -202,7 +213,6 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     layout->addSpacing(10);
     m_contentEdit = new Editor(); 
     m_contentEdit->setPlaceholderText("在这里记录详细内容...");
-    m_contentEdit->setStyleSheet("QPlainTextEdit { background: transparent; border: none; color: #D4D4D4; font-size: 14px; line-height: 1.5; }");
     layout->addWidget(m_contentEdit);
 }
 
