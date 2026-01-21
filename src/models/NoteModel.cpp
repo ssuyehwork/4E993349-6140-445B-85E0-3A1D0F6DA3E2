@@ -7,6 +7,7 @@
 #include <QBuffer>
 #include <QPixmap>
 #include <QByteArray>
+#include <QUrl>
 
 static QString getIconHtml(const QString& name, const QString& color) {
     QIcon icon = IconHelper::getIcon(name, color, 16);
@@ -51,23 +52,25 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
                 iconName = "folder";
                 iconColor = "#e67e22";
             } else {
-                // Smart recognition for text
-                QString cleanPath = content;
-                if (cleanPath.startsWith("\"") && cleanPath.endsWith("\"")) {
-                    cleanPath = cleanPath.mid(1, cleanPath.length() - 2);
-                } else if (cleanPath.startsWith("'") && cleanPath.endsWith("'")) {
+                // 【核心修复】智能检测文本内容，对齐 Python 版逻辑
+                QString stripped = content.trimmed();
+                QString cleanPath = stripped;
+                if ((cleanPath.startsWith("\"") && cleanPath.endsWith("\"")) || 
+                    (cleanPath.startsWith("'") && cleanPath.endsWith("'"))) {
                     cleanPath = cleanPath.mid(1, cleanPath.length() - 2);
                 }
 
-                if (content.startsWith("http://") || content.startsWith("https://") || content.startsWith("www.")) {
+                if (stripped.startsWith("http://") || stripped.startsWith("https://") || stripped.startsWith("www.")) {
                     iconName = "link";
                     iconColor = "#3498db";
-                } else if (content.startsWith("#") || content.startsWith("import ") || content.startsWith("class ") || 
-                           content.startsWith("def ") || content.startsWith("<") || content.startsWith("{") ||
-                           content.startsWith("function") || content.startsWith("var ") || content.startsWith("const ")) {
+                } else if (stripped.startsWith("#") || stripped.startsWith("import ") || stripped.startsWith("class ") || 
+                           stripped.startsWith("def ") || stripped.startsWith("<") || stripped.startsWith("{") ||
+                           stripped.startsWith("function") || stripped.startsWith("var ") || stripped.startsWith("const ")) {
                     iconName = "code";
                     iconColor = "#2ecc71";
-                } else if (cleanPath.length() < 260 && (cleanPath.contains(":/") || cleanPath.startsWith("/") || cleanPath.startsWith("\\\\") || 
+                } else if (cleanPath.length() < 260 && (
+                           (cleanPath.length() > 2 && cleanPath[1] == ':') || 
+                           cleanPath.startsWith("\\\\") || cleanPath.startsWith("/") || 
                            cleanPath.startsWith("./") || cleanPath.startsWith("../"))) {
                     QFileInfo info(cleanPath);
                     if (info.exists()) {
@@ -175,12 +178,39 @@ QStringList NoteModel::mimeTypes() const {
 QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
     QMimeData* mimeData = new QMimeData();
     QStringList ids;
+    QStringList texts;
+    QList<QUrl> urls;
+
     for (const QModelIndex& index : indexes) {
         if (index.isValid()) {
             ids << QString::number(data(index, IdRole).toInt());
+            
+            QString content = data(index, ContentRole).toString();
+            QString type = data(index, TypeRole).toString();
+            
+            if (type == "text" || type.isEmpty()) {
+                texts << content;
+            } else if (type == "file" || type == "folder" || type == "files") {
+                QStringList rawPaths = content.split(';', Qt::SkipEmptyParts);
+                for (const QString& p : rawPaths) {
+                    QString path = p.trimmed().remove('\"');
+                    if (QFileInfo::exists(path)) {
+                        urls << QUrl::fromLocalFile(path);
+                    }
+                }
+                texts << content; // 同时也作为文本
+            }
         }
     }
+    
     mimeData->setData("application/x-note-ids", ids.join(",").toUtf8());
+    if (!texts.isEmpty()) {
+        mimeData->setText(texts.join("\n---\n"));
+    }
+    if (!urls.isEmpty()) {
+        mimeData->setUrls(urls);
+    }
+    
     return mimeData;
 }
 

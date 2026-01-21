@@ -89,6 +89,17 @@ int main(int argc, char *argv[]) {
     QObject::connect(quickWin, &QuickWindow::toolboxRequested, [=](){ toggleToolbox(quickWin); });
     QObject::connect(mainWin, &MainWindow::toolboxRequested, [=](){ toggleToolbox(mainWin); });
 
+    // 处理主窗口切换信号
+    QObject::connect(quickWin, &QuickWindow::toggleMainWindowRequested, [=](){
+        if (mainWin->isVisible()) {
+            mainWin->hide();
+        } else {
+            mainWin->showNormal();
+            mainWin->activateWindow();
+            mainWin->raise();
+        }
+    });
+
     // 5. 注册全局热键
     // Alt+Space (0x0001 = MOD_ALT, 0x20 = VK_SPACE)
     HotkeyManager::instance().registerHotkey(1, 0x0001, 0x20);

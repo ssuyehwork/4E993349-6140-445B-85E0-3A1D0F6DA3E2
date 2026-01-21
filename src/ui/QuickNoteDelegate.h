@@ -26,17 +26,29 @@ public:
         bool isSelected = (option.state & QStyle::State_Selected);
         bool isHovered = (option.state & QStyle::State_MouseOver);
 
-        // 背景 (强制深色，消除白色色块)
-        painter->fillRect(rect, QColor("#1E1E1E"));
-        
+        // 1. 绘制基础背景 (斑马纹)
+        QColor bgColor = (index.row() % 2 == 0) ? QColor("#1E1E1E") : QColor("#151515");
+        if (isHovered && !isSelected) {
+            bgColor = QColor(255, 255, 255, 25);
+        }
+        painter->fillRect(rect, bgColor);
+
+        // 2. 绘制选中高亮 (仅左侧 5 像素指示条)
         if (isSelected) {
-            painter->fillRect(rect, QColor("#37373D"));
-        } else if (isHovered) {
-            painter->fillRect(rect, QColor("#2A2D2E"));
+            QColor highlightColor = option.palette.color(QPalette::Highlight);
+            if (highlightColor.lightness() > 200) highlightColor = QColor("#4a90e2");
+
+            // 绘制左侧 5px 指示条
+            painter->fillRect(QRect(rect.left(), rect.top(), 5, rect.height()), highlightColor);
+            
+            // 选中背景增加极淡的叠加层 (10% 不透明度)，提高识别度且不遮挡内容
+            QColor overlay = highlightColor;
+            overlay.setAlpha(30); 
+            painter->fillRect(rect, overlay);
         }
 
-        // 分隔线
-        painter->setPen(QColor("#252526"));
+        // 2. 分隔线 (对齐 Python 版，使用极浅的黑色半透明)
+        painter->setPen(QColor(0, 0, 0, 25));
         painter->drawLine(rect.bottomLeft(), rect.bottomRight());
 
         // 图标 (DecorationRole)
@@ -54,11 +66,11 @@ public:
         painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, 
                          painter->fontMetrics().elidedText(text, Qt::ElideRight, textRect.width()));
 
-        // 时间 (极简展示)
+        // 时间 (极简展示) - 显示在右上方
         QString timeStr = index.data(NoteModel::TimeRole).toDateTime().toString("MM-dd HH:mm");
         painter->setPen(QColor("#666666"));
-        painter->setFont(QFont("Segoe UI", 8));
-        painter->drawText(rect.adjusted(0, 0, -10, 0), Qt::AlignRight | Qt::AlignVCenter, timeStr);
+        painter->setFont(QFont("Segoe UI", 7));
+        painter->drawText(rect.adjusted(0, 3, -10, 0), Qt::AlignRight | Qt::AlignTop, timeStr);
 
         painter->restore();
     }

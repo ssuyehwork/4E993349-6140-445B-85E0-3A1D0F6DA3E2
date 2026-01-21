@@ -68,6 +68,7 @@ private:
     void toggleStayOnTop(bool checked);
     void toggleSidebar();
     void showListContextMenu(const QPoint& pos);
+    void showSidebarMenu(const QPoint& pos);
     
     SearchLineEdit* m_searchEdit;
     QListView* m_listView;
