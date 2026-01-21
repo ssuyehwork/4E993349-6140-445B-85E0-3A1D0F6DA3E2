@@ -45,25 +45,29 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
         bool isKeyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
         bool isKeyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
 
-        // 1. Ctrl + Shift + Space -> Ctrl+A then Backspace (实现全选删除)
-        if (pKey->vkCode == VK_SPACE && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
+        // 使用 GetAsyncKeyState 获取实时物理按键状态，提高全局环境下的准确性
+        bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000);
+        bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000);
+
+        // 1. Ctrl + Shift + Space -> Ctrl+A then Backspace (全选删除)
+        if (pKey->vkCode == VK_SPACE && ctrlDown && shiftDown) {
             if (isKeyDown) {
-                // 模拟 Ctrl+A
-                keybd_event(VK_CONTROL, 0, 0, 0);
+                qDebug() << "[Hook] Triggered: Ctrl + Shift + Space";
+                // 模拟执行：释放 Shift -> 发送 A (Ctrl 已按下) -> 释放 Ctrl -> 发送 Backspace
+                keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
                 keybd_event('A', 0, 0, 0);
                 keybd_event('A', 0, KEYEVENTF_KEYUP, 0);
                 keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
-
-                // 模拟 Backspace
                 keybd_event(VK_BACK, 0, 0, 0);
                 keybd_event(VK_BACK, 0, KEYEVENTF_KEYUP, 0);
             }
-            return 1;
+            return 1; // 彻底拦截原始空格
         }
 
-        // 2. Shift + Space -> Shift + Enter (实现换行) - 排除 Ctrl 按下的情况
-        if (pKey->vkCode == VK_SPACE && (GetKeyState(VK_SHIFT) & 0x8000)) {
+        // 2. Shift + Space -> Shift + Enter (换行)
+        if (pKey->vkCode == VK_SPACE && shiftDown && !ctrlDown) {
             if (isKeyDown) {
+                qDebug() << "[Hook] Triggered: Shift + Space";
                 keybd_event(VK_RETURN, 0, 0, 0);
             } else if (isKeyUp) {
                 keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0);
@@ -74,6 +78,7 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
         // 3. CapsLock -> Enter
         if (pKey->vkCode == VK_CAPITAL) {
             if (isKeyDown) {
+                qDebug() << "[Hook] Triggered: CapsLock -> Enter";
                 keybd_event(VK_RETURN, 0, 0, 0);
             } else if (isKeyUp) {
                 keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0);
@@ -84,6 +89,7 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
         // 4. 反引号 (`) -> Backspace
         if (pKey->vkCode == VK_OEM_3) {
             if (isKeyDown) {
+                qDebug() << "[Hook] Triggered: Backtick -> Backspace";
                 keybd_event(VK_BACK, 0, 0, 0);
             } else if (isKeyUp) {
                 keybd_event(VK_BACK, 0, KEYEVENTF_KEYUP, 0);
