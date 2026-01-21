@@ -47,13 +47,13 @@ private:
         int x = effectiveRect.x();
         int y = effectiveRect.y();
         int lineHeight = 0;
+        int spacingX = horizontalSpacing();
+        int spacingY = verticalSpacing();
 
         for (auto* item : m_itemList) {
             QWidget *wid = item->widget();
-            int spaceX = horizontalSpacing();
-            if (spaceX == -1) spaceX = wid->style()->layoutSpacing(QSizePolicy::PushButton, QSizePolicy::PushButton, Qt::Horizontal);
-            int spaceY = verticalSpacing();
-            if (spaceY == -1) spaceY = wid->style()->layoutSpacing(QSizePolicy::PushButton, QSizePolicy::PushButton, Qt::Vertical);
+            int spaceX = (spacingX == -1) ? wid->style()->layoutSpacing(QSizePolicy::PushButton, QSizePolicy::PushButton, Qt::Horizontal) : spacingX;
+            int spaceY = (spacingY == -1) ? wid->style()->layoutSpacing(QSizePolicy::PushButton, QSizePolicy::PushButton, Qt::Vertical) : spacingY;
             
             int nextX = x + item->sizeHint().width() + spaceX;
             if (nextX - spaceX > effectiveRect.right() && lineHeight > 0) {
@@ -147,26 +147,40 @@ public:
             delete item;
         }
         QStringList history = m_edit->getHistory();
+        int contentHeight = 0;
+        int targetContentWidth = m_edit->width();
+
         if(history.isEmpty()) {
             auto* lbl = new QLabel("暂无历史记录");
             lbl->setAlignment(Qt::AlignCenter);
-            lbl->setStyleSheet("color: #555; margin: 20px;");
+            lbl->setStyleSheet("color: #555; font-style: italic; margin: 20px; border: none; background: transparent;");
             m_flow->addWidget(lbl);
+            contentHeight = 100;
         } else {
             for(const QString& text : history) {
                 auto* chip = new HistoryChip(text);
-                connect(chip, &HistoryChip::clicked, [this](const QString& t){ m_edit->setText(t); m_edit->returnPressed(); close(); });
-                connect(chip, &HistoryChip::deleted, [this](const QString& t){ m_edit->removeHistoryEntry(t); refresh(); });
+                connect(chip, &HistoryChip::clicked, this, [this](const QString& t){ 
+                    m_edit->setText(t); 
+                    emit m_edit->returnPressed(); 
+                    close(); 
+                });
+                connect(chip, &HistoryChip::deleted, this, [this](const QString& t){ 
+                    m_edit->removeHistoryEntry(t); 
+                    refresh(); 
+                });
                 m_flow->addWidget(chip);
             }
+            
+            int effectiveWidth = targetContentWidth - 30;
+            int flowHeight = m_flow->heightForWidth(effectiveWidth);
+            contentHeight = qMin(400, qMax(120, flowHeight + 50));
         }
         
-        int targetWidth = m_edit->width();
-        setFixedWidth(targetWidth + 20);
-        setFixedHeight(200); // 暂时固定高度
+        setFixedWidth(targetContentWidth + 20); // 20 is shadow_margin * 2
+        setFixedHeight(contentHeight + 20);
         
         QPoint pos = m_edit->mapToGlobal(QPoint(0, m_edit->height()));
-        move(pos.x() - 10, pos.y());
+        move(pos.x() - 10, pos.y() + 5 - 10); // align container with edit, 5px gap, -10 shadow margin
     }
 
 private:
@@ -178,7 +192,17 @@ private:
 
 // --- SearchLineEdit Implementation ---
 SearchLineEdit::SearchLineEdit(QWidget* parent) : QLineEdit(parent) {
-    setStyleSheet("QLineEdit { border-radius: 14px; padding: 0 12px; }");
+    setStyleSheet(
+        "QLineEdit { "
+        "  background-color: #252526; "
+        "  border: 1px solid #333333; "
+        "  border-radius: 14px; "
+        "  padding: 0 12px; "
+        "  color: #eee; "
+        "  font-size: 13px; "
+        "} "
+        "QLineEdit:focus { border: 1px solid #4a90e2; }"
+    );
 }
 
 void SearchLineEdit::mouseDoubleClickEvent(QMouseEvent* e) {

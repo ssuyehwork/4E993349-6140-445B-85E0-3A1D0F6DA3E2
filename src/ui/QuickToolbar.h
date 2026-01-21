@@ -14,6 +14,7 @@ public:
 
     void setPageInfo(int current, int total);
     void setStayOnTop(bool onTop);
+    bool isStayOnTop() const;
 
 signals:
     void closeRequested();
