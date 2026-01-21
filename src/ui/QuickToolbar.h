@@ -26,6 +26,7 @@ signals:
     void nextPage();
     void jumpToPage(int page);
     void refreshRequested();
+    void toolboxRequested();
 
 private:
     QPushButton* m_btnStayTop;

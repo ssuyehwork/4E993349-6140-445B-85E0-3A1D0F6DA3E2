@@ -47,10 +47,7 @@ void MainWindow::initUI() {
     connect(m_header, &HeaderBar::toggleSidebar, this, [this](){
         m_sideBar->setVisible(!m_sideBar->isVisible());
     });
-    connect(m_header, &HeaderBar::toolboxRequested, this, [this](){
-        Toolbox dlg(this);
-        dlg.exec();
-    });
+    connect(m_header, &HeaderBar::toolboxRequested, this, &MainWindow::toolboxRequested);
     connect(m_header, &HeaderBar::previewToggled, this, [this](bool checked){
         m_editor->togglePreview(checked);
     });
@@ -67,9 +64,9 @@ void MainWindow::initUI() {
     splitter->setChildrenCollapsible(false);
 
     // 2. 左侧侧边栏 (固定最小宽度)
-    m_sideBar = new QTreeView();
+    m_sideBar = new DropTreeView();
     m_sideBar->setFixedWidth(220); // 彻底固定
-    m_sideModel = new CategoryModel(this);
+    m_sideModel = new CategoryModel(CategoryModel::Both, this);
     m_sideBar->setModel(m_sideModel);
     m_sideBar->setHeaderHidden(true);
     m_sideBar->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -100,6 +97,25 @@ void MainWindow::initUI() {
         menu.exec(m_sideBar->mapToGlobal(pos));
     });
     connect(m_sideBar, &QTreeView::clicked, this, &MainWindow::onTagSelected);
+    
+    // 连接拖拽信号
+    connect(m_sideBar, &DropTreeView::notesDropped, this, [this](const QList<int>& ids, const QModelIndex& targetIndex){
+        if (!targetIndex.isValid()) return;
+        QString type = targetIndex.data(Qt::UserRole).toString();
+        for (int id : ids) {
+            if (type == "category") {
+                int catId = targetIndex.data(Qt::UserRole + 1).toInt();
+                DatabaseManager::instance().updateNoteState(id, "category_id", catId);
+            } else if (type == "bookmark") {
+                DatabaseManager::instance().updateNoteState(id, "is_favorite", 1);
+            } else if (type == "trash") {
+                DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
+            } else if (type == "uncategorized") {
+                DatabaseManager::instance().updateNoteState(id, "category_id", QVariant());
+            }
+        }
+        refreshData();
+    });
     splitter->addWidget(m_sideBar);
 
     // 3. 中间列表

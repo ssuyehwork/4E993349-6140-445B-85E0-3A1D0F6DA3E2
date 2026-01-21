@@ -13,11 +13,15 @@
 #include "HeaderBar.h"
 #include "MetadataPanel.h"
 #include "QuickPreview.h"
+#include "DropTreeView.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
     explicit MainWindow(QWidget* parent = nullptr);
+
+signals:
+    void toolboxRequested();
 
 private slots:
     void onNoteSelected(const QModelIndex& index);
@@ -33,7 +37,7 @@ private slots:
 private:
     void initUI();
     
-    QTreeView* m_sideBar;
+    DropTreeView* m_sideBar;
     CategoryModel* m_sideModel;
     
     QListView* m_noteList;
