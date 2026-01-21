@@ -41,6 +41,7 @@ QuickToolbar::QuickToolbar(QWidget* parent) : QWidget(parent) {
     
     addBtn("eye", "显示/隐藏侧边栏", &QuickToolbar::toggleSidebar);
     addBtn("refresh", "刷新", &QuickToolbar::refreshRequested);
+    addBtn("toolbox", "工具箱", &QuickToolbar::toolboxRequested);
 
     layout->addSpacing(15);
 

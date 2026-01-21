@@ -6,8 +6,12 @@
 class CategoryModel : public QStandardItemModel {
     Q_OBJECT
 public:
-    explicit CategoryModel(QObject* parent = nullptr);
+    enum Type { System, User, Both };
+    explicit CategoryModel(Type type, QObject* parent = nullptr);
     void refresh();
+
+private:
+    Type m_type;
 };
 
 #endif // CATEGORYMODEL_H

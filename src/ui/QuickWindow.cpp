@@ -45,7 +45,8 @@ QuickWindow::QuickWindow(QWidget* parent)
     });
 
     connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, [this](){
-        m_sideModel->refresh();
+        m_systemModel->refresh();
+        m_partitionModel->refresh();
         m_model->updateCategoryMap();
         refreshData();
     });
@@ -123,33 +124,105 @@ void QuickWindow::initUI() {
         activateNote(index);
     });
 
-    // 侧边栏居右
-    m_sideBar = new DropTreeView();
-    m_sideModel = new CategoryModel(this);
-    m_sideBar->setModel(m_sideModel);
-    m_sideBar->setHeaderHidden(true);
-    m_sideBar->expandAll();
-    m_sideBar->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(m_sideBar, &QTreeView::customContextMenuRequested, this, [this](const QPoint& pos){
-        QModelIndex index = m_sideBar->indexAt(pos);
+    // 侧边栏居右 (Python 对齐：拆分为两个 TreeView)
+    auto* sidebarContainer = new QWidget();
+    auto* sidebarLayout = new QVBoxLayout(sidebarContainer);
+    sidebarLayout->setContentsMargins(0, 0, 0, 0);
+    sidebarLayout->setSpacing(0);
+
+    m_systemTree = new DropTreeView();
+    m_systemModel = new CategoryModel(CategoryModel::System, this);
+    m_systemTree->setModel(m_systemModel);
+    m_systemTree->setHeaderHidden(true);
+    m_systemTree->setFixedHeight(150); // Python 版固定高度
+
+    m_partitionTree = new DropTreeView();
+    m_partitionModel = new CategoryModel(CategoryModel::User, this);
+    m_partitionTree->setModel(m_partitionModel);
+    m_partitionTree->setHeaderHidden(true);
+    m_partitionTree->expandAll();
+
+    sidebarLayout->addWidget(m_systemTree);
+    sidebarLayout->addWidget(m_partitionTree);
+
+    auto onSelectionChanged = [this](DropTreeView* tree, const QModelIndex& index) {
+        if (!index.isValid()) return;
+
+        // 互斥选中
+        if (tree == m_systemTree) {
+            m_partitionTree->selectionModel()->clearSelection();
+            m_partitionTree->setCurrentIndex(QModelIndex());
+        } else {
+            m_systemTree->selectionModel()->clearSelection();
+            m_systemTree->setCurrentIndex(QModelIndex());
+        }
+
+        m_currentFilterType = index.data(Qt::UserRole).toString();
+        QString name = index.data(Qt::DisplayRole).toString();
+        updatePartitionStatus(name);
+
+        if (m_currentFilterType == "category") {
+            m_currentFilterValue = index.data(Qt::UserRole + 1).toInt();
+            applyListTheme(index.data(Qt::UserRole + 2).toString());
+        } else {
+            m_currentFilterValue = -1;
+            applyListTheme("");
+        }
+        m_currentPage = 1;
+        refreshData();
+    };
+
+    connect(m_systemTree, &QTreeView::clicked, [this, onSelectionChanged](const QModelIndex& idx){ onSelectionChanged(m_systemTree, idx); });
+    connect(m_partitionTree, &QTreeView::clicked, [this, onSelectionChanged](const QModelIndex& idx){ onSelectionChanged(m_partitionTree, idx); });
+
+    auto onNotesDropped = [this](const QList<int>& ids, const QModelIndex& targetIndex) {
+        if (!targetIndex.isValid()) return;
+        QString type = targetIndex.data(Qt::UserRole).toString();
+        for (int id : ids) {
+            if (type == "category") {
+                int catId = targetIndex.data(Qt::UserRole + 1).toInt();
+                DatabaseManager::instance().updateNoteState(id, "category_id", catId);
+
+                QSettings settings("RapidNotes", "QuickWindow");
+                QVariantList recentCats = settings.value("recentCategories").toList();
+                recentCats.removeAll(catId);
+                recentCats.prepend(catId);
+                while (recentCats.size() > 15) recentCats.removeLast();
+                settings.setValue("recentCategories", recentCats);
+            } else if (type == "bookmark") {
+                DatabaseManager::instance().updateNoteState(id, "is_favorite", 1);
+            } else if (type == "trash") {
+                DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
+            } else if (type == "uncategorized") {
+                DatabaseManager::instance().updateNoteState(id, "category_id", QVariant());
+            }
+        }
+        refreshData();
+    };
+
+    connect(m_systemTree, &DropTreeView::notesDropped, [this, onNotesDropped](const QList<int>& ids, const QModelIndex& idx){ onNotesDropped(ids, idx); });
+    connect(m_partitionTree, &DropTreeView::notesDropped, [this, onNotesDropped](const QList<int>& ids, const QModelIndex& idx){ onNotesDropped(ids, idx); });
+
+    // 右键菜单逻辑
+    auto showSidebarMenu = [this](DropTreeView* tree, const QPoint& pos) {
+        QModelIndex index = tree->indexAt(pos);
         QMenu menu(this);
         menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; }");
         
         menu.addAction(IconHelper::getIcon("refresh", "#aaaaaa"), "刷新", [this](){
-            m_sideModel->refresh();
+            m_systemModel->refresh();
+            m_partitionModel->refresh();
             refreshData();
         });
         menu.addSeparator();
 
-        if (!index.isValid() || index.data(Qt::DisplayRole).toString() == "我的分区") {
+        if (tree == m_partitionTree && (!index.isValid() || index.data(Qt::DisplayRole).toString() == "我的分区")) {
             menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "➕ 新建分组", [this](){
                 bool ok;
                 QString text = QInputDialog::getText(this, "新建分组", "分组名称:", QLineEdit::Normal, "", &ok);
-                if (ok && !text.isEmpty()) {
-                    DatabaseManager::instance().addCategory(text);
-                }
+                if (ok && !text.isEmpty()) DatabaseManager::instance().addCategory(text);
             });
-            menu.exec(m_sideBar->mapToGlobal(pos));
+            menu.exec(tree->mapToGlobal(pos));
             return;
         }
 
@@ -165,28 +238,16 @@ void QuickWindow::initUI() {
                 win->show();
             });
             menu.addSeparator();
-            
             menu.addAction(IconHelper::getIcon("palette", "#aaaaaa"), "设置颜色", [this, catId](){
                 QColor color = QColorDialog::getColor(Qt::gray, this, "选择分类颜色");
-                if (color.isValid()) {
-                    DatabaseManager::instance().setCategoryColor(catId, color.name());
-                }
+                if (color.isValid()) DatabaseManager::instance().setCategoryColor(catId, color.name());
             });
-
-            menu.addAction(IconHelper::getIcon("palette", "#aaaaaa"), "随机颜色", [this, catId](){
-                QColor color = QColor::fromHsl(QRandomGenerator::global()->bounded(360), 150, 100);
-                DatabaseManager::instance().setCategoryColor(catId, color.name());
-            });
-
             menu.addAction(IconHelper::getIcon("text", "#aaaaaa"), "设置预设标签", [this, catId](){
                 QString current = DatabaseManager::instance().getCategoryPresetTags(catId);
                 bool ok;
                 QString tags = QInputDialog::getText(this, "预设标签", "自动绑定的标签 (逗号分隔):", QLineEdit::Normal, current, &ok);
-                if (ok) {
-                    DatabaseManager::instance().setCategoryPresetTags(catId, tags);
-                }
+                if (ok) DatabaseManager::instance().setCategoryPresetTags(catId, tags);
             });
-
             menu.addSeparator();
             menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分组", [this](){
                 bool ok;
@@ -198,75 +259,34 @@ void QuickWindow::initUI() {
                 QString text = QInputDialog::getText(this, "新建分区", "分区名称:", QLineEdit::Normal, "", &ok);
                 if (ok && !text.isEmpty()) DatabaseManager::instance().addCategory(text, catId);
             });
-
             menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名", [this, catId, name](){
                 bool ok;
                 QString text = QInputDialog::getText(this, "重命名", "新名称:", QLineEdit::Normal, name, &ok);
                 if (ok && !text.isEmpty()) DatabaseManager::instance().renameCategory(catId, text);
             });
-
             menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "删除", [this, catId](){
-                if (QMessageBox::Yes == QMessageBox::question(this, "确认删除", "确认删除此分类？(内容将移至未分类)")) {
-                    DatabaseManager::instance().deleteCategory(catId);
-                }
+                if (QMessageBox::Yes == QMessageBox::question(this, "确认删除", "确认删除此分类？")) DatabaseManager::instance().deleteCategory(catId);
             });
         } else if (type == "trash") {
             menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "清空回收站", [this](){
                 if (QMessageBox::Yes == QMessageBox::warning(this, "警告", "清空回收站不可恢复，确定吗？")) {
-                    DatabaseManager::instance().emptyTrash();
-                    refreshData();
+                    DatabaseManager::instance().emptyTrash(); refreshData();
                 }
             });
         }
-        menu.exec(m_sideBar->mapToGlobal(pos));
-    });
-    connect(m_sideBar, &QTreeView::clicked, this, [this](const QModelIndex& index){
-        m_currentFilterType = index.data(Qt::UserRole).toString();
-        QString name = index.data(Qt::DisplayRole).toString();
-        updatePartitionStatus(name);
-        
-        if (m_currentFilterType == "category") {
-            m_currentFilterValue = index.data(Qt::UserRole + 1).toInt();
-            applyListTheme(index.data(Qt::UserRole + 2).toString()); // 假设 Role+2 是颜色
-        } else {
-            m_currentFilterValue = -1;
-            applyListTheme("");
-        }
-        m_currentPage = 1;
-        refreshData();
-    });
-    connect(m_sideBar, &DropTreeView::notesDropped, this, [this](const QList<int>& ids, const QModelIndex& targetIndex){
-        if (!targetIndex.isValid()) return;
-        QString type = targetIndex.data(Qt::UserRole).toString();
-        for (int id : ids) {
-            if (type == "category") {
-                int catId = targetIndex.data(Qt::UserRole + 1).toInt();
-                DatabaseManager::instance().updateNoteState(id, "category_id", catId);
-                
-                // 更新最近使用的分类
-                QSettings settings("RapidNotes", "QuickWindow");
-                QVariantList recentCats = settings.value("recentCategories").toList();
-                recentCats.removeAll(catId);
-                recentCats.prepend(catId);
-                while (recentCats.size() > 15) recentCats.removeLast();
-                settings.setValue("recentCategories", recentCats);
+        menu.exec(tree->mapToGlobal(pos));
+    };
 
-            } else if (type == "bookmark") {
-                DatabaseManager::instance().updateNoteState(id, "is_favorite", 1);
-            } else if (type == "trash") {
-                DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
-            } else if (type == "uncategorized") {
-                DatabaseManager::instance().updateNoteState(id, "category_id", QVariant());
-            }
-        }
-        refreshData();
-    });
+    m_systemTree->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_partitionTree->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_systemTree, &QTreeView::customContextMenuRequested, [this, showSidebarMenu](const QPoint& p){ showSidebarMenu(m_systemTree, p); });
+    connect(m_partitionTree, &QTreeView::customContextMenuRequested, [this, showSidebarMenu](const QPoint& p){ showSidebarMenu(m_partitionTree, p); });
 
     m_splitter->addWidget(m_listView);
-    m_splitter->addWidget(m_sideBar);
+    m_splitter->addWidget(sidebarContainer);
     m_splitter->setStretchFactor(0, 1);
     m_splitter->setStretchFactor(1, 0);
-    m_splitter->setSizes({550, 180});
+    m_splitter->setSizes({550, 150});
     leftLayout->addWidget(m_splitter);
 
     m_statusLabel = new QLabel("当前分区: 全部数据");
@@ -296,6 +316,7 @@ void QuickWindow::initUI() {
     connect(m_toolbar, &QuickToolbar::toggleStayOnTop, this, &QuickWindow::toggleStayOnTop);
     connect(m_toolbar, &QuickToolbar::toggleSidebar, this, &QuickWindow::toggleSidebar);
     connect(m_toolbar, &QuickToolbar::refreshRequested, this, &QuickWindow::refreshData);
+    connect(m_toolbar, &QuickToolbar::toolboxRequested, this, &QuickWindow::toolboxRequested);
 
     // 分页
     connect(m_toolbar, &QuickToolbar::prevPage, this, [this](){
@@ -341,7 +362,7 @@ void QuickWindow::saveState() {
     QSettings settings("RapidNotes", "QuickWindow");
     settings.setValue("geometry", saveGeometry());
     settings.setValue("splitter", m_splitter->saveState());
-    settings.setValue("sidebarHidden", m_sideBar->isHidden());
+    settings.setValue("sidebarHidden", m_systemTree->parentWidget()->isHidden());
     settings.setValue("stayOnTop", m_toolbar->isStayOnTop());
 }
 
@@ -354,7 +375,7 @@ void QuickWindow::restoreState() {
         m_splitter->restoreState(settings.value("splitter").toByteArray());
     }
     if (settings.contains("sidebarHidden")) {
-        m_sideBar->setHidden(settings.value("sidebarHidden").toBool());
+        m_systemTree->parentWidget()->setHidden(settings.value("sidebarHidden").toBool());
     }
     if (settings.contains("stayOnTop")) {
         toggleStayOnTop(settings.value("stayOnTop").toBool());
@@ -405,7 +426,7 @@ void QuickWindow::refreshData() {
 }
 
 void QuickWindow::updatePartitionStatus(const QString& name) {
-    if (m_sideBar->isHidden()) {
+    if (m_systemTree->parentWidget()->isHidden()) {
         m_statusLabel->setText(QString("当前分区: %1").arg(name.isEmpty() ? "全部数据" : name));
         m_statusLabel->show();
     } else {
@@ -612,20 +633,35 @@ void QuickWindow::doPreview() {
 }
 
 void QuickWindow::toggleStayOnTop(bool checked) {
+#ifdef Q_OS_WIN
+    HWND hwnd = (HWND)winId();
+    if (checked) {
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+    } else {
+        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+    }
+#else
     Qt::WindowFlags flags = windowFlags();
     if (checked) flags |= Qt::WindowStaysOnTopHint;
     else flags &= ~Qt::WindowStaysOnTopHint;
     
     if (flags != windowFlags()) {
         setWindowFlags(flags);
-        m_toolbar->setStayOnTop(checked);
         show();
     }
+#endif
+    m_toolbar->setStayOnTop(checked);
 }
 
 void QuickWindow::toggleSidebar() {
-    m_sideBar->setVisible(!m_sideBar->isVisible());
-    updatePartitionStatus(m_sideBar->currentIndex().data().toString());
+    bool hidden = !m_systemTree->parentWidget()->isVisible();
+    m_systemTree->parentWidget()->setVisible(hidden);
+
+    QString name;
+    if (m_systemTree->currentIndex().isValid()) name = m_systemTree->currentIndex().data().toString();
+    else name = m_partitionTree->currentIndex().data().toString();
+
+    updatePartitionStatus(name);
 }
 
 void QuickWindow::showListContextMenu(const QPoint& pos) {

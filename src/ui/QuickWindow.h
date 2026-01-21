@@ -34,6 +34,7 @@ public slots:
 
 signals:
     void toggleMainWindowRequested();
+    void toolboxRequested();
 
 protected:
     bool event(QEvent* event) override;
@@ -73,8 +74,11 @@ private:
     NoteModel* m_model;
     QuickPreview* m_quickPreview;
     
-    DropTreeView* m_sideBar;
-    CategoryModel* m_sideModel;
+    DropTreeView* m_systemTree;
+    DropTreeView* m_partitionTree;
+    CategoryModel* m_systemModel;
+    CategoryModel* m_partitionModel;
+
     QTimer* m_searchTimer;
     QTimer* m_monitorTimer;
     QSplitter* m_splitter;
