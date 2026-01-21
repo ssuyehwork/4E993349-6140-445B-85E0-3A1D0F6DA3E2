@@ -7,7 +7,7 @@
 #include <QSqlError>
 #include <QDateTime>
 #include <QVariantList>
-#include <QMutex>
+#include <QRecursiveMutex>
 #include <QStringList>
 
 class DatabaseManager : public QObject {
@@ -25,12 +25,22 @@ public:
                     const QString& color = "", int categoryId = -1);
     bool deleteNote(int id);
     bool updateNoteState(int id, const QString& column, const QVariant& value);
+    bool updateNoteStateBatch(const QList<int>& ids, const QString& column, const QVariant& value);
+    bool toggleNoteState(int id, const QString& column);
+    bool moveNoteToCategory(int noteId, int catId);
+    bool moveNotesToCategory(const QList<int>& noteIds, int catId);
 
     // 分类管理
     int addCategory(const QString& name, int parentId = -1, const QString& color = "");
-    bool updateCategory(int id, const QString& name, const QString& color);
+    bool renameCategory(int id, const QString& name);
+    bool setCategoryColor(int id, const QString& color);
     bool deleteCategory(int id);
     QList<QVariantMap> getAllCategories();
+    bool emptyTrash();
+
+    // 预设标签
+    bool setCategoryPresetTags(int catId, const QString& tags);
+    QString getCategoryPresetTags(int catId);
 
     // 标签管理
     bool addTagsToNote(int noteId, const QStringList& tags);
@@ -55,6 +65,7 @@ signals:
     // 【修改】现在信号携带具体数据，实现增量更新
     void noteAdded(const QVariantMap& note);
     void noteUpdated(); // 用于普通刷新
+    void categoriesChanged();
 
 private:
     DatabaseManager(QObject* parent = nullptr);
@@ -66,7 +77,7 @@ private:
     
     QSqlDatabase m_db;
     QString m_dbPath; 
-    QMutex m_mutex;
+    QRecursiveMutex m_mutex;
 };
 
 #endif // DATABASEMANAGER_H

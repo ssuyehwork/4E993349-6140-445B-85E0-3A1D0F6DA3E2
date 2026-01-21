@@ -221,19 +221,147 @@ bool DatabaseManager::updateNoteState(int id, const QString& column, const QVari
         QMutexLocker locker(&m_mutex);
         if (!m_db.isOpen()) return false;
         
-        QStringList allowedColumns = {"is_pinned", "is_locked", "is_favorite", "is_deleted", "tags", "rating", "category_id"};
+        QStringList allowedColumns = {"is_pinned", "is_locked", "is_favorite", "is_deleted", "tags", "rating", "category_id", "color"};
         if (!allowedColumns.contains(column)) return false;
 
         QSqlQuery query(m_db);
-        QString sql = QString("UPDATE notes SET %1 = :val, updated_at = :updated_at WHERE id = :id").arg(column);
-        query.prepare(sql);
+        
+        // 增强逻辑：同步更新颜色 (对标 Python)
+        if (column == "is_favorite") {
+            bool fav = value.toBool();
+            QString color = fav ? "#ff6b81" : ""; 
+            if (!fav) {
+                // 恢复分类颜色
+                QSqlQuery catQuery(m_db);
+                catQuery.prepare("SELECT c.color FROM categories c JOIN notes n ON n.category_id = c.id WHERE n.id = :id");
+                catQuery.bindValue(":id", id);
+                if (catQuery.exec() && catQuery.next()) color = catQuery.value(0).toString();
+                else color = "#0A362F"; // 默认未分类色
+            }
+            query.prepare("UPDATE notes SET is_favorite = :val, color = :color, updated_at = :now WHERE id = :id");
+            query.bindValue(":color", color);
+        } else if (column == "is_deleted") {
+            bool del = value.toBool();
+            QString color = del ? "#2d2d2d" : "#0A362F";
+            query.prepare("UPDATE notes SET is_deleted = :val, color = :color, category_id = NULL, updated_at = :now WHERE id = :id");
+            query.bindValue(":color", color);
+        } else {
+            query.prepare(QString("UPDATE notes SET %1 = :val, updated_at = :now WHERE id = :id").arg(column));
+        }
+        
         query.bindValue(":val", value);
-        query.bindValue(":updated_at", currentTime);
+        query.bindValue(":now", currentTime);
         query.bindValue(":id", id);
         
         success = query.exec();
-    } // 自动解锁
+    } 
 
+    if (success) emit noteUpdated();
+    return success;
+}
+
+bool DatabaseManager::updateNoteStateBatch(const QList<int>& ids, const QString& column, const QVariant& value) {
+    if (ids.isEmpty()) return true;
+    bool success = false;
+    QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
+        
+        QStringList allowedColumns = {"is_pinned", "is_locked", "is_favorite", "is_deleted", "tags", "rating", "category_id"};
+        if (!allowedColumns.contains(column)) return false;
+
+        m_db.transaction();
+        QSqlQuery query(m_db);
+        QString sql = QString("UPDATE notes SET %1 = :val, updated_at = :updated_at WHERE id = :id").arg(column);
+        query.prepare(sql);
+        for (int id : ids) {
+            query.bindValue(":val", value);
+            query.bindValue(":updated_at", currentTime);
+            query.bindValue(":id", id);
+            query.exec();
+        }
+        success = m_db.commit();
+    }
+    if (success) emit noteUpdated();
+    return success;
+}
+
+bool DatabaseManager::toggleNoteState(int id, const QString& column) {
+    QVariant currentVal;
+    {
+        QMutexLocker locker(&m_mutex);
+        QSqlQuery query(m_db);
+        query.prepare(QString("SELECT %1 FROM notes WHERE id = :id").arg(column));
+        query.bindValue(":id", id);
+        if (query.exec() && query.next()) currentVal = query.value(0);
+    }
+    if (currentVal.isValid()) {
+        return updateNoteState(id, column, !currentVal.toBool());
+    }
+    return false;
+}
+
+bool DatabaseManager::moveNoteToCategory(int noteId, int catId) {
+    return moveNotesToCategory({noteId}, catId);
+}
+
+bool DatabaseManager::moveNotesToCategory(const QList<int>& noteIds, int catId) {
+    if (noteIds.isEmpty()) return true;
+    QMutexLocker locker(&m_mutex);
+    if (!m_db.isOpen()) return false;
+
+    m_db.transaction();
+    QString catColor = "#0A362F"; 
+    QString presetTags;
+    if (catId != -1) {
+        QSqlQuery catQuery(m_db);
+        catQuery.prepare("SELECT color, preset_tags FROM categories WHERE id = :id");
+        catQuery.bindValue(":id", catId);
+        if (catQuery.exec() && catQuery.next()) {
+            catColor = catQuery.value(0).toString();
+            presetTags = catQuery.value(1).toString();
+        }
+    }
+
+    QSqlQuery query(m_db);
+    query.prepare("UPDATE notes SET category_id = :cat_id, color = :color, is_deleted = 0, updated_at = :now WHERE id = :id");
+    QString now = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    
+    for (int id : noteIds) {
+        query.bindValue(":cat_id", catId == -1 ? QVariant() : catId);
+        query.bindValue(":color", catColor);
+        query.bindValue(":now", now);
+        query.bindValue(":id", id);
+        query.exec();
+        
+        if (!presetTags.isEmpty()) {
+            // Apply preset tags (internal without lock)
+            QSqlQuery fetchTags(m_db);
+            fetchTags.prepare("SELECT tags FROM notes WHERE id = :id");
+            fetchTags.bindValue(":id", id);
+            if (fetchTags.exec() && fetchTags.next()) {
+                QString existing = fetchTags.value(0).toString();
+                QStringList tagList = existing.split(",", Qt::SkipEmptyParts);
+                QStringList newTags = presetTags.split(",", Qt::SkipEmptyParts);
+                bool changed = false;
+                for (const QString& t : newTags) {
+                    if (!tagList.contains(t.trimmed())) {
+                        tagList.append(t.trimmed());
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    QSqlQuery updateTags(m_db);
+                    updateTags.prepare("UPDATE notes SET tags = :tags WHERE id = :id");
+                    updateTags.bindValue(":tags", tagList.join(","));
+                    updateTags.bindValue(":id", id);
+                    updateTags.exec();
+                }
+            }
+        }
+    }
+    bool success = m_db.commit();
     if (success) emit noteUpdated();
     return success;
 }
@@ -405,19 +533,67 @@ int DatabaseManager::addCategory(const QString& name, int parentId, const QStrin
     query.bindValue(":parent_id", parentId == -1 ? QVariant(QMetaType::fromType<int>()) : parentId);
     query.bindValue(":color", color.isEmpty() ? "#808080" : color);
 
-    if (query.exec()) return query.lastInsertId().toInt();
+    if (query.exec()) {
+        emit categoriesChanged();
+        return query.lastInsertId().toInt();
+    }
     return -1;
 }
 
-bool DatabaseManager::updateCategory(int id, const QString& name, const QString& color) {
+bool DatabaseManager::renameCategory(int id, const QString& name) {
     QMutexLocker locker(&m_mutex);
     if (!m_db.isOpen()) return false;
     QSqlQuery query(m_db);
-    query.prepare("UPDATE categories SET name=:name, color=:color WHERE id=:id");
+    query.prepare("UPDATE categories SET name=:name WHERE id=:id");
     query.bindValue(":name", name);
-    query.bindValue(":color", color);
     query.bindValue(":id", id);
-    return query.exec();
+    bool success = query.exec();
+    if (success) emit categoriesChanged();
+    return success;
+}
+
+bool DatabaseManager::setCategoryColor(int id, const QString& color) {
+    QMutexLocker locker(&m_mutex);
+    if (!m_db.isOpen()) return false;
+    
+    m_db.transaction();
+    QSqlQuery treeQuery(m_db);
+    treeQuery.prepare(R"(
+        WITH RECURSIVE category_tree(id) AS (
+            SELECT :id
+            UNION ALL
+            SELECT c.id FROM categories c JOIN category_tree ct ON c.parent_id = ct.id
+        )
+        SELECT id FROM category_tree
+    )");
+    treeQuery.bindValue(":id", id);
+    
+    QList<int> allIds;
+    if (treeQuery.exec()) {
+        while (treeQuery.next()) allIds << treeQuery.value(0).toInt();
+    }
+    
+    if (!allIds.isEmpty()) {
+        QString placeholders;
+        for(int i=0; i<allIds.size(); ++i) placeholders += (i==0 ? "?" : ",?");
+        
+        QSqlQuery updateNotes(m_db);
+        updateNotes.prepare(QString("UPDATE notes SET color = ? WHERE category_id IN (%1)").arg(placeholders));
+        for(int i=0; i<allIds.size(); ++i) updateNotes.bindValue(i, color);
+        updateNotes.exec();
+        
+        QSqlQuery updateCats(m_db);
+        updateCats.prepare(QString("UPDATE categories SET color = ? WHERE id IN (%1)").arg(placeholders));
+        for(int i=0; i<allIds.size(); ++i) updateCats.bindValue(i, color);
+        updateCats.exec();
+    }
+    
+    bool success = m_db.commit();
+    if (success) {
+        emit categoriesChanged();
+        emit noteUpdated();
+    }
+    return success;
 }
 
 bool DatabaseManager::deleteCategory(int id) {
@@ -431,6 +607,7 @@ bool DatabaseManager::deleteCategory(int id) {
         updateNotes.prepare("UPDATE notes SET category_id = NULL WHERE category_id = :id");
         updateNotes.bindValue(":id", id);
         updateNotes.exec();
+        emit categoriesChanged();
         return true;
     }
     return false;
@@ -450,6 +627,33 @@ QList<QVariantMap> DatabaseManager::getAllCategories() {
         }
     }
     return results;
+}
+
+bool DatabaseManager::emptyTrash() {
+    QMutexLocker locker(&m_mutex);
+    if (!m_db.isOpen()) return false;
+    QSqlQuery query(m_db);
+    return query.exec("DELETE FROM notes WHERE is_deleted = 1");
+}
+
+bool DatabaseManager::setCategoryPresetTags(int catId, const QString& tags) {
+    QMutexLocker locker(&m_mutex);
+    if (!m_db.isOpen()) return false;
+    QSqlQuery query(m_db);
+    query.prepare("UPDATE categories SET preset_tags=:tags WHERE id=:id");
+    query.bindValue(":tags", tags);
+    query.bindValue(":id", catId);
+    return query.exec();
+}
+
+QString DatabaseManager::getCategoryPresetTags(int catId) {
+    QMutexLocker locker(&m_mutex);
+    if (!m_db.isOpen()) return "";
+    QSqlQuery query(m_db);
+    query.prepare("SELECT preset_tags FROM categories WHERE id=:id");
+    query.bindValue(":id", catId);
+    if (query.exec() && query.next()) return query.value(0).toString();
+    return "";
 }
 
 QVariantMap DatabaseManager::getNoteById(int id) {
