@@ -14,6 +14,7 @@
 #include <QClipboard>
 #include <QMimeData>
 #include <QTimer>
+#include <QApplication>
 
 QuickWindow::QuickWindow(QWidget* parent) 
     : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) 
@@ -199,18 +200,18 @@ void QuickWindow::initUI() {
 
 void QuickWindow::setupShortcuts() {
     new QShortcut(QKeySequence("Ctrl+F"), this, [this](){ m_searchEdit->setFocus(); m_searchEdit->selectAll(); });
-    new QShortcut(QKeySequence("Delete"), this, this, &QuickWindow::doDeleteSelected);
-    new QShortcut(QKeySequence("Ctrl+E"), this, this, &QuickWindow::doToggleFavorite);
-    new QShortcut(QKeySequence("Ctrl+P"), this, this, &QuickWindow::doTogglePin);
-    new QShortcut(QKeySequence("Ctrl+W"), this, &QuickWindow::hide);
-    new QShortcut(QKeySequence("Ctrl+S"), this, this, &QuickWindow::doLockSelected);
-    new QShortcut(QKeySequence("Ctrl+N"), this, this, &QuickWindow::doNewIdea);
+    new QShortcut(QKeySequence("Delete"), this, [this](){ doDeleteSelected(); });
+    new QShortcut(QKeySequence("Ctrl+E"), this, [this](){ doToggleFavorite(); });
+    new QShortcut(QKeySequence("Ctrl+P"), this, [this](){ doTogglePin(); });
+    new QShortcut(QKeySequence("Ctrl+W"), this, [this](){ hide(); });
+    new QShortcut(QKeySequence("Ctrl+S"), this, [this](){ doLockSelected(); });
+    new QShortcut(QKeySequence("Ctrl+N"), this, [this](){ doNewIdea(); });
     new QShortcut(QKeySequence("Ctrl+A"), this, [this](){ m_listView->selectAll(); });
-    new QShortcut(QKeySequence("Ctrl+T"), this, this, &QuickWindow::doExtractContent);
+    new QShortcut(QKeySequence("Ctrl+T"), this, [this](){ doExtractContent(); });
     new QShortcut(QKeySequence("Alt+D"), this, [this](){ toggleStayOnTop(!m_toolbar->isStayOnTop()); });
     new QShortcut(QKeySequence("Alt+W"), this, [this](){ emit toggleMainWindowRequested(); hide(); });
-    new QShortcut(QKeySequence("Ctrl+B"), this, this, &QuickWindow::doEditSelected);
-    new QShortcut(QKeySequence("Ctrl+Q"), this, this, &QuickWindow::toggleSidebar);
+    new QShortcut(QKeySequence("Ctrl+B"), this, [this](){ doEditSelected(); });
+    new QShortcut(QKeySequence("Ctrl+Q"), this, [this](){ toggleSidebar(); });
     new QShortcut(QKeySequence("Alt+S"), this, [this](){ if(m_currentPage > 1) { m_currentPage--; refreshData(); } });
     new QShortcut(QKeySequence("Alt+X"), this, [this](){ if(m_currentPage < m_totalPages) { m_currentPage++; refreshData(); } });
 
@@ -218,8 +219,7 @@ void QuickWindow::setupShortcuts() {
         new QShortcut(QKeySequence(QString("Ctrl+%1").arg(i)), this, [this, i](){ doSetRating(i); });
     }
 
-    auto* spaceShortcut = new QShortcut(QKeySequence(Qt::Key_Space), this);
-    connect(spaceShortcut, &QShortcut::activated, this, &QuickWindow::doPreview);
+    new QShortcut(QKeySequence(Qt::Key_Space), this, [this](){ doPreview(); });
 }
 
 void QuickWindow::refreshData() {
