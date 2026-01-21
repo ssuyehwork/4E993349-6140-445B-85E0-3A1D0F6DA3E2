@@ -7,6 +7,12 @@ class CategoryModel : public QStandardItemModel {
     Q_OBJECT
 public:
     enum Type { System, User, Both };
+    enum Roles {
+        TypeRole = Qt::UserRole,
+        IdRole,
+        ColorRole,
+        NameRole
+    };
     explicit CategoryModel(Type type, QObject* parent = nullptr);
     void refresh();
 

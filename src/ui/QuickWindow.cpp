@@ -46,18 +46,23 @@ QuickWindow::QuickWindow(QWidget* parent)
 
     connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, [this](const QVariantMap&){
         refreshData();
+        refreshSidebar();
+    });
+
+    connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, [this](){
+        refreshData();
+        refreshSidebar();
     });
 
     connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, [this](){
         refreshData();
+        refreshSidebar();
     });
 
     connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, [this](){
-        m_systemModel->refresh();
-        m_partitionModel->refresh();
         m_model->updateCategoryMap();
         refreshData();
-        m_partitionTree->expandAll();
+        refreshSidebar();
     });
 
 #ifdef Q_OS_WIN
@@ -152,6 +157,7 @@ void QuickWindow::initUI() {
     m_systemTree->setModel(m_systemModel);
     m_systemTree->setHeaderHidden(true);
     m_systemTree->setFixedHeight(150);
+    m_systemTree->setEditTriggers(QAbstractItemView::NoEditTriggers); // 绝不可重命名
     m_systemTree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_systemTree->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_systemTree, &QTreeView::customContextMenuRequested, this, &QuickWindow::showSidebarMenu);
@@ -178,12 +184,12 @@ void QuickWindow::initUI() {
             m_systemTree->selectionModel()->clearSelection();
             m_systemTree->setCurrentIndex(QModelIndex());
         }
-        m_currentFilterType = index.data(Qt::UserRole).toString();
-        QString name = index.data(Qt::DisplayRole).toString();
+        m_currentFilterType = index.data(CategoryModel::TypeRole).toString();
+        QString name = index.data(CategoryModel::NameRole).toString();
         updatePartitionStatus(name);
         if (m_currentFilterType == "category") {
-            m_currentFilterValue = index.data(Qt::UserRole + 1).toInt();
-            applyListTheme(index.data(Qt::UserRole + 2).toString());
+            m_currentFilterValue = index.data(CategoryModel::IdRole).toInt();
+            applyListTheme(index.data(CategoryModel::ColorRole).toString());
         } else {
             m_currentFilterValue = -1;
             applyListTheme("");
@@ -197,10 +203,10 @@ void QuickWindow::initUI() {
     // 拖拽逻辑...
     auto onNotesDropped = [this](const QList<int>& ids, const QModelIndex& targetIndex) {
         if (!targetIndex.isValid()) return;
-        QString type = targetIndex.data(Qt::UserRole).toString();
+        QString type = targetIndex.data(CategoryModel::TypeRole).toString();
         for (int id : ids) {
             if (type == "category") {
-                int catId = targetIndex.data(Qt::UserRole + 1).toInt();
+                int catId = targetIndex.data(CategoryModel::IdRole).toInt();
                 DatabaseManager::instance().updateNoteState(id, "category_id", catId);
             } else if (type == "bookmark") DatabaseManager::instance().updateNoteState(id, "is_favorite", 1);
             else if (type == "trash") DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
@@ -238,7 +244,7 @@ void QuickWindow::initUI() {
     customToolbar->setFixedWidth(40); // 压缩至 40px
     customToolbar->setStyleSheet(
         "QWidget { background-color: #252526; border-top-right-radius: 10px; border-bottom-right-radius: 10px; border-left: 1px solid #333; }"
-        "QPushButton { border: none; border-radius: 4px; background: transparent; padding: 0px; }"
+        "QPushButton { border: none; border-radius: 4px; background: transparent; padding: 0px; outline: none; }"
         "QPushButton:hover { background-color: #3e3e42; }"
         "QPushButton#btnClose:hover { background-color: #E81123; }"
         "QPushButton:pressed { background-color: #2d2d2d; }"
@@ -266,6 +272,7 @@ void QuickWindow::initUI() {
         btn->setFixedSize(32, 32);
         btn->setToolTip(tooltip);
         btn->setCursor(Qt::PointingHandCursor);
+        btn->setFocusPolicy(Qt::NoFocus);
         return btn;
     };
 
@@ -445,7 +452,8 @@ void QuickWindow::setupShortcuts() {
         toggleStayOnTop(!(windowFlags() & Qt::WindowStaysOnTopHint)); 
     });
     
-    new QShortcut(QKeySequence("Alt+W"), this, [this](){ emit toggleMainWindowRequested(); hide(); });
+    new QShortcut(QKeySequence("Alt+W"), this, [this](){ emit toggleMainWindowRequested(); });
+    new QShortcut(QKeySequence("Ctrl+Shift+T"), this, [this](){ emit toolboxRequested(); });
     new QShortcut(QKeySequence("Ctrl+B"), this, [this](){ doEditSelected(); });
     new QShortcut(QKeySequence("Ctrl+Q"), this, [this](){ toggleSidebar(); });
     new QShortcut(QKeySequence("Alt+S"), this, [this](){ if(m_currentPage > 1) { m_currentPage--; refreshData(); } });
@@ -479,12 +487,14 @@ void QuickWindow::refreshData() {
 }
 
 void QuickWindow::updatePartitionStatus(const QString& name) {
-    if (m_systemTree->parentWidget()->isHidden()) {
-        m_statusLabel->setText(QString("当前分区: %1").arg(name.isEmpty() ? "全部数据" : name));
-        m_statusLabel->show();
-    } else {
-        m_statusLabel->hide();
-    }
+    m_statusLabel->setText(QString("当前分区: %1").arg(name.isEmpty() ? "全部数据" : name));
+    m_statusLabel->show();
+}
+
+void QuickWindow::refreshSidebar() {
+    m_systemModel->refresh();
+    m_partitionModel->refresh();
+    m_partitionTree->expandAll();
 }
 
 void QuickWindow::applyListTheme(const QString& colorHex) {
@@ -842,10 +852,10 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
         return;
     }
 
-    QString type = index.data(Qt::UserRole).toString();
+    QString type = index.data(CategoryModel::TypeRole).toString();
     if (type == "category") {
-        int catId = index.data(Qt::UserRole + 1).toInt();
-        QString currentName = index.data(Qt::DisplayRole).toString();
+        int catId = index.data(CategoryModel::IdRole).toInt();
+        QString currentName = index.data(CategoryModel::NameRole).toString();
 
         menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建数据", [this, catId]() {
             auto* win = new NoteEditWindow();
