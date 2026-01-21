@@ -93,7 +93,7 @@ private:
     int m_resizeArea = 0;
     QPoint m_resizeStartPos;
     QRect m_resizeStartGeometry;
-    static const int RESIZE_MARGIN = 8;
+    static const int RESIZE_MARGIN = 15;
 
 #ifdef Q_OS_WIN
     HWND m_lastActiveHwnd = nullptr;

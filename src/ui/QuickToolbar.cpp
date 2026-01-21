@@ -34,7 +34,14 @@ QuickToolbar::QuickToolbar(QWidget* parent) : QWidget(parent) {
     addBtn("maximize", "切换主界面", &QuickToolbar::openFullRequested);
     addBtn("minimize", "最小化", &QuickToolbar::minimizeRequested);
     
-    layout->addSpacing(10);
+    auto addSeparator = [&]() {
+        QFrame* line = new QFrame();
+        line->setFixedSize(20, 1);
+        line->setStyleSheet("background-color: #333; margin: 5px 0;");
+        layout->addWidget(line, 0, Qt::AlignHCenter);
+    };
+
+    addSeparator();
     
     m_btnStayTop = addBtn("pin", "保持置顶", nullptr, true);
     connect(m_btnStayTop, &QPushButton::toggled, this, &QuickToolbar::toggleStayOnTop);
@@ -43,26 +50,46 @@ QuickToolbar::QuickToolbar(QWidget* parent) : QWidget(parent) {
     addBtn("refresh", "刷新", &QuickToolbar::refreshRequested);
     addBtn("toolbox", "工具箱", &QuickToolbar::toolboxRequested);
 
-    layout->addSpacing(15);
+    addSeparator();
 
-    // 分页
-    m_btnPrev = addBtn("nav_prev", "上一页", &QuickToolbar::prevPage);
-    
+    // 分页模块：对齐 Python 版样式
+    QWidget* pageBox = new QWidget();
+    pageBox->setFixedWidth(32);
+    QVBoxLayout* pageLayout = new QVBoxLayout(pageBox);
+    pageLayout->setContentsMargins(0, 5, 0, 5);
+    pageLayout->setSpacing(2);
+    pageLayout->setAlignment(Qt::AlignHCenter);
+    pageBox->setStyleSheet("QWidget { background: #1e1e1e; border: 1px solid #333; border-radius: 4px; } QPushButton { border: none; background: transparent; }");
+
+    m_btnPrev = new QPushButton();
+    m_btnPrev->setFixedSize(24, 20);
+    m_btnPrev->setIcon(IconHelper::getIcon("nav_prev", "#888", 12));
+    connect(m_btnPrev, &QPushButton::clicked, this, &QuickToolbar::prevPage);
+    pageLayout->addWidget(m_btnPrev, 0, Qt::AlignHCenter);
+
     m_pageEdit = new QLineEdit("1");
-    m_pageEdit->setFixedWidth(28);
+    m_pageEdit->setFixedWidth(24);
+    m_pageEdit->setFixedHeight(18);
     m_pageEdit->setAlignment(Qt::AlignCenter);
     m_pageEdit->setValidator(new QIntValidator(1, 999, this));
-    m_pageEdit->setStyleSheet("background: #1e1e1e; color: #ddd; border: 1px solid #444; border-radius: 4px; font-size: 11px;");
+    m_pageEdit->setStyleSheet("background: #252526; color: white; border: 1px solid #444; border-radius: 2px; font-size: 10px; padding: 0;");
     connect(m_pageEdit, &QLineEdit::returnPressed, [this](){
         emit jumpToPage(m_pageEdit->text().toInt());
     });
-    layout->addWidget(m_pageEdit, 0, Qt::AlignHCenter);
+    pageLayout->addWidget(m_pageEdit, 0, Qt::AlignHCenter);
 
     m_totalPageLabel = new QLabel("1");
-    m_totalPageLabel->setStyleSheet("color: #666; font-size: 10px;");
-    layout->addWidget(m_totalPageLabel, 0, Qt::AlignHCenter);
+    m_totalPageLabel->setAlignment(Qt::AlignCenter);
+    m_totalPageLabel->setStyleSheet("color: #666; font-size: 9px; border: none; background: transparent;");
+    pageLayout->addWidget(m_totalPageLabel, 0, Qt::AlignHCenter);
 
-    m_btnNext = addBtn("nav_next", "下一页", &QuickToolbar::nextPage);
+    m_btnNext = new QPushButton();
+    m_btnNext->setFixedSize(24, 20);
+    m_btnNext->setIcon(IconHelper::getIcon("nav_next", "#888", 12));
+    connect(m_btnNext, &QPushButton::clicked, this, &QuickToolbar::nextPage);
+    pageLayout->addWidget(m_btnNext, 0, Qt::AlignHCenter);
+
+    layout->addWidget(pageBox, 0, Qt::AlignHCenter);
 
     layout->addStretch();
 
