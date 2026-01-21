@@ -76,6 +76,7 @@ private:
     DropTreeView* m_sideBar;
     CategoryModel* m_sideModel;
     QTimer* m_searchTimer;
+    QTimer* m_monitorTimer;
     QSplitter* m_splitter;
     QuickToolbar* m_toolbar;
     QLabel* m_statusLabel;
@@ -92,6 +93,7 @@ private:
 
 #ifdef Q_OS_WIN
     HWND m_lastActiveHwnd = nullptr;
+    HWND m_myHwnd = nullptr;
 #endif
 };
 

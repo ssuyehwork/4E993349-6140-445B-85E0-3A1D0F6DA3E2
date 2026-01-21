@@ -2,6 +2,7 @@
 #include "NoteEditWindow.h"
 #include "IconHelper.h"
 #include "../core/DatabaseManager.h"
+#include "../core/ClipboardMonitor.h"
 #include <QGuiApplication>
 #include <QScreen>
 #include <QKeyEvent>
@@ -31,6 +32,23 @@ QuickWindow::QuickWindow(QWidget* parent)
     connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, [this](const QVariantMap&){
         refreshData();
     });
+
+    // 连接剪贴板监控，实现 Python 版的实时捕获反馈
+    connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, [this](){
+        refreshData();
+    });
+
+#ifdef Q_OS_WIN
+    m_monitorTimer = new QTimer(this);
+    connect(m_monitorTimer, &QTimer::timeout, [this]() {
+        HWND currentHwnd = GetForegroundWindow();
+        if (currentHwnd == 0 || currentHwnd == m_myHwnd) return;
+        if (currentHwnd != m_lastActiveHwnd) {
+            m_lastActiveHwnd = currentHwnd;
+        }
+    });
+    m_monitorTimer->start(200);
+#endif
 }
 
 void QuickWindow::initUI() {
@@ -155,7 +173,7 @@ void QuickWindow::initUI() {
 
     m_statusLabel = new QLabel("当前分区: 全部数据");
     m_statusLabel->setStyleSheet("font-size: 11px; color: #888; padding-left: 2px;");
-    m_statusLabel->setFixedHeight(24);
+    m_statusLabel->setFixedHeight(32);
     leftLayout->addWidget(m_statusLabel);
 
     containerLayout->addWidget(leftContent);
@@ -275,13 +293,14 @@ void QuickWindow::refreshData() {
     // 1. 获取当前筛选条件下的总数
     int totalCount = DatabaseManager::instance().getNotesCount(keyword, m_currentFilterType, m_currentFilterValue);
     
-    // 2. 计算总页数
-    m_totalPages = qMax(1, (totalCount + 19) / 20); // 每页20条
+    // 2. 计算总页数 (每页100条，对标 Python 版)
+    const int pageSize = 100;
+    m_totalPages = qMax(1, (totalCount + pageSize - 1) / pageSize);
     if (m_currentPage > m_totalPages) m_currentPage = m_totalPages;
     if (m_currentPage < 1) m_currentPage = 1;
 
     // 3. 执行分页搜索
-    m_model->setNotes(DatabaseManager::instance().searchNotes(keyword, m_currentFilterType, m_currentFilterValue, m_currentPage, 20));
+    m_model->setNotes(DatabaseManager::instance().searchNotes(keyword, m_currentFilterType, m_currentFilterValue, m_currentPage, pageSize));
     
     // 4. 更新工具栏
     m_toolbar->setPageInfo(m_currentPage, m_totalPages);
@@ -526,12 +545,26 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
     }
 
     auto* ratingMenu = menu.addMenu(IconHelper::getIcon("star", "#f39c12"), QString("设置星级 (%1)").arg(selCount));
-    for (int i = 0; i <= 5; ++i) {
-        ratingMenu->addAction(QString("%1 星").arg(i), [this, i]() { doSetRating(i); });
-    }
+    auto* starGroup = new QActionGroup(this);
+    int currentRating = (selCount == 1) ? selected.first().data(NoteModel::RatingRole).toInt() : -1;
 
-    menu.addAction(IconHelper::getIcon("bookmark", "#ff6b81"), "收藏/取消收藏 (Ctrl+E)", this, &QuickWindow::doToggleFavorite);
-    menu.addAction(IconHelper::getIcon("pin", "#e74c3c"), "置顶/取消置顶 (Ctrl+P)", this, &QuickWindow::doTogglePin);
+    for (int i = 1; i <= 5; ++i) {
+        QString stars = QString("★").repeated(i);
+        QAction* action = ratingMenu->addAction(stars, [this, i]() { doSetRating(i); });
+        action->setCheckable(true);
+        if (i == currentRating) action->setChecked(true);
+        starGroup->addAction(action);
+    }
+    ratingMenu->addSeparator();
+    ratingMenu->addAction("清除评级", [this]() { doSetRating(0); });
+
+    bool isFavorite = selected.first().data(NoteModel::FavoriteRole).toBool();
+    menu.addAction(IconHelper::getIcon(isFavorite ? "bookmark_filled" : "bookmark", "#ff6b81"),
+                   isFavorite ? "取消书签" : "添加书签 (Ctrl+E)", this, &QuickWindow::doToggleFavorite);
+
+    bool isPinned = selected.first().data(NoteModel::PinnedRole).toBool();
+    menu.addAction(IconHelper::getIcon(isPinned ? "pin_vertical" : "pin_tilted", isPinned ? "#e74c3c" : "#aaaaaa"),
+                   isPinned ? "取消置顶" : "置顶选中项 (Ctrl+P)", this, &QuickWindow::doTogglePin);
 
     bool isLocked = selected.first().data(NoteModel::LockedRole).toBool();
     menu.addAction(IconHelper::getIcon("lock", isLocked ? "#2ecc71" : "#aaaaaa"),
@@ -589,7 +622,9 @@ void QuickWindow::doMoveToCategory(int catId) {
 
 void QuickWindow::showCentered() {
 #ifdef Q_OS_WIN
-    m_lastActiveHwnd = GetForegroundWindow();
+    if (!m_myHwnd) m_myHwnd = (HWND)winId();
+    HWND current = GetForegroundWindow();
+    if (current != m_myHwnd) m_lastActiveHwnd = current;
 #endif
     QScreen *screen = QGuiApplication::primaryScreen();
     if (screen) {
@@ -603,9 +638,6 @@ void QuickWindow::showCentered() {
 }
 
 bool QuickWindow::event(QEvent* event) {
-    if (event->type() == QEvent::WindowDeactivate) {
-        hide();
-    }
     return QWidget::event(event);
 }
 

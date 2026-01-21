@@ -18,7 +18,9 @@ public:
         PinnedRole,
         LockedRole,
         FavoriteRole,
-        TypeRole
+        TypeRole,
+        RatingRole,
+        CategoryIdRole
     };
 
     explicit NoteModel(QObject* parent = nullptr);
@@ -35,9 +37,11 @@ public:
     
     // 【新增】增量插入 (这就是报错缺失的函数！)
     void prependNote(const QVariantMap& note);
+    void updateCategoryMap();
 
 private:
     QList<QVariantMap> m_notes;
+    QMap<int, QString> m_categoryMap;
 };
 
 #endif // NOTEMODEL_H

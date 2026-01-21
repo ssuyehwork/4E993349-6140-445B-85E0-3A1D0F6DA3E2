@@ -2,6 +2,7 @@
 #include <QDateTime>
 #include <QIcon>
 #include "../ui/IconHelper.h"
+#include "../core/DatabaseManager.h"
 #include <QFileInfo>
 #include <QBuffer>
 #include <QPixmap>
@@ -18,7 +19,9 @@ static QString getIconHtml(const QString& name, const QString& color) {
            .arg(QString(ba.toBase64()));
 }
 
-NoteModel::NoteModel(QObject* parent) : QAbstractListModel(parent) {}
+NoteModel::NoteModel(QObject* parent) : QAbstractListModel(parent) {
+    updateCategoryMap();
+}
 
 int NoteModel::rowCount(const QModelIndex& parent) const {
     if (parent.isValid()) return 0;
@@ -50,10 +53,13 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
                 if (content.startsWith("http://") || content.startsWith("https://") || content.startsWith("www.")) {
                     iconName = "link";
                     iconColor = "#3498db";
-                } else if (content.startsWith("#") || content.startsWith("import ") || content.startsWith("class ") || content.startsWith("def ")) {
+                } else if (content.startsWith("#") || content.startsWith("import ") || content.startsWith("class ") ||
+                           content.startsWith("def ") || content.startsWith("<") || content.startsWith("{") ||
+                           content.startsWith("function") || content.startsWith("var ") || content.startsWith("const ")) {
                     iconName = "code";
                     iconColor = "#2ecc71";
-                } else if (content.length() < 260 && (content.contains(":/") || content.startsWith("/") || content.startsWith("\\\\"))) {
+                } else if (content.length() < 260 && (content.contains(":/") || content.startsWith("/") || content.startsWith("\\\\") ||
+                           content.startsWith("./") || content.startsWith("../"))) {
                     QFileInfo info(content.remove('\"'));
                     if (info.exists()) {
                         if (info.isDir()) {
@@ -72,19 +78,24 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             QString title = note.value("title").toString();
             QString content = note.value("content").toString();
             QString updatedAt = note.value("updated_at").toString();
+            int catId = note.value("category_id").toInt();
+            QString tags = note.value("tags").toString();
             bool pinned = note.value("is_pinned").toBool();
             bool locked = note.value("is_locked").toBool();
             bool favorite = note.value("is_favorite").toBool();
             int rating = note.value("rating").toInt();
 
+            QString catName = m_categoryMap.value(catId, "未分类");
+            if (tags.isEmpty()) tags = "无";
+
             QString statusStr;
-            if (pinned) statusStr += getIconHtml("pin", "#e74c3c") + " 置顶 ";
+            if (pinned) statusStr += getIconHtml("pin_vertical", "#e74c3c") + " 置顶 ";
             if (locked) statusStr += getIconHtml("lock", "#2ecc71") + " 锁定 ";
-            if (favorite) statusStr += getIconHtml("bookmark", "#ff6b81") + " 书签 ";
+            if (favorite) statusStr += getIconHtml("bookmark_filled", "#ff6b81") + " 书签 ";
             if (statusStr.isEmpty()) statusStr = "无";
 
             QString ratingStr;
-            for(int i=0; i<rating; ++i) ratingStr += getIconHtml("star", "#f39c12");
+            for(int i=0; i<rating; ++i) ratingStr += getIconHtml("star_filled", "#f39c12");
             if (ratingStr.isEmpty()) ratingStr = "无";
 
             QString preview = content.left(400).replace("\n", "<br>").trimmed();
@@ -93,16 +104,18 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
 
             return QString("<html><body style='color: #ddd;'>"
                            "<table border='0' cellpadding='2' cellspacing='0'>"
-                           "<tr><td>%1</td><td><b>更新于:</b> %2</td></tr>"
-                           "<tr><td>%3</td><td><b>评分:</b> %4</td></tr>"
-                           "<tr><td>%5</td><td><b>状态:</b> %6</td></tr>"
+                           "<tr><td width='20'>%1</td><td><b>分区:</b> %2</td></tr>"
+                           "<tr><td width='20'>%3</td><td><b>标签:</b> %4</td></tr>"
+                           "<tr><td width='20'>%5</td><td><b>评级:</b> %6</td></tr>"
+                           "<tr><td width='20'>%7</td><td><b>状态:</b> %8</td></tr>"
                            "</table>"
                            "<hr style='border: 0; border-top: 1px solid #555; margin: 5px 0;'>"
-                           "<div style='color: #ccc; font-size: 12px; line-height: 1.4;'>%7</div>"
+                           "<div style='color: #ccc; font-size: 12px; line-height: 1.4;'>%9</div>"
                            "</body></html>")
-                .arg(getIconHtml("clock", "#aaa"), updatedAt,
+                .arg(getIconHtml("branch", "#4a90e2"), catName,
+                     getIconHtml("text", "#FFAB91"), tags,
                      getIconHtml("star", "#f39c12"), ratingStr,
-                     getIconHtml("eye", "#aaa"), statusStr,
+                     getIconHtml("pin", "#aaa"), statusStr,
                      preview);
         }
         case Qt::DisplayRole: {
@@ -132,6 +145,10 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             return note.value("is_favorite");
         case TypeRole:
             return note.value("item_type");
+        case RatingRole:
+            return note.value("rating");
+        case CategoryIdRole:
+            return note.value("category_id");
         default:
             return QVariant();
     }
@@ -159,9 +176,18 @@ QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
 }
 
 void NoteModel::setNotes(const QList<QVariantMap>& notes) {
+    updateCategoryMap();
     beginResetModel();
     m_notes = notes;
     endResetModel();
+}
+
+void NoteModel::updateCategoryMap() {
+    auto categories = DatabaseManager::instance().getAllCategories();
+    m_categoryMap.clear();
+    for (const auto& cat : categories) {
+        m_categoryMap[cat["id"].toInt()] = cat["name"].toString();
+    }
 }
 
 // 【新增】函数的具体实现
