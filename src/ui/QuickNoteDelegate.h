@@ -63,8 +63,8 @@ public:
         // 时间 (极简展示) - 显示在右上方
         QString timeStr = index.data(NoteModel::TimeRole).toDateTime().toString("MM-dd HH:mm");
         painter->setPen(QColor("#666666"));
-        painter->setFont(QFont("Segoe UI", 8));
-        painter->drawText(rect.adjusted(0, 5, -10, 0), Qt::AlignRight | Qt::AlignTop, timeStr);
+        painter->setFont(QFont("Segoe UI", 7));
+        painter->drawText(rect.adjusted(0, 3, -10, 0), Qt::AlignRight | Qt::AlignTop, timeStr);
 
         painter->restore();
     }
