@@ -30,6 +30,8 @@ public:
         QString content = index.data(NoteModel::ContentRole).toString();
         QString timeStr = index.data(NoteModel::TimeRole).toDateTime().toString("yyyy-MM-dd HH:mm:ss");
         bool isPinned = index.data(NoteModel::PinnedRole).toBool();
+        QString smartIcon = index.data(NoteModel::SmartIconRole).toString();
+        QString smartColor = index.data(NoteModel::SmartColorRole).toString();
 
         // 2. 处理选中状态和背景 (更精致的配色与阴影感)
         QRect rect = option.rect.adjusted(8, 4, -8, -4);
@@ -53,11 +55,15 @@ public:
         painter->setBrush(bgColor);
         painter->drawPath(path);
 
-        // 3. 绘制标题 (加粗，主文本色)
+        // 3. 绘制图标与标题
+        // 绘制智能图标
+        QPixmap iconPix = IconHelper::getIcon(smartIcon, smartColor, 24).pixmap(24, 24);
+        painter->drawPixmap(rect.left() + 12, rect.top() + 12, iconPix);
+
         painter->setPen(QColor("#cccccc"));
         QFont titleFont("Microsoft YaHei", 10, QFont::Bold);
         painter->setFont(titleFont);
-        QRect titleRect = rect.adjusted(12, 10, -35, -70);
+        QRect titleRect = rect.adjusted(42, 10, -35, -70); // 给图标留出空间
         painter->drawText(titleRect, Qt::AlignLeft | Qt::AlignTop, painter->fontMetrics().elidedText(title, Qt::ElideRight, titleRect.width()));
 
         // 4. 绘制置顶/星级标识

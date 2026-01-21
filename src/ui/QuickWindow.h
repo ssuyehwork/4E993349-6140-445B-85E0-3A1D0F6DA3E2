@@ -14,6 +14,11 @@
 #include "QuickPreview.h"
 #include "QuickToolbar.h"
 #include "DropTreeView.h"
+#include <QTimer>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 class QuickWindow : public QWidget {
     Q_OBJECT
@@ -39,6 +44,8 @@ private:
     void updatePartitionStatus(const QString& name);
     int getResizeArea(const QPoint& pos);
     void setCursorShape(int area);
+    void monitorForegroundWindow();
+    void pasteToTarget();
 
     SearchLineEdit* m_searchEdit;
     QListView* m_listView;
@@ -50,6 +57,14 @@ private:
     QSplitter* m_splitter;
     QuickToolbar* m_toolbar;
     QLabel* m_statusLabel;
+    QTimer* m_monitorTimer;
+    QTimer* m_searchTimer;
+
+#ifdef Q_OS_WIN
+    HWND m_lastActiveHwnd = nullptr;
+    HWND m_lastFocusHwnd = nullptr;
+    DWORD m_lastThreadId = 0;
+#endif
 
     int m_currentPage = 1;
     int m_totalPages = 1;

@@ -1,5 +1,6 @@
 #include "QuickWindow.h"
 #include "NoteEditWindow.h"
+#include "NoteDelegate.h"
 #include "IconHelper.h"
 #include "../core/DatabaseManager.h"
 #include <QGuiApplication>
@@ -62,6 +63,7 @@ void QuickWindow::initUI() {
     m_listView = new QListView();
     m_listView->setDragEnabled(true);
     m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_listView->setItemDelegate(new NoteDelegate(this));
     m_model = new NoteModel(this);
     m_listView->setModel(m_model);
     m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -83,10 +85,23 @@ void QuickWindow::initUI() {
     });
     connect(m_listView, &QListView::doubleClicked, this, [this](const QModelIndex& index){
         if (!index.isValid()) return;
+
+        // 获取数据并放入剪贴板
         int id = index.data(NoteModel::IdRole).toInt();
-        NoteEditWindow* win = new NoteEditWindow(id);
-        connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
-        win->show();
+        QVariantMap note = DatabaseManager::instance().getNoteById(id);
+        QString type = note["item_type"].toString();
+
+        if (type == "image") {
+            QImage img;
+            img.loadFromData(note["data_blob"].toByteArray());
+            QGuiApplication::clipboard()->setImage(img);
+        } else {
+            QGuiApplication::clipboard()->setText(note["content"].toString());
+        }
+
+        // 隐藏窗口并执行 Ditto 式粘贴
+        hide();
+        pasteToTarget();
     });
 
     // 侧边栏居右
@@ -171,11 +186,16 @@ void QuickWindow::initUI() {
     });
     connect(m_toolbar, &QuickToolbar::minimizeRequested, this, &QuickWindow::showMinimized);
     connect(m_toolbar, &QuickToolbar::toggleStayOnTop, this, [this](bool checked){
+#ifdef Q_OS_WIN
+        HWND hwnd = (HWND)winId();
+        SetWindowPos(hwnd, checked ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+#else
         Qt::WindowFlags flags = windowFlags();
         if (checked) flags |= Qt::WindowStaysOnTopHint;
         else flags &= ~Qt::WindowStaysOnTopHint;
         setWindowFlags(flags);
         show();
+#endif
     });
     connect(m_toolbar, &QuickToolbar::toggleSidebar, this, [this](){
         m_sideBar->setVisible(!m_sideBar->isVisible());
@@ -193,10 +213,15 @@ void QuickWindow::initUI() {
         if (page >= 1 && page <= m_totalPages) { m_currentPage = page; refreshData(); }
     });
 
-    // 搜索逻辑
+    // 搜索逻辑 (带防抖)
+    m_searchTimer = new QTimer(this);
+    m_searchTimer->setSingleShot(true);
+    m_searchTimer->setInterval(300); // 300ms 延迟
+    connect(m_searchTimer, &QTimer::timeout, this, &QuickWindow::refreshData);
+
     connect(m_searchEdit, &QLineEdit::textChanged, [this](const QString& text){
         m_currentPage = 1;
-        refreshData();
+        m_searchTimer->start();
     });
 
     // 回车保存逻辑
@@ -210,7 +235,65 @@ void QuickWindow::initUI() {
         }
     });
 
+    // 窗口监控定时器
+    m_monitorTimer = new QTimer(this);
+    connect(m_monitorTimer, &QTimer::timeout, this, &QuickWindow::monitorForegroundWindow);
+    m_monitorTimer->start(200);
+
     refreshData();
+}
+
+void QuickWindow::monitorForegroundWindow() {
+#ifdef Q_OS_WIN
+    HWND hwnd = GetForegroundWindow();
+    if (!hwnd) return;
+
+    // 排除掉自己的窗口
+    DWORD processId;
+    GetWindowThreadProcessId(hwnd, &processId);
+    if (processId == GetCurrentProcessId()) return;
+
+    m_lastActiveHwnd = hwnd;
+    m_lastThreadId = GetWindowThreadProcessId(hwnd, nullptr);
+
+    GUITHREADINFO gti;
+    gti.cbSize = sizeof(GUITHREADINFO);
+    if (GetGUIThreadInfo(m_lastThreadId, &gti)) {
+        m_lastFocusHwnd = gti.hwndFocus;
+    }
+#endif
+}
+
+void QuickWindow::pasteToTarget() {
+#ifdef Q_OS_WIN
+    if (!m_lastActiveHwnd || !IsWindow(m_lastActiveHwnd)) return;
+
+    DWORD currThread = GetCurrentThreadId();
+    bool attached = false;
+    if (m_lastThreadId && currThread != m_lastThreadId) {
+        attached = AttachThreadInput(currThread, m_lastThreadId, TRUE);
+    }
+
+    if (IsIconic(m_lastActiveHwnd)) {
+        ShowWindow(m_lastActiveHwnd, SW_RESTORE);
+    }
+    SetForegroundWindow(m_lastActiveHwnd);
+    if (m_lastFocusHwnd && IsWindow(m_lastFocusHwnd)) {
+        SetFocus(m_lastFocusHwnd);
+    }
+
+    // 稍微延迟等待焦点稳定
+    QTimer::singleShot(100, [this, attached, currThread]() {
+        keybd_event(VK_CONTROL, 0, 0, 0);
+        keybd_event('V', 0, 0, 0);
+        keybd_event('V', 0, KEYEVENTF_KEYUP, 0);
+        keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+
+        if (attached) {
+            AttachThreadInput(currThread, m_lastThreadId, FALSE);
+        }
+    });
+#endif
 }
 
 void QuickWindow::refreshData() {
