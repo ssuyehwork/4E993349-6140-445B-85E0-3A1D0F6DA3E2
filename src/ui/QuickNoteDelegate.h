@@ -26,20 +26,26 @@ public:
         bool isSelected = (option.state & QStyle::State_Selected);
         bool isHovered = (option.state & QStyle::State_MouseOver);
 
-        // 1. 绘制背景 (支持斑马纹和动态配色)
-        QColor bgColor;
-        if (isSelected) {
-            // 优先使用 QSS 设置的选中色
-            bgColor = option.palette.color(QPalette::Highlight);
-            // 兜底：如果调色板未正确加载显示为白色，强制使用蓝色
-            if (bgColor.lightness() > 200) bgColor = QColor("#4a90e2");
-        } else if (isHovered) {
+        // 1. 绘制基础背景 (斑马纹)
+        QColor bgColor = (index.row() % 2 == 0) ? QColor("#1E1E1E") : QColor("#151515");
+        if (isHovered && !isSelected) {
             bgColor = QColor(255, 255, 255, 25);
-        } else {
-            // 【核心修复】强制指定颜色以对齐 Python 版，解决启动发白问题
-            bgColor = (index.row() % 2 == 0) ? QColor("#1E1E1E") : QColor("#151515");
         }
         painter->fillRect(rect, bgColor);
+
+        // 2. 绘制选中高亮 (仅左侧 5 像素指示条)
+        if (isSelected) {
+            QColor highlightColor = option.palette.color(QPalette::Highlight);
+            if (highlightColor.lightness() > 200) highlightColor = QColor("#4a90e2");
+
+            // 绘制左侧 5px 指示条
+            painter->fillRect(QRect(rect.left(), rect.top(), 5, rect.height()), highlightColor);
+
+            // 选中背景增加极淡的叠加层 (10% 不透明度)，提高识别度且不遮挡内容
+            QColor overlay = highlightColor;
+            overlay.setAlpha(30);
+            painter->fillRect(rect, overlay);
+        }
 
         // 2. 分隔线 (对齐 Python 版，使用极浅的黑色半透明)
         painter->setPen(QColor(0, 0, 0, 25));
