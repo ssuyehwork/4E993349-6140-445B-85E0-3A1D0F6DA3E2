@@ -23,6 +23,8 @@ set(SOURCES
     src/models/CategoryModel.cpp
     src/ui/FloatingBall.cpp
     src/ui/QuickWindow.cpp
+    src/ui/QuickToolbar.cpp
+    src/ui/DropTreeView.cpp
     src/ui/MainWindow.cpp
     src/ui/QuickPreview.h
     src/ui/HeaderBar.cpp
