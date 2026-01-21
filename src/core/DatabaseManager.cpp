@@ -590,12 +590,14 @@ bool DatabaseManager::setCategoryColor(int id, const QString& color) {
         
         QSqlQuery updateNotes(m_db);
         updateNotes.prepare(QString("UPDATE notes SET color = ? WHERE category_id IN (%1)").arg(placeholders));
-        for(int i=0; i<allIds.size(); ++i) updateNotes.bindValue(i, color);
+        updateNotes.addBindValue(color);
+        for(int cid : allIds) updateNotes.addBindValue(cid);
         updateNotes.exec();
         
         QSqlQuery updateCats(m_db);
         updateCats.prepare(QString("UPDATE categories SET color = ? WHERE id IN (%1)").arg(placeholders));
-        for(int i=0; i<allIds.size(); ++i) updateCats.bindValue(i, color);
+        updateCats.addBindValue(color);
+        for(int cid : allIds) updateCats.addBindValue(cid);
         updateCats.exec();
     }
     

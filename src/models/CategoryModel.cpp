@@ -20,6 +20,7 @@ void CategoryModel::refresh() {
             QStandardItem* item = new QStandardItem(display);
             item->setData(type, TypeRole);
             item->setData(name, NameRole);
+            item->setData(color, ColorRole); // 设置颜色角色
             item->setEditable(false); // 系统项目不可重命名
             item->setIcon(IconHelper::getIcon(icon, color));
             root->appendRow(item);

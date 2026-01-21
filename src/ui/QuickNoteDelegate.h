@@ -39,7 +39,10 @@ public:
             QColor highlightColor("#4a90e2"); // 默认蓝
             QuickWindow* win = qobject_cast<QuickWindow*>(parent());
             if (win) {
-                highlightColor = QColor(win->currentCategoryColor());
+                QString c = win->currentCategoryColor();
+                if (!c.isEmpty() && QColor::isValidColorName(c)) {
+                    highlightColor = QColor(c);
+                }
             }
 
             // 绘制左侧 5px 指示条

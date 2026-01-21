@@ -61,6 +61,20 @@ QuickWindow::QuickWindow(QWidget* parent)
 
     connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, [this](){
         m_model->updateCategoryMap();
+
+        // 如果当前正在查看某个分类，同步更新其高亮色
+        if (m_currentFilterType == "category" && m_currentFilterValue != -1) {
+            auto categories = DatabaseManager::instance().getAllCategories();
+            for (const auto& cat : categories) {
+                if (cat["id"].toInt() == m_currentFilterValue) {
+                    m_currentCategoryColor = cat["color"].toString();
+                    if (m_currentCategoryColor.isEmpty()) m_currentCategoryColor = "#4a90e2";
+                    applyListTheme(m_currentCategoryColor);
+                    break;
+                }
+            }
+        }
+
         refreshData();
         refreshSidebar();
     });
@@ -188,16 +202,18 @@ void QuickWindow::initUI() {
         m_currentFilterType = index.data(CategoryModel::TypeRole).toString();
         QString name = index.data(CategoryModel::NameRole).toString();
         updatePartitionStatus(name);
+
+        // 统一从模型获取颜色，实现全分区变色联动
+        m_currentCategoryColor = index.data(CategoryModel::ColorRole).toString();
+        if (m_currentCategoryColor.isEmpty()) m_currentCategoryColor = "#4a90e2";
+
         if (m_currentFilterType == "category") {
             m_currentFilterValue = index.data(CategoryModel::IdRole).toInt();
-            m_currentCategoryColor = index.data(CategoryModel::ColorRole).toString();
-            if (m_currentCategoryColor.isEmpty()) m_currentCategoryColor = "#4a90e2";
-            applyListTheme(m_currentCategoryColor);
         } else {
             m_currentFilterValue = -1;
-            m_currentCategoryColor = "#4a90e2";
-            applyListTheme("");
         }
+
+        applyListTheme(m_currentCategoryColor);
         m_currentPage = 1;
         refreshData();
     };
