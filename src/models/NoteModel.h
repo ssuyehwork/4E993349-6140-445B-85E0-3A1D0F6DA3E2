@@ -4,6 +4,7 @@
 #include <QAbstractListModel>
 #include <QVariantMap>
 #include <QList>
+#include <QMimeData>
 
 class NoteModel : public QAbstractListModel {
     Q_OBJECT
@@ -25,6 +26,10 @@ public:
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
     
+    Qt::ItemFlags flags(const QModelIndex& index) const override;
+    QStringList mimeTypes() const override;
+    QMimeData* mimeData(const QModelIndexList& indexes) const override;
+
     // 全量重置
     void setNotes(const QList<QVariantMap>& notes);
     

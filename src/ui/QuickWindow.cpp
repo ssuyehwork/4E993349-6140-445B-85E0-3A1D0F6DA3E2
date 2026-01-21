@@ -24,7 +24,7 @@ QuickWindow::QuickWindow(QWidget* parent)
 
 void QuickWindow::initUI() {
     auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(10, 10, 10, 10);
+    mainLayout->setContentsMargins(15, 15, 15, 15); // 给阴影留出空间
 
     auto* container = new QWidget();
     container->setObjectName("container");
@@ -37,53 +37,31 @@ void QuickWindow::initUI() {
     );
     
     auto* shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(20);
-    shadow->setColor(QColor(0, 0, 0, 150));
-    shadow->setOffset(0, 5);
+    shadow->setBlurRadius(25);
+    shadow->setColor(QColor(0, 0, 0, 100));
+    shadow->setOffset(0, 4);
     container->setGraphicsEffect(shadow);
 
-    auto* layout = new QVBoxLayout(container);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    auto* containerLayout = new QHBoxLayout(container);
+    containerLayout->setContentsMargins(0, 0, 0, 0);
+    containerLayout->setSpacing(0);
+
+    auto* leftContent = new QWidget();
+    auto* leftLayout = new QVBoxLayout(leftContent);
+    leftLayout->setContentsMargins(10, 10, 10, 5);
+    leftLayout->setSpacing(8);
     
     m_searchEdit = new SearchLineEdit();
-    m_searchEdit->setPlaceholderText("搜索笔记或按回车保存...");
-    layout->addWidget(m_searchEdit);
+    m_searchEdit->setPlaceholderText("搜索灵感 (双击查看历史)");
+    leftLayout->addWidget(m_searchEdit);
 
-    auto* hLayout = new QHBoxLayout();
+    m_splitter = new QSplitter(Qt::Horizontal);
+    m_splitter->setHandleWidth(4);
     
-    m_sideBar = new QTreeView();
-    m_sideModel = new CategoryModel(this);
-    m_sideBar->setModel(m_sideModel);
-    m_sideBar->setHeaderHidden(true);
-    m_sideBar->setFixedWidth(180);
-    m_sideBar->expandAll();
-    m_sideBar->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(m_sideBar, &QTreeView::customContextMenuRequested, this, [this](const QPoint& pos){
-        QModelIndex index = m_sideBar->indexAt(pos);
-        if (!index.isValid()) return;
-        QMenu menu(this);
-        QString type = index.data(Qt::UserRole).toString();
-        if (type == "category") {
-            menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名分类");
-            menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "删除分类");
-        } else if (type == "trash") {
-            menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "清空回收站");
-        }
-        menu.exec(m_sideBar->mapToGlobal(pos));
-    });
-    connect(m_sideBar, &QTreeView::clicked, this, [this](const QModelIndex& index){
-        QString type = index.data(Qt::UserRole).toString();
-        if (type == "category") {
-            int catId = index.data(Qt::UserRole + 1).toInt();
-            m_model->setNotes(DatabaseManager::instance().searchNotes("", "category", catId));
-        } else {
-            m_model->setNotes(DatabaseManager::instance().searchNotes("", type));
-        }
-    });
-    hLayout->addWidget(m_sideBar);
-
+    // 列表居左
     m_listView = new QListView();
+    m_listView->setDragEnabled(true);
+    m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_model = new NoteModel(this);
     m_listView->setModel(m_model);
     m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -110,19 +88,115 @@ void QuickWindow::initUI() {
         connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
         win->show();
     });
-    hLayout->addWidget(m_listView);
-    
-    layout->addLayout(hLayout);
+
+    // 侧边栏居右
+    m_sideBar = new DropTreeView();
+    m_sideModel = new CategoryModel(this);
+    m_sideBar->setModel(m_sideModel);
+    m_sideBar->setHeaderHidden(true);
+    m_sideBar->expandAll();
+    m_sideBar->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_sideBar, &QTreeView::customContextMenuRequested, this, [this](const QPoint& pos){
+        QModelIndex index = m_sideBar->indexAt(pos);
+        if (!index.isValid()) return;
+        QMenu menu(this);
+        QString type = index.data(Qt::UserRole).toString();
+        if (type == "category") {
+            menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名分类");
+            menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "删除分类");
+        } else if (type == "trash") {
+            menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "清空回收站");
+        }
+        menu.exec(m_sideBar->mapToGlobal(pos));
+    });
+    connect(m_sideBar, &QTreeView::clicked, this, [this](const QModelIndex& index){
+        m_currentFilterType = index.data(Qt::UserRole).toString();
+        QString name = index.data(Qt::DisplayRole).toString();
+        updatePartitionStatus(name);
+        if (m_currentFilterType == "category") {
+            m_currentFilterValue = index.data(Qt::UserRole + 1).toInt();
+        } else {
+            m_currentFilterValue = -1;
+        }
+        m_currentPage = 1;
+        refreshData();
+    });
+    connect(m_sideBar, &DropTreeView::notesDropped, this, [this](const QList<int>& ids, const QModelIndex& targetIndex){
+        if (!targetIndex.isValid()) return;
+        QString type = targetIndex.data(Qt::UserRole).toString();
+        for (int id : ids) {
+            if (type == "category") {
+                int catId = targetIndex.data(Qt::UserRole + 1).toInt();
+                DatabaseManager::instance().updateNoteState(id, "category_id", catId);
+            } else if (type == "bookmark") {
+                DatabaseManager::instance().updateNoteState(id, "is_favorite", 1);
+            } else if (type == "trash") {
+                DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
+            } else if (type == "uncategorized") {
+                DatabaseManager::instance().updateNoteState(id, "category_id", QVariant());
+            }
+        }
+        refreshData();
+    });
+
+    m_splitter->addWidget(m_listView);
+    m_splitter->addWidget(m_sideBar);
+    m_splitter->setStretchFactor(0, 1);
+    m_splitter->setStretchFactor(1, 0);
+    m_splitter->setSizes({550, 180});
+    leftLayout->addWidget(m_splitter);
+
+    m_statusLabel = new QLabel("当前分区: 全部数据");
+    m_statusLabel->setStyleSheet("font-size: 11px; color: #888; padding-left: 2px;");
+    m_statusLabel->setFixedHeight(24);
+    leftLayout->addWidget(m_statusLabel);
+
+    containerLayout->addWidget(leftContent);
+
+    // 右侧垂直工具栏
+    m_toolbar = new QuickToolbar(this);
+    containerLayout->addWidget(m_toolbar);
     
     mainLayout->addWidget(container);
-    setFixedSize(800, 500);
+    resize(830, 630);
 
     m_quickPreview = new QuickPreview(this);
     m_listView->installEventFilter(this);
+
+    // 工具栏信号
+    connect(m_toolbar, &QuickToolbar::closeRequested, this, &QuickWindow::hide);
+    connect(m_toolbar, &QuickToolbar::openFullRequested, this, [this](){
+        emit toggleMainWindowRequested();
+        hide();
+    });
+    connect(m_toolbar, &QuickToolbar::minimizeRequested, this, &QuickWindow::showMinimized);
+    connect(m_toolbar, &QuickToolbar::toggleStayOnTop, this, [this](bool checked){
+        Qt::WindowFlags flags = windowFlags();
+        if (checked) flags |= Qt::WindowStaysOnTopHint;
+        else flags &= ~Qt::WindowStaysOnTopHint;
+        setWindowFlags(flags);
+        show();
+    });
+    connect(m_toolbar, &QuickToolbar::toggleSidebar, this, [this](){
+        m_sideBar->setVisible(!m_sideBar->isVisible());
+    });
+    connect(m_toolbar, &QuickToolbar::refreshRequested, this, &QuickWindow::refreshData);
+
+    // 分页
+    connect(m_toolbar, &QuickToolbar::prevPage, this, [this](){
+        if (m_currentPage > 1) { m_currentPage--; refreshData(); }
+    });
+    connect(m_toolbar, &QuickToolbar::nextPage, this, [this](){
+        if (m_currentPage < m_totalPages) { m_currentPage++; refreshData(); }
+    });
+    connect(m_toolbar, &QuickToolbar::jumpToPage, this, [this](int page){
+        if (page >= 1 && page <= m_totalPages) { m_currentPage = page; refreshData(); }
+    });
     
     // 搜索逻辑
     connect(m_searchEdit, &QLineEdit::textChanged, [this](const QString& text){
-        m_model->setNotes(DatabaseManager::instance().searchNotes(text));
+        m_currentPage = 1;
+        refreshData();
     });
 
     // 回车保存逻辑
@@ -140,9 +214,25 @@ void QuickWindow::initUI() {
 }
 
 void QuickWindow::refreshData() {
-    if (m_searchEdit->text().isEmpty()) {
-        m_model->setNotes(DatabaseManager::instance().getAllNotes());
-    }
+    QString keyword = m_searchEdit->text();
+    
+    // 1. 获取当前筛选条件下的总数
+    int totalCount = DatabaseManager::instance().getNotesCount(keyword, m_currentFilterType, m_currentFilterValue);
+    
+    // 2. 计算总页数
+    m_totalPages = qMax(1, (totalCount + 19) / 20); // 每页20条
+    if (m_currentPage > m_totalPages) m_currentPage = m_totalPages;
+    if (m_currentPage < 1) m_currentPage = 1;
+
+    // 3. 执行分页搜索
+    m_model->setNotes(DatabaseManager::instance().searchNotes(keyword, m_currentFilterType, m_currentFilterValue, m_currentPage, 20));
+    
+    // 4. 更新工具栏
+    m_toolbar->setPageInfo(m_currentPage, m_totalPages);
+}
+
+void QuickWindow::updatePartitionStatus(const QString& name) {
+    m_statusLabel->setText(QString("当前分区: %1").arg(name));
 }
 
 void QuickWindow::showCentered() {
@@ -166,11 +256,64 @@ bool QuickWindow::event(QEvent* event) {
 
 void QuickWindow::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        if (auto* handle = windowHandle()) {
-            handle->startSystemMove();
+        m_resizeArea = getResizeArea(event->pos());
+        if (m_resizeArea != 0) {
+            m_resizeStartPos = event->globalPosition().toPoint();
+            m_resizeStartGeometry = frameGeometry();
+        } else {
+            if (auto* handle = windowHandle()) {
+                handle->startSystemMove();
+            }
         }
         event->accept();
     }
+}
+
+void QuickWindow::mouseMoveEvent(QMouseEvent* event) {
+    if (event->buttons() == Qt::NoButton) {
+        setCursorShape(getResizeArea(event->pos()));
+    } else if (event->buttons() & Qt::LeftButton) {
+        if (m_resizeArea != 0) {
+            QPoint delta = event->globalPosition().toPoint() - m_resizeStartPos;
+            QRect newGeom = m_resizeStartGeometry;
+            if (m_resizeArea & 0x1) newGeom.setLeft(m_resizeStartGeometry.left() + delta.x());
+            if (m_resizeArea & 0x2) newGeom.setRight(m_resizeStartGeometry.right() + delta.x());
+            if (m_resizeArea & 0x4) newGeom.setTop(m_resizeStartGeometry.top() + delta.y());
+            if (m_resizeArea & 0x8) newGeom.setBottom(m_resizeStartGeometry.bottom() + delta.y());
+            
+            if (newGeom.width() >= 400 && newGeom.height() >= 300) {
+                setGeometry(newGeom);
+            }
+            event->accept();
+            return;
+        }
+    }
+    QWidget::mouseMoveEvent(event);
+}
+
+void QuickWindow::mouseReleaseEvent(QMouseEvent* event) {
+    m_resizeArea = 0;
+    setCursor(Qt::ArrowCursor);
+    QWidget::mouseReleaseEvent(event);
+}
+
+int QuickWindow::getResizeArea(const QPoint& pos) {
+    int area = 0;
+    int x = pos.x();
+    int y = pos.y();
+    if (x < RESIZE_MARGIN) area |= 0x1;
+    else if (x > width() - RESIZE_MARGIN) area |= 0x2;
+    if (y < RESIZE_MARGIN) area |= 0x4;
+    else if (y > height() - RESIZE_MARGIN) area |= 0x8;
+    return area;
+}
+
+void QuickWindow::setCursorShape(int area) {
+    if (area == 0) setCursor(Qt::ArrowCursor);
+    else if ((area & 0x1 && area & 0x4) || (area & 0x2 && area & 0x8)) setCursor(Qt::SizeFDiagCursor);
+    else if ((area & 0x2 && area & 0x4) || (area & 0x1 && area & 0x8)) setCursor(Qt::SizeBDiagCursor);
+    else if (area & 0x1 || area & 0x2) setCursor(Qt::SizeHorCursor);
+    else if (area & 0x4 || area & 0x8) setCursor(Qt::SizeVerCursor);
 }
 
 bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {

@@ -37,6 +37,27 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
     }
 }
 
+Qt::ItemFlags NoteModel::flags(const QModelIndex& index) const {
+    if (!index.isValid()) return Qt::ItemIsEnabled;
+    return QAbstractListModel::flags(index) | Qt::ItemIsDragEnabled;
+}
+
+QStringList NoteModel::mimeTypes() const {
+    return {"application/x-note-ids"};
+}
+
+QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
+    QMimeData* mimeData = new QMimeData();
+    QStringList ids;
+    for (const QModelIndex& index : indexes) {
+        if (index.isValid()) {
+            ids << QString::number(data(index, IdRole).toInt());
+        }
+    }
+    mimeData->setData("application/x-note-ids", ids.join(",").toUtf8());
+    return mimeData;
+}
+
 void NoteModel::setNotes(const QList<QVariantMap>& notes) {
     beginResetModel();
     m_notes = notes;

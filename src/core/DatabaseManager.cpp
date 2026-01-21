@@ -263,7 +263,7 @@ void DatabaseManager::addNoteAsync(const QString& title, const QString& content,
     }, Qt::QueuedConnection);
 }
 
-QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QString& filterType, int filterValue) {
+QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QString& filterType, int filterValue, int page, int pageSize) {
     QMutexLocker locker(&m_mutex);
     QList<QVariantMap> results;
     if (!m_db.isOpen()) return results;
@@ -296,6 +296,10 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
 
     QString finalSql = baseSql + whereClause + "ORDER BY is_pinned DESC, updated_at DESC";
     
+    if (page > 0) {
+        finalSql += QString(" LIMIT %1 OFFSET %2").arg(pageSize).arg((page - 1) * pageSize);
+    }
+
     QSqlQuery query(m_db);
     query.prepare(finalSql);
     for (int i = 0; i < params.size(); ++i) query.bindValue(i, params[i]);
@@ -309,6 +313,46 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
         }
     }
     return results;
+}
+
+int DatabaseManager::getNotesCount(const QString& keyword, const QString& filterType, int filterValue) {
+    QMutexLocker locker(&m_mutex);
+    if (!m_db.isOpen()) return 0;
+
+    QString baseSql = "SELECT COUNT(*) FROM notes ";
+    QString whereClause = "WHERE is_deleted = 0 ";
+    QVariantList params;
+
+    if (filterType == "category") {
+        if (filterValue == -1) whereClause += "AND category_id IS NULL ";
+        else {
+            whereClause += "AND category_id = ? ";
+            params << filterValue;
+        }
+    } else if (filterType == "today") {
+        whereClause += "AND date(updated_at) = date('now', 'localtime') ";
+    } else if (filterType == "bookmark") {
+        whereClause += "AND is_favorite = 1 ";
+    } else if (filterType == "trash") {
+        whereClause = "WHERE is_deleted = 1 ";
+    } else if (filterType == "untagged") {
+        whereClause += "AND (tags IS NULL OR tags = '') ";
+    }
+
+    if (!keyword.isEmpty()) {
+        baseSql += "JOIN notes_fts ON notes.id = notes_fts.rowid ";
+        whereClause += "AND notes_fts MATCH ? ";
+        params << keyword;
+    }
+
+    QSqlQuery query(m_db);
+    query.prepare(baseSql + whereClause);
+    for (int i = 0; i < params.size(); ++i) query.bindValue(i, params[i]);
+
+    if (query.exec() && query.next()) {
+        return query.value(0).toInt();
+    }
+    return 0;
 }
 
 QList<QVariantMap> DatabaseManager::getAllNotes() {
