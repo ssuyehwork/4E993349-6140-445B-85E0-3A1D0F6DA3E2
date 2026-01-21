@@ -113,7 +113,7 @@ void QuickWindow::initUI() {
     container->setStyleSheet(
         "QWidget#container { background: #1E1E1E; border-radius: 10px; border: 1px solid #333; }"
         "QListView, QTreeView { background: transparent; border: none; color: #BBB; outline: none; }"
-        "QTreeView::item { height: 26px; padding: 0px 4px; border-radius: 4px; }"
+        "QTreeView::item { height: 22px; padding: 0px 4px; border-radius: 4px; }"
         "QTreeView::item:hover { background-color: #2a2d2e; }"
         "QTreeView::item:selected { background-color: #37373d; color: white; }"
         "QListView::item { padding: 6px; border-bottom: 1px solid #2A2A2A; }"
@@ -173,7 +173,8 @@ void QuickWindow::initUI() {
     m_systemModel = new CategoryModel(CategoryModel::System, this);
     m_systemTree->setModel(m_systemModel);
     m_systemTree->setHeaderHidden(true);
-    m_systemTree->setFixedHeight(150);
+    m_systemTree->setIndentation(12);
+    m_systemTree->setFixedHeight(132); // 6 items * 22px = 132px
     m_systemTree->setEditTriggers(QAbstractItemView::NoEditTriggers); // 绝不可重命名
     m_systemTree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_systemTree->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -183,6 +184,7 @@ void QuickWindow::initUI() {
     m_partitionModel = new CategoryModel(CategoryModel::User, this);
     m_partitionTree->setModel(m_partitionModel);
     m_partitionTree->setHeaderHidden(true);
+    m_partitionTree->setIndentation(12);
     m_partitionTree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_partitionTree->expandAll();
     m_partitionTree->setContextMenuPolicy(Qt::CustomContextMenu);
