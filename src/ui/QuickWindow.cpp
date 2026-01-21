@@ -32,6 +32,7 @@ QuickWindow::QuickWindow(QWidget* parent)
     : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) 
 {
     setAttribute(Qt::WA_TranslucentBackground);
+    setMouseTracking(true);
     initUI();
 
     // 修复：由于信号增加了参数，这里使用 lambda 忽略参数即可
@@ -108,6 +109,7 @@ void QuickWindow::initUI() {
 
     m_splitter = new QSplitter(Qt::Horizontal);
     m_splitter->setHandleWidth(4);
+    m_splitter->setMouseTracking(true);
     
     // 列表居左
     m_listView = new QListView();
@@ -125,6 +127,7 @@ void QuickWindow::initUI() {
 
     // 侧边栏居右
     m_sideBar = new DropTreeView();
+    m_sideBar->setMouseTracking(true);
     m_sideModel = new CategoryModel(this);
     m_sideBar->setModel(m_sideModel);
     m_sideBar->setHeaderHidden(true);
@@ -312,6 +315,9 @@ void QuickWindow::initUI() {
     m_searchTimer = new QTimer(this);
     m_searchTimer->setSingleShot(true);
     connect(m_searchTimer, &QTimer::timeout, this, &QuickWindow::refreshData);
+
+    container->setMouseTracking(true);
+    leftContent->setMouseTracking(true);
     connect(m_searchEdit, &QLineEdit::textChanged, [this](const QString& text){
         m_currentPage = 1;
         m_searchTimer->start(300);
@@ -770,7 +776,7 @@ void QuickWindow::mousePressEvent(QMouseEvent* event) {
         m_resizeArea = getResizeArea(event->pos());
         if (m_resizeArea != 0) {
             m_resizeStartPos = event->globalPosition().toPoint();
-            m_resizeStartGeometry = frameGeometry();
+            m_resizeStartGeometry = geometry();
         } else {
             if (auto* handle = windowHandle()) {
                 handle->startSystemMove();
@@ -787,14 +793,31 @@ void QuickWindow::mouseMoveEvent(QMouseEvent* event) {
         if (m_resizeArea != 0) {
             QPoint delta = event->globalPosition().toPoint() - m_resizeStartPos;
             QRect newGeom = m_resizeStartGeometry;
-            if (m_resizeArea & 0x1) newGeom.setLeft(m_resizeStartGeometry.left() + delta.x());
-            if (m_resizeArea & 0x2) newGeom.setRight(m_resizeStartGeometry.right() + delta.x());
-            if (m_resizeArea & 0x4) newGeom.setTop(m_resizeStartGeometry.top() + delta.y());
-            if (m_resizeArea & 0x8) newGeom.setBottom(m_resizeStartGeometry.bottom() + delta.y());
             
-            if (newGeom.width() >= 400 && newGeom.height() >= 300) {
-                setGeometry(newGeom);
+            int minW = 400;
+            int minH = 300;
+
+            if (m_resizeArea & 0x1) { // Left
+                int newLeft = m_resizeStartGeometry.left() + delta.x();
+                if (m_resizeStartGeometry.right() - newLeft >= minW) newGeom.setLeft(newLeft);
+                else newGeom.setLeft(m_resizeStartGeometry.right() - minW + 1);
+            } else if (m_resizeArea & 0x2) { // Right
+                int newRight = m_resizeStartGeometry.right() + delta.x();
+                if (newRight - m_resizeStartGeometry.left() >= minW) newGeom.setRight(newRight);
+                else newGeom.setRight(m_resizeStartGeometry.left() + minW - 1);
             }
+
+            if (m_resizeArea & 0x4) { // Top
+                int newTop = m_resizeStartGeometry.top() + delta.y();
+                if (m_resizeStartGeometry.bottom() - newTop >= minH) newGeom.setTop(newTop);
+                else newGeom.setTop(m_resizeStartGeometry.bottom() - minH + 1);
+            } else if (m_resizeArea & 0x8) { // Bottom
+                int newBottom = m_resizeStartGeometry.bottom() + delta.y();
+                if (newBottom - m_resizeStartGeometry.top() >= minH) newGeom.setBottom(newBottom);
+                else newGeom.setBottom(m_resizeStartGeometry.top() + minH - 1);
+            }
+
+            setGeometry(newGeom);
             event->accept();
             return;
         }
@@ -814,13 +837,31 @@ void QuickWindow::hideEvent(QHideEvent* event) {
 }
 
 int QuickWindow::getResizeArea(const QPoint& pos) {
+    // 检查是否在子控件上，如果在功能控件上则不触发缩放，避免干扰交互
+    QWidget* w = childAt(pos);
+    if (w && w != this) {
+        // 如果是在 container 或 leftContent 这种布局容器上，允许缩放
+        QString objName = w->objectName();
+        if (w != findChild<QWidget*>("container") && w->metaObject()->className() != QString("QWidget")) {
+            // 如果是具体的按钮、输入框、列表，则不缩放
+            return 0;
+        }
+    }
+
     int area = 0;
     int x = pos.x();
     int y = pos.y();
-    if (x < RESIZE_MARGIN) area |= 0x1;
-    else if (x > width() - RESIZE_MARGIN) area |= 0x2;
-    if (y < RESIZE_MARGIN) area |= 0x4;
-    else if (y > height() - RESIZE_MARGIN) area |= 0x8;
+
+    // 扩大响应范围，考虑到 15px 的阴影边距
+    // 响应窗口边缘内外各 10 像素左右
+    const int m = RESIZE_MARGIN + 8; // 8 + 8 = 16
+
+    if (x < m) area |= 0x1; // Left
+    else if (x > width() - m) area |= 0x2; // Right
+
+    if (y < m) area |= 0x4; // Top
+    else if (y > height() - m) area |= 0x8; // Bottom
+
     return area;
 }
 
