@@ -13,19 +13,19 @@ void CategoryModel::refresh() {
     QStandardItem* root = invisibleRootItem();
 
     if (m_type == System || m_type == Both) {
-        auto addSystemItem = [&](const QString& name, const QString& type, const QString& icon) {
+        auto addSystemItem = [&](const QString& name, const QString& type, const QString& icon, const QString& color = "#aaaaaa") {
             QStandardItem* item = new QStandardItem(name);
             item->setData(type, Qt::UserRole);
-            item->setIcon(IconHelper::getIcon(icon, "#aaaaaa"));
+            item->setIcon(IconHelper::getIcon(icon, color));
             root->appendRow(item);
         };
 
-        addSystemItem("全部笔记", "all", "all_data");
-        addSystemItem("今日笔记", "today", "today");
-        addSystemItem("未分类", "uncategorized", "uncategorized");
-        addSystemItem("未标签", "untagged", "text");
-        addSystemItem("书签", "bookmark", "bookmark");
-        addSystemItem("回收站", "trash", "trash");
+        addSystemItem("全部数据", "all", "all_data", "#3498db");
+        addSystemItem("今日数据", "today", "today", "#2ecc71");
+        addSystemItem("未分类", "uncategorized", "uncategorized", "#e67e22");
+        addSystemItem("未标签", "untagged", "text", "#95a5a6");
+        addSystemItem("书签", "bookmark", "bookmark", "#e74c3c");
+        addSystemItem("回收站", "trash", "trash", "#7f8c8d");
     }
 
     if (m_type == User || m_type == Both) {
@@ -43,7 +43,7 @@ void CategoryModel::refresh() {
             item->setData("category", Qt::UserRole);
             item->setData(cat["id"], Qt::UserRole + 1);
             item->setData(cat["color"], Qt::UserRole + 2);
-            item->setIcon(IconHelper::getIcon("branch", cat["color"].toString()));
+            item->setIcon(IconHelper::getIcon("circle_filled", cat["color"].toString()));
             itemMap[cat["id"].toInt()] = item;
         }
 

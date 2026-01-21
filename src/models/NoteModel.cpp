@@ -33,6 +33,8 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
 
     const QVariantMap& note = m_notes.at(index.row());
     switch (role) {
+        case Qt::BackgroundRole:
+            return QVariant(); // 强制不返回任何背景色，由 Delegate 控制
         case Qt::DecorationRole: {
             QString type = note.value("item_type").toString();
             QString content = note.value("content").toString().trimmed();
@@ -129,7 +131,8 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             QString title = note.value("title").toString();
             QString content = note.value("content").toString();
             if (type == "text" || type.isEmpty()) {
-                return content.replace('\n', ' ').replace('\r', ' ').trimmed().left(150);
+                QString display = content.replace('\n', ' ').replace('\r', ' ').trimmed().left(150);
+                return display.isEmpty() ? title : display;
             }
             return title;
         }

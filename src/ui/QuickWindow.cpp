@@ -1,5 +1,6 @@
 #include "QuickWindow.h"
 #include "NoteEditWindow.h"
+#include "QuickNoteDelegate.h"
 #include "IconHelper.h"
 #include "../core/DatabaseManager.h"
 #include "../core/ClipboardMonitor.h"
@@ -110,21 +111,7 @@ void QuickWindow::initUI() {
     m_splitter = new QSplitter(Qt::Horizontal);
     m_splitter->setHandleWidth(4);
     
-    // 列表居左
-    m_listView = new QListView();
-    m_listView->setDragEnabled(true);
-    m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    m_listView->setIconSize(QSize(28, 28));
-    m_listView->setAlternatingRowColors(true);
-    m_model = new NoteModel(this);
-    m_listView->setModel(m_model);
-    m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(m_listView, &QListView::customContextMenuRequested, this, &QuickWindow::showListContextMenu);
-    connect(m_listView, &QListView::doubleClicked, this, [this](const QModelIndex& index){
-        activateNote(index);
-    });
-
-    // 侧边栏居右 (Python 对齐：拆分为两个 TreeView)
+    // Python 对齐：侧边栏在左
     auto* sidebarContainer = new QWidget();
     auto* sidebarLayout = new QVBoxLayout(sidebarContainer);
     sidebarLayout->setContentsMargins(0, 0, 0, 0);
@@ -144,6 +131,20 @@ void QuickWindow::initUI() {
 
     sidebarLayout->addWidget(m_systemTree);
     sidebarLayout->addWidget(m_partitionTree);
+
+    // 列表在右
+    m_listView = new QListView();
+    m_listView->setDragEnabled(true);
+    m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_listView->setIconSize(QSize(28, 28));
+    m_model = new NoteModel(this);
+    m_listView->setModel(m_model);
+    m_listView->setItemDelegate(new QuickNoteDelegate(m_listView));
+    m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_listView, &QListView::customContextMenuRequested, this, &QuickWindow::showListContextMenu);
+    connect(m_listView, &QListView::doubleClicked, this, [this](const QModelIndex& index){
+        activateNote(index);
+    });
 
     auto onSelectionChanged = [this](DropTreeView* tree, const QModelIndex& index) {
         if (!index.isValid()) return;
@@ -282,11 +283,11 @@ void QuickWindow::initUI() {
     connect(m_systemTree, &QTreeView::customContextMenuRequested, [this, showSidebarMenu](const QPoint& p){ showSidebarMenu(m_systemTree, p); });
     connect(m_partitionTree, &QTreeView::customContextMenuRequested, [this, showSidebarMenu](const QPoint& p){ showSidebarMenu(m_partitionTree, p); });
 
-    m_splitter->addWidget(m_listView);
     m_splitter->addWidget(sidebarContainer);
-    m_splitter->setStretchFactor(0, 1);
-    m_splitter->setStretchFactor(1, 0);
-    m_splitter->setSizes({550, 150});
+    m_splitter->addWidget(m_listView);
+    m_splitter->setStretchFactor(0, 0);
+    m_splitter->setStretchFactor(1, 1);
+    m_splitter->setSizes({180, 600});
     leftLayout->addWidget(m_splitter);
 
     m_statusLabel = new QLabel("当前分区: 全部数据");
@@ -851,12 +852,18 @@ void QuickWindow::hideEvent(QHideEvent* event) {
 
 int QuickWindow::getResizeArea(const QPoint& pos) {
     int area = 0;
+    // 获取可见容器的几何范围（考虑了 15px 的边距）
+    QRect rect = findChild<QWidget*>("container")->geometry();
     int x = pos.x();
     int y = pos.y();
-    if (x < RESIZE_MARGIN) area |= 0x1;
-    else if (x > width() - RESIZE_MARGIN) area |= 0x2;
-    if (y < RESIZE_MARGIN) area |= 0x4;
-    else if (y > height() - RESIZE_MARGIN) area |= 0x8;
+    const int m = 8; // 相对容器边缘的触发范围
+
+    if (x >= rect.left() - m && x <= rect.left() + m) area |= 0x1;
+    else if (x >= rect.right() - m && x <= rect.right() + m) area |= 0x2;
+
+    if (y >= rect.top() - m && y <= rect.top() + m) area |= 0x4;
+    else if (y >= rect.bottom() - m && y <= rect.bottom() + m) area |= 0x8;
+
     return area;
 }
 
