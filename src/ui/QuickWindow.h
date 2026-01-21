@@ -34,6 +34,7 @@ public slots:
 
 signals:
     void toggleMainWindowRequested();
+    void toolboxRequested();
 
 protected:
     bool event(QEvent* event) override;

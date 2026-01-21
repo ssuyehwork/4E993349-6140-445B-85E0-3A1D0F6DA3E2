@@ -19,6 +19,9 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget* parent = nullptr);
 
+signals:
+    void toolboxRequested();
+
 private slots:
     void onNoteSelected(const QModelIndex& index);
     void onTagSelected(const QModelIndex& index);

@@ -15,6 +15,7 @@
 #include "ui/FloatingBall.h"
 #include "ui/QuickWindow.h"
 #include "ui/SystemTray.h"
+#include "ui/Toolbox.h"
 
 int main(int argc, char *argv[]) {
     QApplication a(argc, argv);
@@ -63,6 +64,26 @@ int main(int argc, char *argv[]) {
 
     // 4. 初始化快速记录窗口
     QuickWindow* quickWin = new QuickWindow();
+
+    // 4.5 初始化工具箱
+    Toolbox* toolbox = new Toolbox();
+    auto toggleToolbox = [toolbox](QWidget* parentWin) {
+        if (!toolbox || !parentWin) return;
+        if (toolbox->isVisible()) {
+            toolbox->hide();
+        } else {
+            toolbox->move(parentWin->pos().x() - toolbox->width() - 10, parentWin->pos().y());
+            toolbox->show();
+        }
+    };
+
+    QObject::connect(&mainWin, &MainWindow::toolboxRequested, [&mainWin, toggleToolbox](){
+        toggleToolbox(&mainWin);
+    });
+
+    QObject::connect(quickWin, &QuickWindow::toolboxRequested, [quickWin, toggleToolbox](){
+        toggleToolbox(quickWin);
+    });
 
     // 5. 注册全局热键
     // Alt+Space (0x0001 = MOD_ALT, 0x20 = VK_SPACE)

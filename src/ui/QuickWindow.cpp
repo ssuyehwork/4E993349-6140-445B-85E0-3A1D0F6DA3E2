@@ -377,6 +377,7 @@ void QuickWindow::setupShortcuts() {
     new QShortcut(QKeySequence("Ctrl+N"), this, [this](){ doNewIdea(); });
     new QShortcut(QKeySequence("Ctrl+A"), this, [this](){ m_listView->selectAll(); });
     new QShortcut(QKeySequence("Ctrl+T"), this, [this](){ doExtractContent(); });
+    new QShortcut(QKeySequence("Ctrl+Shift+T"), this, [this](){ emit toolboxRequested(); });
     new QShortcut(QKeySequence("Alt+D"), this, [this](){ toggleStayOnTop(!m_toolbar->isStayOnTop()); });
     new QShortcut(QKeySequence("Alt+W"), this, [this](){ emit toggleMainWindowRequested(); hide(); });
     new QShortcut(QKeySequence("Ctrl+B"), this, [this](){ doEditSelected(); });
@@ -776,13 +777,20 @@ void QuickWindow::mousePressEvent(QMouseEvent* event) {
         m_resizeArea = getResizeArea(event->pos());
         if (m_resizeArea != 0) {
             m_resizeStartPos = event->globalPosition().toPoint();
-            m_resizeStartGeometry = geometry();
+            m_resizeStartGeometry = frameGeometry();
+            event->accept();
         } else {
-            if (auto* handle = windowHandle()) {
-                handle->startSystemMove();
+            // 点击在背景区域（非关键子控件）时才允许拖动窗口
+            QWidget* child = childAt(event->pos());
+            bool isBackground = !child || child->objectName() == "container" ||
+                               child->metaObject()->className() == QString("QWidget");
+            if (isBackground) {
+                if (auto* handle = windowHandle()) {
+                    handle->startSystemMove();
+                }
+                event->accept();
             }
         }
-        event->accept();
     }
 }
 
@@ -837,30 +845,32 @@ void QuickWindow::hideEvent(QHideEvent* event) {
 }
 
 int QuickWindow::getResizeArea(const QPoint& pos) {
-    // 检查是否在子控件上，如果在功能控件上则不触发缩放，避免干扰交互
-    QWidget* w = childAt(pos);
-    if (w && w != this) {
-        // 如果是在 container 或 leftContent 这种布局容器上，允许缩放
-        QString objName = w->objectName();
-        if (w != findChild<QWidget*>("container") && w->metaObject()->className() != QString("QWidget")) {
-            // 如果是具体的按钮、输入框、列表，则不缩放
-            return 0;
-        }
-    }
-
-    int area = 0;
     int x = pos.x();
     int y = pos.y();
+    int w = width();
+    int h = height();
 
-    // 扩大响应范围，考虑到 15px 的阴影边距
-    // 响应窗口边缘内外各 10 像素左右
-    const int m = RESIZE_MARGIN + 8; // 8 + 8 = 16
+    int area = 0;
+    // 15px 是阴影边距，我们在阴影及其附近 5px 范围内响应缩放
+    const int m = 20;
 
     if (x < m) area |= 0x1; // Left
-    else if (x > width() - m) area |= 0x2; // Right
+    else if (x > w - m) area |= 0x2; // Right
 
     if (y < m) area |= 0x4; // Top
-    else if (y > height() - m) area |= 0x8; // Bottom
+    else if (y > h - m) area |= 0x8; // Bottom
+
+    // 如果是在内部区域（非阴影区），检查是否被子控件遮挡
+    if (area != 0 && x >= 15 && x <= w - 15 && y >= 15 && y <= h - 15) {
+        QWidget* child = childAt(pos);
+        if (child) {
+            QString className = child->metaObject()->className();
+            // 如果点击在按钮、输入框或列表上，优先保证交互，不触发缩放
+            if (className.contains("Button") || className.contains("Edit") || className.contains("View")) {
+                return 0;
+            }
+        }
+    }
 
     return area;
 }

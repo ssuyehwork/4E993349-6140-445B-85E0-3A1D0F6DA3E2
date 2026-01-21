@@ -47,10 +47,7 @@ void MainWindow::initUI() {
     connect(m_header, &HeaderBar::toggleSidebar, this, [this](){
         m_sideBar->setVisible(!m_sideBar->isVisible());
     });
-    connect(m_header, &HeaderBar::toolboxRequested, this, [this](){
-        Toolbox dlg(this);
-        dlg.exec();
-    });
+    connect(m_header, &HeaderBar::toolboxRequested, this, &MainWindow::toolboxRequested);
     connect(m_header, &HeaderBar::previewToggled, this, [this](bool checked){
         m_editor->togglePreview(checked);
     });
