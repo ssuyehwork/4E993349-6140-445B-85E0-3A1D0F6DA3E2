@@ -1,6 +1,7 @@
 #include "QuickWindow.h"
 #include "NoteEditWindow.h"
 #include "IconHelper.h"
+#include "QuickNoteDelegate.h"
 #include "../core/DatabaseManager.h"
 #include "../core/ClipboardMonitor.h"
 #include <QGuiApplication>
@@ -127,6 +128,7 @@ void QuickWindow::initUI() {
     m_listView->setIconSize(QSize(28, 28));
     m_listView->setAlternatingRowColors(true);
     m_listView->setMouseTracking(true);
+    m_listView->setItemDelegate(new QuickNoteDelegate(this));
     m_model = new NoteModel(this);
     m_listView->setModel(m_model);
     m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -145,12 +147,16 @@ void QuickWindow::initUI() {
     m_systemTree->setModel(m_systemModel);
     m_systemTree->setHeaderHidden(true);
     m_systemTree->setFixedHeight(150);
+    m_systemTree->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_systemTree, &QTreeView::customContextMenuRequested, this, &QuickWindow::showSidebarMenu);
 
     m_partitionTree = new DropTreeView();
     m_partitionModel = new CategoryModel(CategoryModel::User, this);
     m_partitionTree->setModel(m_partitionModel);
     m_partitionTree->setHeaderHidden(true);
     m_partitionTree->expandAll();
+    m_partitionTree->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_partitionTree, &QTreeView::customContextMenuRequested, this, &QuickWindow::showSidebarMenu);
 
     sidebarLayout->addWidget(m_systemTree);
     sidebarLayout->addWidget(m_partitionTree);
@@ -278,18 +284,25 @@ void QuickWindow::initUI() {
     connect(btnPin, &QPushButton::toggled, this, &QuickWindow::toggleStayOnTop);
 
     QPushButton* btnSidebar = createToolBtn("eye", "#aaaaaa", "显示/隐藏侧边栏");
+    btnSidebar->setObjectName("btnSidebar");
+    btnSidebar->setCheckable(true);
+    btnSidebar->setChecked(true); // 默认显示
+    btnSidebar->setStyleSheet(
+        "QPushButton:checked { background-color: #3A90FF; border-radius: 4px; }"
+        "QPushButton:checked:hover { background-color: #5AA0FF; }"
+    );
     connect(btnSidebar, &QPushButton::clicked, this, &QuickWindow::toggleSidebar);
 
     QPushButton* btnRefresh = createToolBtn("refresh", "#aaaaaa", "刷新");
     connect(btnRefresh, &QPushButton::clicked, this, &QuickWindow::refreshData);
 
-    QPushButton* btnTrash = createToolBtn("trash", "#aaaaaa", "回收站/工具箱"); // 垃圾桶图标
-    connect(btnTrash, &QPushButton::clicked, this, &QuickWindow::toolboxRequested);
+    QPushButton* btnToolbox = createToolBtn("toolbox", "#aaaaaa", "工具箱");
+    connect(btnToolbox, &QPushButton::clicked, this, &QuickWindow::toolboxRequested);
 
     toolLayout->addWidget(btnPin);
     toolLayout->addWidget(btnSidebar);
     toolLayout->addWidget(btnRefresh);
-    toolLayout->addWidget(btnTrash);
+    toolLayout->addWidget(btnToolbox);
 
     toolLayout->addStretch(); // 弹簧撑开中间
 
@@ -300,10 +313,10 @@ void QuickWindow::initUI() {
         if (m_currentPage > 1) { m_currentPage--; refreshData(); }
     });
 
-    QLabel* pageLabel = new QLabel("1");
+    QLabel* pageLabel = new QLabel("1/1");
     pageLabel->setObjectName("pageLabel");
     pageLabel->setAlignment(Qt::AlignCenter);
-    pageLabel->setStyleSheet("border: 1px solid #444; border-radius: 4px; color: #888; font-weight: bold;");
+    pageLabel->setStyleSheet("border: 1px solid #444; border-radius: 4px; color: #888; font-size: 10px; font-weight: bold;");
     pageLabel->setFixedSize(36, 24);
 
     QPushButton* btnNext = createToolBtn("arrow_down", "#aaaaaa", "下一页"); // 向下箭头
@@ -438,7 +451,7 @@ void QuickWindow::refreshData() {
     
     int totalCount = DatabaseManager::instance().getNotesCount(keyword, m_currentFilterType, m_currentFilterValue);
     
-    const int pageSize = 100;
+    const int pageSize = 100; // 对齐 Python 版
     m_totalPages = qMax(1, (totalCount + pageSize - 1) / pageSize); 
     if (m_currentPage > m_totalPages) m_currentPage = m_totalPages;
     if (m_currentPage < 1) m_currentPage = 1;
@@ -448,7 +461,7 @@ void QuickWindow::refreshData() {
     // 更新工具栏页码 (通过 objectName 查找)
     auto* pageLabel = findChild<QLabel*>("pageLabel");
     if (pageLabel) {
-        pageLabel->setText(QString::number(m_currentPage));
+        pageLabel->setText(QString("%1/%2").arg(m_currentPage).arg(m_totalPages));
     }
 }
 
@@ -468,16 +481,25 @@ void QuickWindow::applyListTheme(const QString& colorHex) {
         QString bgColor = c.darker(350).name();
         QString altBgColor = c.darker(450).name();
         QString selColor = c.darker(110).name();
-        style = QString("QListView { border: none; background-color: %1; alternate-background-color: %2; color: #eee; outline: none; } "
-                        "QListView::item { padding: 8px; border-bottom: 1px solid rgba(0,0,0,0.2); } "
-                        "QListView::item:selected { background-color: %3; color: white; border-radius: 4px; } "
-                        "QListView::item:hover { background-color: rgba(255,255,255,0.1); }")
+        // 对齐 Python 版，QPalette::Highlight 对应选中色，Base/AlternateBase 对应斑马纹
+        style = QString("QListView { "
+                        "  border: none; "
+                        "  background-color: %1; "
+                        "  alternate-background-color: %2; "
+                        "  selection-background-color: %3; "
+                        "  color: #eee; "
+                        "  outline: none; "
+                        "}")
                 .arg(bgColor, altBgColor, selColor);
     } else {
-        style = "QListView { border: none; background-color: #1e1e1e; alternate-background-color: #151515; color: #eee; outline: none; } "
-                "QListView::item { padding: 8px; border-bottom: 1px solid #2a2a2a; } "
-                "QListView::item:selected { background-color: #4a90e2; color: white; border-radius: 4px; } "
-                "QListView::item:hover { background-color: #333333; }";
+        style = "QListView { "
+                "  border: none; "
+                "  background-color: #1e1e1e; "
+                "  alternate-background-color: #151515; "
+                "  selection-background-color: #4a90e2; "
+                "  color: #eee; "
+                "  outline: none; "
+                "}";
     }
     m_listView->setStyleSheet(style);
 }
@@ -672,19 +694,26 @@ void QuickWindow::toggleStayOnTop(bool checked) {
         show();
     }
 #endif
-    // 更新按钮状态
+    // 更新按钮状态与图标
     auto* btnPin = findChild<QPushButton*>("btnPin");
-    if (btnPin && btnPin->isChecked() != checked) {
-        btnPin->setChecked(checked);
-        // 切换图标样式 (选中时白色，未选中时灰色)
+    if (btnPin) {
+        if (btnPin->isChecked() != checked) btnPin->setChecked(checked);
+        // 切换图标样式 (选中时白色垂直，未选中时灰色倾斜)
         btnPin->setIcon(IconHelper::getIcon(checked ? "pin_vertical" : "pin_tilted", checked ? "#ffffff" : "#aaaaaa"));
     }
 }
 
 void QuickWindow::toggleSidebar() {
-    bool hidden = !m_systemTree->parentWidget()->isVisible();
-    m_systemTree->parentWidget()->setVisible(hidden);
+    bool visible = !m_systemTree->parentWidget()->isVisible();
+    m_systemTree->parentWidget()->setVisible(visible);
     
+    // 更新按钮状态
+    auto* btnSidebar = findChild<QPushButton*>("btnSidebar");
+    if (btnSidebar) {
+        btnSidebar->setChecked(visible);
+        btnSidebar->setIcon(IconHelper::getIcon("eye", visible ? "#ffffff" : "#aaaaaa"));
+    }
+
     QString name;
     if (m_systemTree->currentIndex().isValid()) name = m_systemTree->currentIndex().data().toString();
     else name = m_partitionTree->currentIndex().data().toString();
@@ -776,6 +805,87 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
     menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "移至回收站 (Delete)", this, &QuickWindow::doDeleteSelected);
 
     menu.exec(m_listView->mapToGlobal(pos));
+}
+
+void QuickWindow::showSidebarMenu(const QPoint& pos) {
+    auto* tree = qobject_cast<QTreeView*>(sender());
+    if (!tree) return;
+
+    QModelIndex index = tree->indexAt(pos);
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                       "QMenu::item { padding: 6px 10px 6px 28px; border-radius: 3px; } "
+                       "QMenu::item:selected { background-color: #4a90e2; color: white; }");
+
+    if (!index.isValid() || index.data().toString() == "我的分区") {
+        menu.addAction("➕ 新建分组", [this]() {
+            bool ok;
+            QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
+            if (ok && !text.isEmpty()) {
+                DatabaseManager::instance().addCategory(text);
+            }
+        });
+        menu.exec(tree->mapToGlobal(pos));
+        return;
+    }
+
+    QString type = index.data(Qt::UserRole).toString();
+    if (type == "category") {
+        int catId = index.data(Qt::UserRole + 1).toInt();
+        QString currentName = index.data(Qt::DisplayRole).toString();
+
+        menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建数据", [this, catId]() {
+            auto* win = new NoteEditWindow();
+            win->setDefaultCategory(catId);
+            connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
+            win->show();
+        });
+        menu.addSeparator();
+        menu.addAction(IconHelper::getIcon("palette", "#e67e22"), "设置颜色", [this, catId]() {
+            QColor color = QColorDialog::getColor(Qt::gray, this, "选择分类颜色");
+            if (color.isValid()) {
+                DatabaseManager::instance().setCategoryColor(catId, color.name());
+            }
+        });
+        menu.addAction(IconHelper::getIcon("tag", "#FFAB91"), "设置预设标签", [this, catId]() {
+            QString currentTags = DatabaseManager::instance().getCategoryPresetTags(catId);
+            bool ok;
+            QString text = QInputDialog::getText(this, "预设标签", "标签 (逗号分隔):", QLineEdit::Normal, currentTags, &ok);
+            if (ok) {
+                DatabaseManager::instance().setCategoryPresetTags(catId, text);
+            }
+        });
+        menu.addSeparator();
+        menu.addAction("新建分组", [this]() {
+            bool ok;
+            QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
+            if (ok && !text.isEmpty()) DatabaseManager::instance().addCategory(text);
+        });
+        menu.addAction("新建子分区", [this, catId]() {
+            bool ok;
+            QString text = QInputDialog::getText(this, "新建区", "区名称:", QLineEdit::Normal, "", &ok);
+            if (ok && !text.isEmpty()) DatabaseManager::instance().addCategory(text, catId);
+        });
+        menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名", [this, catId, currentName]() {
+            bool ok;
+            QString text = QInputDialog::getText(this, "重命名", "新名称:", QLineEdit::Normal, currentName, &ok);
+            if (ok && !text.isEmpty()) DatabaseManager::instance().renameCategory(catId, text);
+        });
+        menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "删除", [this, catId]() {
+            if (QMessageBox::question(this, "确认删除", "确定要删除此分类吗？内容将移至未分类。") == QMessageBox::Yes) {
+                DatabaseManager::instance().deleteCategory(catId);
+            }
+        });
+    } else if (type == "trash") {
+        menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "清空回收站", [this]() {
+            if (QMessageBox::question(this, "确认清空", "确定要永久删除回收站中的所有内容吗？") == QMessageBox::Yes) {
+                DatabaseManager::instance().emptyTrash();
+                refreshData();
+            }
+        });
+    }
+
+    menu.exec(tree->mapToGlobal(pos));
 }
 
 void QuickWindow::doMoveToCategory(int catId) {
