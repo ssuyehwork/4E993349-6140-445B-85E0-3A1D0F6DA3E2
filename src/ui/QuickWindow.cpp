@@ -57,6 +57,7 @@ QuickWindow::QuickWindow(QWidget* parent)
         m_partitionModel->refresh();
         m_model->updateCategoryMap();
         refreshData();
+        m_partitionTree->expandAll();
     });
 
 #ifdef Q_OS_WIN
@@ -549,7 +550,7 @@ void QuickWindow::activateNote(const QModelIndex& index) {
         QApplication::clipboard()->setText(content);
     }
 
-    hide();
+    // hide(); // 用户要求不隐藏窗口
 
 #ifdef Q_OS_WIN
     if (m_lastActiveHwnd && IsWindow(m_lastActiveHwnd)) {
