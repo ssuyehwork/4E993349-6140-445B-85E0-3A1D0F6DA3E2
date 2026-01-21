@@ -35,6 +35,7 @@
 QuickWindow::QuickWindow(QWidget* parent) 
     : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) 
 {
+    setAcceptDrops(true);
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_DeleteOnClose, false);
     
@@ -1022,6 +1023,76 @@ void QuickWindow::mouseReleaseEvent(QMouseEvent* event) {
     m_resizeArea = 0;
     setCursor(Qt::ArrowCursor);
     QWidget::mouseReleaseEvent(event);
+}
+
+void QuickWindow::dragEnterEvent(QDragEnterEvent* event) {
+    if (event->mimeData()->hasUrls() || event->mimeData()->hasText() || event->mimeData()->hasImage()) {
+        event->acceptProposedAction();
+    }
+}
+
+void QuickWindow::dragMoveEvent(QDragMoveEvent* event) {
+    event->acceptProposedAction();
+}
+
+void QuickWindow::dropEvent(QDropEvent* event) {
+    const QMimeData* mime = event->mimeData();
+    int targetId = -1;
+    if (m_currentFilterType == "category") {
+        targetId = m_currentFilterValue;
+    }
+
+    QString itemType = "text";
+    QString title;
+    QString content;
+    QByteArray dataBlob;
+    QStringList tags = {"External"};
+
+    if (mime->hasUrls()) {
+        QList<QUrl> urls = mime->urls();
+        QStringList paths;
+        for (const QUrl& url : urls) {
+            if (url.isLocalFile()) {
+                QString p = url.toLocalFile();
+                paths << p;
+                if (title.isEmpty()) {
+                    QFileInfo info(p);
+                    title = info.fileName();
+                    itemType = info.isDir() ? "folder" : "file";
+                }
+            } else {
+                paths << url.toString();
+                if (title.isEmpty()) {
+                    title = "外部链接";
+                    itemType = "link";
+                }
+            }
+        }
+        content = paths.join(";");
+        if (paths.size() > 1) {
+            title = QString("批量导入 (%1个文件)").arg(paths.size());
+            itemType = "files";
+        }
+    } else if (mime->hasImage()) {
+        QImage img = qvariant_cast<QImage>(mime->imageData());
+        if (!img.isNull()) {
+            QBuffer buffer(&dataBlob);
+            buffer.open(QIODevice::WriteOnly);
+            img.save(&buffer, "PNG");
+            itemType = "image";
+            title = "[拖入图片] " + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+            content = "[Image Data]";
+        }
+    } else if (mime->hasText()) {
+        content = mime->text();
+        title = content.trimmed().left(50).replace("\n", " ");
+        itemType = "text";
+    }
+
+    if (!content.isEmpty() || !dataBlob.isEmpty()) {
+        DatabaseManager::instance().addNote(title, content, tags, "", targetId, itemType, dataBlob);
+        event->acceptProposedAction();
+    }
 }
 
 void QuickWindow::hideEvent(QHideEvent* event) {
