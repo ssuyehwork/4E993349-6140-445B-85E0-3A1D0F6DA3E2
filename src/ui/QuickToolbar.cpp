@@ -1,6 +1,7 @@
 #include "QuickToolbar.h"
 #include "IconHelper.h"
 #include <QIntValidator>
+#include <type_traits>
 
 QuickToolbar::QuickToolbar(QWidget* parent) : QWidget(parent) {
     setFixedWidth(40);
@@ -20,7 +21,11 @@ QuickToolbar::QuickToolbar(QWidget* parent) : QWidget(parent) {
         btn->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } "
                            "QPushButton:hover { background: #3e3e42; } "
                            "QPushButton:checked { background: #0E639C; }");
-        connect(btn, &QPushButton::clicked, this, signal);
+
+        if constexpr (!std::is_same_v<decltype(signal), std::nullptr_t>) {
+            connect(btn, &QPushButton::clicked, this, signal);
+        }
+
         layout->addWidget(btn);
         return btn;
     };
