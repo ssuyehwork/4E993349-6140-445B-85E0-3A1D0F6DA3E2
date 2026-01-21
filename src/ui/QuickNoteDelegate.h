@@ -26,17 +26,25 @@ public:
         bool isSelected = (option.state & QStyle::State_Selected);
         bool isHovered = (option.state & QStyle::State_MouseOver);
 
-        // 背景 (强制深色，消除白色色块)
-        painter->fillRect(rect, QColor("#1E1E1E"));
-        
+        // 1. 绘制背景 (支持斑马纹和动态配色)
+        QColor bgColor;
         if (isSelected) {
-            painter->fillRect(rect, QColor("#37373D"));
+            // 优先使用 QSS 设置的选中色
+            bgColor = option.palette.color(QPalette::Highlight);
         } else if (isHovered) {
-            painter->fillRect(rect, QColor("#2A2D2E"));
+            bgColor = QColor(255, 255, 255, 25);
+        } else {
+            // 斑马纹逻辑：偶数行 Base, 奇数行 AlternateBase
+            if (index.row() % 2 == 0) {
+                bgColor = option.palette.color(QPalette::Base);
+            } else {
+                bgColor = option.palette.color(QPalette::AlternateBase);
+            }
         }
+        painter->fillRect(rect, bgColor);
 
-        // 分隔线
-        painter->setPen(QColor("#252526"));
+        // 2. 分隔线 (对齐 Python 版，使用极浅的黑色半透明)
+        painter->setPen(QColor(0, 0, 0, 25));
         painter->drawLine(rect.bottomLeft(), rect.bottomRight());
 
         // 图标 (DecorationRole)

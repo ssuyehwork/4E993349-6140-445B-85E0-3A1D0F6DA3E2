@@ -51,23 +51,25 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
                 iconName = "folder";
                 iconColor = "#e67e22";
             } else {
-                // Smart recognition for text
-                QString cleanPath = content;
-                if (cleanPath.startsWith("\"") && cleanPath.endsWith("\"")) {
-                    cleanPath = cleanPath.mid(1, cleanPath.length() - 2);
-                } else if (cleanPath.startsWith("'") && cleanPath.endsWith("'")) {
+                // 【核心修复】智能检测文本内容，对齐 Python 版逻辑
+                QString stripped = content.trimmed();
+                QString cleanPath = stripped;
+                if ((cleanPath.startsWith("\"") && cleanPath.endsWith("\"")) ||
+                    (cleanPath.startsWith("'") && cleanPath.endsWith("'"))) {
                     cleanPath = cleanPath.mid(1, cleanPath.length() - 2);
                 }
 
-                if (content.startsWith("http://") || content.startsWith("https://") || content.startsWith("www.")) {
+                if (stripped.startsWith("http://") || stripped.startsWith("https://") || stripped.startsWith("www.")) {
                     iconName = "link";
                     iconColor = "#3498db";
-                } else if (content.startsWith("#") || content.startsWith("import ") || content.startsWith("class ") || 
-                           content.startsWith("def ") || content.startsWith("<") || content.startsWith("{") ||
-                           content.startsWith("function") || content.startsWith("var ") || content.startsWith("const ")) {
+                } else if (stripped.startsWith("#") || stripped.startsWith("import ") || stripped.startsWith("class ") ||
+                           stripped.startsWith("def ") || stripped.startsWith("<") || stripped.startsWith("{") ||
+                           stripped.startsWith("function") || stripped.startsWith("var ") || stripped.startsWith("const ")) {
                     iconName = "code";
                     iconColor = "#2ecc71";
-                } else if (cleanPath.length() < 260 && (cleanPath.contains(":/") || cleanPath.startsWith("/") || cleanPath.startsWith("\\\\") || 
+                } else if (cleanPath.length() < 260 && (
+                           (cleanPath.length() > 2 && cleanPath[1] == ':') ||
+                           cleanPath.startsWith("\\\\") || cleanPath.startsWith("/") ||
                            cleanPath.startsWith("./") || cleanPath.startsWith("../"))) {
                     QFileInfo info(cleanPath);
                     if (info.exists()) {
