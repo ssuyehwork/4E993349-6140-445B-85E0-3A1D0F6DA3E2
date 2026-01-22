@@ -679,8 +679,12 @@ void QuickWindow::doPermanentDeleteSelected() {
     }
 
     if (!ids.isEmpty()) {
-        DatabaseManager::instance().deleteNotesBatch(ids);
-        refreshData();
+        // 二级删除：弹出警告
+        if (QMessageBox::warning(this, "永久删除确认", "确定要永久删除选中的数据吗？此操作将无法恢复！",
+                                QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
+            DatabaseManager::instance().deleteNotesBatch(ids);
+            refreshData();
+        }
     }
 
     if (blockedCount > 0) {
@@ -692,8 +696,7 @@ void QuickWindow::doDeleteSelected() {
     const auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
 
-    QList<int> toMoveToTrash;
-    QList<int> toPermanentlyDelete;
+    QList<int> ids;
     int blockedCount = 0;
 
     for (const auto& index : selected) {
@@ -707,23 +710,28 @@ void QuickWindow::doDeleteSelected() {
             continue; // 受保护，跳过
         }
 
-        int id = index.data(NoteModel::IdRole).toInt();
-        if (m_currentFilterType == "trash") {
-            toPermanentlyDelete << id;
-        } else {
-            toMoveToTrash << id;
+        ids << index.data(NoteModel::IdRole).toInt();
+    }
+
+    if (ids.isEmpty()) {
+        if (blockedCount > 0) {
+            QToolTip::showText(QCursor::pos(), QString("⚠️ 有 %1 项数据受保护（带标签/书签/锁定），无法删除").arg(blockedCount), this);
         }
+        return;
     }
 
-    if (!toMoveToTrash.isEmpty()) {
-        DatabaseManager::instance().updateNoteStateBatch(toMoveToTrash, "is_deleted", 1);
+    if (m_currentFilterType == "trash") {
+        // 二级删除：弹出警告
+        if (QMessageBox::warning(this, "永久删除确认", "确定要永久删除选中的数据吗？此操作将无法恢复！",
+                                QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
+            DatabaseManager::instance().deleteNotesBatch(ids);
+            refreshData();
+        }
+    } else {
+        // 一级删除：静默移至回收站
+        DatabaseManager::instance().updateNoteStateBatch(ids, "is_deleted", 1);
+        refreshData();
     }
-
-    if (!toPermanentlyDelete.isEmpty()) {
-        DatabaseManager::instance().deleteNotesBatch(toPermanentlyDelete);
-    }
-
-    refreshData();
 
     if (blockedCount > 0) {
         QToolTip::showText(QCursor::pos(), QString("⚠️ 有 %1 项数据受保护（带标签/书签/锁定），无法删除").arg(blockedCount), this);
@@ -870,8 +878,7 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
         }
     }
 
-    const auto constSelected = selected;
-    int selCount = constSelected.size();
+    int selCount = selected.size();
     QMenu menu(this);
     menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
                        "QMenu::item { padding: 6px 10px 6px 28px; border-radius: 3px; } "
@@ -891,7 +898,7 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
 
     auto* ratingMenu = menu.addMenu(IconHelper::getIcon("star", "#f39c12"), QString("设置星级 (%1)").arg(selCount));
     auto* starGroup = new QActionGroup(this);
-    int currentRating = (selCount == 1) ? constSelected.first().data(NoteModel::RatingRole).toInt() : -1;
+    int currentRating = (selCount == 1) ? selected.first().data(NoteModel::RatingRole).toInt() : -1;
     
     for (int i = 1; i <= 5; ++i) {
         QString stars = QString("★").repeated(i);
@@ -903,15 +910,15 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
     ratingMenu->addSeparator();
     ratingMenu->addAction("清除评级", [this]() { doSetRating(0); });
 
-    bool isFavorite = constSelected.first().data(NoteModel::FavoriteRole).toBool();
+    bool isFavorite = selected.first().data(NoteModel::FavoriteRole).toBool();
     menu.addAction(IconHelper::getIcon(isFavorite ? "bookmark_filled" : "bookmark", "#ff6b81"), 
                    isFavorite ? "取消书签" : "添加书签 (Ctrl+E)", this, &QuickWindow::doToggleFavorite);
 
-    bool isPinned = constSelected.first().data(NoteModel::PinnedRole).toBool();
+    bool isPinned = selected.first().data(NoteModel::PinnedRole).toBool();
     menu.addAction(IconHelper::getIcon(isPinned ? "pin_vertical" : "pin_tilted", isPinned ? "#e74c3c" : "#aaaaaa"), 
                    isPinned ? "取消置顶" : "置顶选中项 (Ctrl+P)", this, &QuickWindow::doTogglePin);
     
-    bool isLocked = constSelected.first().data(NoteModel::LockedRole).toBool();
+    bool isLocked = selected.first().data(NoteModel::LockedRole).toBool();
     menu.addAction(IconHelper::getIcon("lock", isLocked ? "#2ecc71" : "#aaaaaa"), 
                    isLocked ? "解锁选中项" : "锁定选中项 (Ctrl+S)", this, &QuickWindow::doLockSelected);
     
