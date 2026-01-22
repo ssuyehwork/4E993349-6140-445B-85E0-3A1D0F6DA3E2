@@ -44,6 +44,8 @@ public:
 private:
     QList<QVariantMap> m_notes;
     QMap<int, QString> m_categoryMap;
+    mutable QMap<int, QIcon> m_thumbnailCache;
+    mutable QMap<int, QString> m_tooltipCache;
 };
 
 #endif // NOTEMODEL_H

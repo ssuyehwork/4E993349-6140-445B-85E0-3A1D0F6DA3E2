@@ -72,7 +72,7 @@ public:
     QString currentCategoryColor() const { return m_currentCategoryColor; }
 
     // 快捷键处理函数
-    void doDeleteSelected();
+    void doDeleteSelected(bool physical = false);
     void doToggleFavorite();
     void doTogglePin();
     void doLockSelected();
@@ -81,6 +81,7 @@ public:
     void doEditSelected();
     void doSetRating(int rating);
     void doMoveToCategory(int catId);
+    void doRestoreTrash();
     void doPreview();
     void toggleStayOnTop(bool checked);
     void toggleSidebar();
