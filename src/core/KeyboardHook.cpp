@@ -45,61 +45,7 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
         bool isKeyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
         bool isKeyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
 
-        // 使用 GetKeyState 确保修饰键状态与当前消息同步，防止输入法干扰
-        bool ctrlDown = (GetKeyState(VK_CONTROL) & 0x8000);
-        bool shiftDown = (GetKeyState(VK_SHIFT) & 0x8000);
-
-        // 1. Ctrl + Shift + Backspace -> Ctrl+A then Backspace (全选删除)
-        // 迁移至 Backspace 键触发，彻底避开中文输入法对 Space 的依赖
-        if (pKey->vkCode == VK_BACK && ctrlDown && shiftDown) {
-            if (isKeyDown) {
-                qDebug() << "[Hook] Triggered: Ctrl + Shift + Backspace";
-                // 模拟执行：释放 Shift -> 发送 A (Ctrl 已按下) -> 释放 Ctrl -> 发送 Backspace
-                keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
-                keybd_event('A', 0, 0, 0);
-                keybd_event('A', 0, KEYEVENTF_KEYUP, 0);
-                keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
-                keybd_event(VK_BACK, 0, 0, 0);
-                keybd_event(VK_BACK, 0, KEYEVENTF_KEYUP, 0);
-            }
-            return 1;
-        }
-
-        // 2. Shift + Space -> Shift + Enter (换行)
-        // 增加严密的逻辑判断：必须同时拦截 KeyDown 和 KeyUp，且在无 Ctrl 干扰下生效
-        if (pKey->vkCode == VK_SPACE && shiftDown && !ctrlDown) {
-            if (isKeyDown) {
-                qDebug() << "[Hook] Triggered: Shift + Space";
-                keybd_event(VK_RETURN, 0, 0, 0);
-            } else if (isKeyUp) {
-                keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0);
-            }
-            return 1;
-        }
-
-        // 3. CapsLock -> Enter
-        if (pKey->vkCode == VK_CAPITAL) {
-            if (isKeyDown) {
-                qDebug() << "[Hook] Triggered: CapsLock -> Enter";
-                keybd_event(VK_RETURN, 0, 0, 0);
-            } else if (isKeyUp) {
-                keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0);
-            }
-            return 1;
-        }
-
-        // 4. 反引号 (`) -> Backspace
-        if (pKey->vkCode == VK_OEM_3) {
-            if (isKeyDown) {
-                qDebug() << "[Hook] Triggered: Backtick -> Backspace";
-                keybd_event(VK_BACK, 0, 0, 0);
-            } else if (isKeyUp) {
-                keybd_event(VK_BACK, 0, KEYEVENTF_KEYUP, 0);
-            }
-            return 1;
-        }
-
-        // 5. 工具箱数字拦截 (仅在使能时且按下时触发)
+        // 工具箱数字拦截 (仅在使能时且按下时触发)
         if (isKeyDown && KeyboardHook::instance().m_digitInterceptEnabled) {
             if (pKey->vkCode >= 0x30 && pKey->vkCode <= 0x39) {
                 int digit = pKey->vkCode - 0x30;

@@ -174,6 +174,7 @@ void QuickWindow::initUI() {
     m_systemModel = new CategoryModel(CategoryModel::System, this);
     m_systemTree->setModel(m_systemModel);
     m_systemTree->setHeaderHidden(true);
+    m_systemTree->setMouseTracking(true);
     m_systemTree->setIndentation(12);
     m_systemTree->setFixedHeight(132); // 6 items * 22px = 132px
     m_systemTree->setEditTriggers(QAbstractItemView::NoEditTriggers); // 绝不可重命名
@@ -185,6 +186,7 @@ void QuickWindow::initUI() {
     m_partitionModel = new CategoryModel(CategoryModel::User, this);
     m_partitionTree->setModel(m_partitionModel);
     m_partitionTree->setHeaderHidden(true);
+    m_partitionTree->setMouseTracking(true);
     m_partitionTree->setIndentation(12);
     m_partitionTree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_partitionTree->expandAll();
@@ -410,6 +412,8 @@ void QuickWindow::initUI() {
 
     m_quickPreview = new QuickPreview(this);
     m_listView->installEventFilter(this);
+    m_systemTree->installEventFilter(this);
+    m_partitionTree->installEventFilter(this);
 
     // 搜索逻辑
     m_searchTimer = new QTimer(this);
@@ -1158,6 +1162,29 @@ void QuickWindow::setCursorShape(int area) {
 }
 
 bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
+    // 逻辑 1: 鼠标移动到列表或侧边栏范围内，立即恢复正常光标
+    if (watched == m_listView || watched == m_systemTree || watched == m_partitionTree) {
+        if (event->type() == QEvent::MouseMove || event->type() == QEvent::Enter) {
+            setCursor(Qt::ArrowCursor);
+            m_resizeArea = 0; // 物理隔离，确保不误触发缩放
+        }
+    }
+
+    // 逻辑 2: 侧边栏点击分类且不释放左键时，显示手指光标
+    if (watched == m_systemTree || watched == m_partitionTree) {
+        if (event->type() == QEvent::MouseButtonPress) {
+            QMouseEvent* me = static_cast<QMouseEvent*>(event);
+            if (me->button() == Qt::LeftButton) {
+                QTreeView* tree = qobject_cast<QTreeView*>(watched);
+                if (tree && tree->indexAt(me->pos()).isValid()) {
+                    setCursor(Qt::PointingHandCursor);
+                }
+            }
+        } else if (event->type() == QEvent::MouseButtonRelease) {
+            setCursor(Qt::ArrowCursor);
+        }
+    }
+
     if (watched == m_listView && event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
         if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
