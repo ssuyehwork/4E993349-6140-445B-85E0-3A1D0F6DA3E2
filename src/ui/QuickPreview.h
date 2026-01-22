@@ -35,11 +35,21 @@ public:
     }
 
     void showPreview(const QString& title, const QString& content, const QPoint& pos) {
-        QString formattedContent = content;
-        formattedContent.replace("\n", "<br>");
-        QString html = QString("<h2>%1</h2><hr/><div style='line-height: 1.5;'>%2</div>")
-                       .arg(title, formattedContent);
-        m_textEdit->setHtml(html);
+        showPreview(title, content, "text", QByteArray(), pos);
+    }
+
+    void showPreview(const QString& title, const QString& content, const QString& type, const QByteArray& data, const QPoint& pos) {
+        if (type == "image" && !data.isEmpty()) {
+            QString html = QString("<h2>%1</h2><hr/><img src='data:image/png;base64,%2' width='450'>")
+                           .arg(title, QString(data.toBase64()));
+            m_textEdit->setHtml(html);
+        } else {
+            QString formattedContent = content;
+            formattedContent.replace("\n", "<br>");
+            QString html = QString("<h2>%1</h2><hr/><div style='line-height: 1.5;'>%2</div>")
+                           .arg(title, formattedContent);
+            m_textEdit->setHtml(html);
+        }
         move(pos);
         show();
     }

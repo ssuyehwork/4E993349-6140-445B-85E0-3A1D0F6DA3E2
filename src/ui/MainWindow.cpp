@@ -220,7 +220,13 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
                 int id = index.data(NoteModel::IdRole).toInt();
                 QVariantMap note = DatabaseManager::instance().getNoteById(id);
                 QPoint globalPos = m_noteList->mapToGlobal(m_noteList->rect().center()) - QPoint(250, 300);
-                m_quickPreview->showPreview(note["title"].toString(), note["content"].toString(), globalPos);
+                m_quickPreview->showPreview(
+                    note["title"].toString(),
+                    note["content"].toString(),
+                    note["item_type"].toString(),
+                    note["data_blob"].toByteArray(),
+                    globalPos
+                );
                 return true;
             }
         }

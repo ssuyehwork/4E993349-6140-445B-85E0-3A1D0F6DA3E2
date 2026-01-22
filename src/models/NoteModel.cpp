@@ -150,8 +150,8 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
                      getIconHtml("tag", "#FFAB91"), tags,
                      getIconHtml("star", "#f39c12"), ratingStr,
                      getIconHtml("pin_tilted", "#aaa"), statusStr,
-                     getIconHtml("monitor", "#aaaaaa"), sourceApp,
-                     preview);
+                     getIconHtml("monitor", "#aaaaaa"))
+                .arg(sourceApp, preview);
 
             m_tooltipCache[id] = html;
             return html;

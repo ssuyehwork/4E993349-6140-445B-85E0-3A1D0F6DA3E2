@@ -812,7 +812,13 @@ void QuickWindow::doPreview() {
     int id = index.data(NoteModel::IdRole).toInt();
     QVariantMap note = DatabaseManager::instance().getNoteById(id);
     QPoint globalPos = m_listView->mapToGlobal(m_listView->rect().center()) - QPoint(250, 300);
-    m_quickPreview->showPreview(note["title"].toString(), note["content"].toString(), globalPos);
+    m_quickPreview->showPreview(
+        note["title"].toString(),
+        note["content"].toString(),
+        note["item_type"].toString(),
+        note["data_blob"].toByteArray(),
+        globalPos
+    );
 }
 
 void QuickWindow::toggleStayOnTop(bool checked) {
@@ -942,6 +948,13 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
 
     menu.addSeparator();
     if (m_currentFilterType == "trash") {
+        menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "还原到未分类", [this, selected](){
+            QList<int> ids;
+            for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+            DatabaseManager::instance().moveNotesToCategory(ids, -1);
+            refreshData();
+            refreshSidebar();
+        });
         menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "彻底物理删除 (Delete)", [this](){ doDeleteSelected(true); });
     } else {
         menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "移至回收站 (Delete)", [this](){ doDeleteSelected(false); });
