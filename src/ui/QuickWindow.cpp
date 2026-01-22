@@ -620,38 +620,61 @@ void QuickWindow::activateNote(const QModelIndex& index) {
         }
 
         DWORD lastThread = m_lastThreadId;
-        QTimer::singleShot(200, [lastThread, attached]() {
-            // 1. 强制清理当前可能的修饰键干扰状态 (如用户双击时正按着某些键)
-            keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
-            keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
-            keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
+        QTimer::singleShot(300, [lastThread, attached]() {
+            // 对齐 Ditto 的高可靠粘贴实现：
+            // 1. 构造一个原子化的输入序列，包含“释放所有干扰修饰键”和“Ctrl+V 完整循环”
+            // 2. 使用单个 SendInput 调用确保序列的原子性，防止被其他线程插队
 
-            // 2. 使用 SendInput 原子化发送 Ctrl+V 序列，对齐 Ditto 的专业实现
-            INPUT inputs[4];
+            // 需要清理的修饰键清单
+            BYTE modifierKeys[] = {
+                VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT,
+                VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN
+            };
+            const int nModifiers = 8; // 显式指定大小，适配所有编译器
+            const int totalInputs = nModifiers + 4;
+
+            INPUT inputs[12]; // 8 个释放 + 4 个 Ctrl+V 动作
             memset(inputs, 0, sizeof(inputs));
 
-            // Ctrl 按下
-            inputs[0].type = INPUT_KEYBOARD;
-            inputs[0].ki.wVk = VK_CONTROL;
+            // 第一阶段：显式释放所有可能的干扰修饰键
+            for (int i = 0; i < nModifiers; ++i) {
+                inputs[i].type = INPUT_KEYBOARD;
+                inputs[i].ki.wVk = modifierKeys[i];
+                inputs[i].ki.dwFlags = KEYEVENTF_KEYUP;
+                // 右侧键及 Win 键需要扩展键标志
+                if (modifierKeys[i] == VK_RCONTROL || modifierKeys[i] == VK_RMENU ||
+                    modifierKeys[i] == VK_LWIN || modifierKeys[i] == VK_RWIN) {
+                    inputs[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+                }
+            }
 
-            // V 按下
-            inputs[1].type = INPUT_KEYBOARD;
-            inputs[1].ki.wVk = 'V';
+            // 第二阶段：发送完整的 Ctrl+V 动作序列
+            int base = nModifiers;
 
-            // V 抬起
-            inputs[2].type = INPUT_KEYBOARD;
-            inputs[2].ki.wVk = 'V';
-            inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+            // Ctrl Down
+            inputs[base].type = INPUT_KEYBOARD;
+            inputs[base].ki.wVk = VK_CONTROL;
+            inputs[base].ki.dwFlags = 0;
 
-            // Ctrl 抬起
-            inputs[3].type = INPUT_KEYBOARD;
-            inputs[3].ki.wVk = VK_CONTROL;
-            inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+            // V Down (使用大写 'V' 对应其虚拟键码)
+            inputs[base + 1].type = INPUT_KEYBOARD;
+            inputs[base + 1].ki.wVk = 'V';
+            inputs[base + 1].ki.dwFlags = 0;
 
-            SendInput(4, inputs, sizeof(INPUT));
+            // V Up
+            inputs[base + 2].type = INPUT_KEYBOARD;
+            inputs[base + 2].ki.wVk = 'V';
+            inputs[base + 2].ki.dwFlags = KEYEVENTF_KEYUP;
+
+            // Ctrl Up
+            inputs[base + 3].type = INPUT_KEYBOARD;
+            inputs[base + 3].ki.wVk = VK_CONTROL;
+            inputs[base + 3].ki.dwFlags = KEYEVENTF_KEYUP;
+
+            SendInput(totalInputs, inputs, sizeof(INPUT));
 
             if (attached) {
-                // 确保按键消息推入后再分离线程
+                // 确保按键消息推入后（SendInput 是同步的，但在目标消息队列处理上可能存在微小延迟）再分离线程
                 AttachThreadInput(GetCurrentThreadId(), lastThread, FALSE);
             }
         });
