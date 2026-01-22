@@ -614,12 +614,37 @@ void QuickWindow::activateNote(const QModelIndex& index) {
 
         DWORD lastThread = m_lastThreadId;
         QTimer::singleShot(200, [lastThread, attached]() {
-            keybd_event(VK_CONTROL, 0, 0, 0);
-            keybd_event('V', 0, 0, 0);
-            keybd_event('V', 0, KEYEVENTF_KEYUP, 0);
+            // 1. 强制清理当前可能的修饰键干扰状态 (如用户双击时正按着某些键)
             keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+            keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
+            keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
+
+            // 2. 使用 SendInput 原子化发送 Ctrl+V 序列，对齐 Ditto 的专业实现
+            INPUT inputs[4];
+            memset(inputs, 0, sizeof(inputs));
+
+            // Ctrl 按下
+            inputs[0].type = INPUT_KEYBOARD;
+            inputs[0].ki.wVk = VK_CONTROL;
+
+            // V 按下
+            inputs[1].type = INPUT_KEYBOARD;
+            inputs[1].ki.wVk = 'V';
+
+            // V 抬起
+            inputs[2].type = INPUT_KEYBOARD;
+            inputs[2].ki.wVk = 'V';
+            inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+
+            // Ctrl 抬起
+            inputs[3].type = INPUT_KEYBOARD;
+            inputs[3].ki.wVk = VK_CONTROL;
+            inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+
+            SendInput(4, inputs, sizeof(INPUT));
 
             if (attached) {
+                // 确保按键消息推入后再分离线程
                 AttachThreadInput(GetCurrentThreadId(), lastThread, FALSE);
             }
         });
