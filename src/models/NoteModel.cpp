@@ -43,6 +43,21 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             QString iconColor = "#95a5a6";
 
             if (type == "image") {
+                int id = note.value("id").toInt();
+                if (m_thumbnailCache.contains(id)) {
+                    return m_thumbnailCache.value(id);
+                }
+
+                QByteArray dataBlob = note.value("data_blob").toByteArray();
+                if (!dataBlob.isEmpty()) {
+                    QPixmap pix;
+                    if (pix.loadFromData(dataBlob)) {
+                        // 缩放为 32x32 的高质量缩略图
+                        QIcon thumbnail(pix.scaled(32, 32, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                        m_thumbnailCache.insert(id, thumbnail);
+                        return thumbnail;
+                    }
+                }
                 iconName = "image";
                 iconColor = "#9b59b6";
             } else if (type == "file" || type == "files") {
@@ -112,9 +127,21 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             for(int i=0; i<rating; ++i) ratingStr += getIconHtml("star_filled", "#f39c12") + " ";
             if (ratingStr.isEmpty()) ratingStr = "无";
 
-            QString preview = content.left(400).toHtmlEscaped().replace("\n", "<br>").trimmed();
-            if (content.length() > 400) preview += "...";
-            if (preview.isEmpty()) preview = title.toHtmlEscaped();
+            QString preview;
+            QString type = note.value("item_type").toString();
+            if (type == "image") {
+                QByteArray dataBlob = note.value("data_blob").toByteArray();
+                if (!dataBlob.isEmpty()) {
+                    preview = QString("<div style='margin-bottom:5px;'><img src='data:image/png;base64,%1' width='250'></div>")
+                              .arg(QString(dataBlob.toBase64()));
+                }
+            }
+
+            if (preview.isEmpty()) {
+                preview = content.left(400).toHtmlEscaped().replace("\n", "<br>").trimmed();
+                if (content.length() > 400) preview += "...";
+                if (preview.isEmpty()) preview = title.toHtmlEscaped();
+            }
 
             return QString("<html><body style='color: #ddd;'>"
                            "<table border='0' cellpadding='2' cellspacing='0'>"
@@ -239,6 +266,7 @@ QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
 
 void NoteModel::setNotes(const QList<QVariantMap>& notes) {
     updateCategoryMap();
+    m_thumbnailCache.clear();
     beginResetModel();
     m_notes = notes;
     endResetModel();
@@ -254,6 +282,7 @@ void NoteModel::updateCategoryMap() {
 
 // 【新增】函数的具体实现
 void NoteModel::prependNote(const QVariantMap& note) {
+    m_thumbnailCache.remove(note.value("id").toInt());
     // 通知视图：我要在第0行插入1条数据
     beginInsertRows(QModelIndex(), 0, 0);
     m_notes.prepend(note);

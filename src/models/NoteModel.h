@@ -5,6 +5,8 @@
 #include <QVariantMap>
 #include <QList>
 #include <QMimeData>
+#include <QIcon>
+#include <QMap>
 
 class NoteModel : public QAbstractListModel {
     Q_OBJECT
@@ -44,6 +46,7 @@ public:
 private:
     QList<QVariantMap> m_notes;
     QMap<int, QString> m_categoryMap;
+    mutable QMap<int, QIcon> m_thumbnailCache;
 };
 
 #endif // NOTEMODEL_H
