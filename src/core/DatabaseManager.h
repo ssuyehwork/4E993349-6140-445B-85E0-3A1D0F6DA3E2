@@ -25,6 +25,7 @@ public:
     bool updateNote(int id, const QString& title, const QString& content, const QStringList& tags, 
                     const QString& color = "", int categoryId = -1);
     bool deleteNote(int id);
+    bool deleteNotesBatch(const QList<int>& ids);
     bool updateNoteState(int id, const QString& column, const QVariant& value);
     bool updateNoteStateBatch(const QList<int>& ids, const QString& column, const QVariant& value);
     bool toggleNoteState(int id, const QString& column);

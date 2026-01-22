@@ -73,6 +73,7 @@ public:
 
     // 快捷键处理函数
     void doDeleteSelected();
+    void doPermanentDeleteSelected();
     void doToggleFavorite();
     void doTogglePin();
     void doLockSelected();

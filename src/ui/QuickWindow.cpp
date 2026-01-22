@@ -469,6 +469,7 @@ void QuickWindow::restoreState() {
 void QuickWindow::setupShortcuts() {
     new QShortcut(QKeySequence("Ctrl+F"), this, [this](){ m_searchEdit->setFocus(); m_searchEdit->selectAll(); });
     new QShortcut(QKeySequence("Delete"), this, [this](){ doDeleteSelected(); });
+    new QShortcut(QKeySequence("Ctrl+Shift+Delete"), this, [this](){ doPermanentDeleteSelected(); });
     new QShortcut(QKeySequence("Ctrl+E"), this, [this](){ doToggleFavorite(); });
     new QShortcut(QKeySequence("Ctrl+P"), this, [this](){ doTogglePin(); });
     new QShortcut(QKeySequence("Ctrl+W"), this, [this](){ hide(); });
@@ -653,16 +654,61 @@ void QuickWindow::activateNote(const QModelIndex& index) {
 #endif
 }
 
-void QuickWindow::doDeleteSelected() {
+void QuickWindow::doPermanentDeleteSelected() {
     auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
+
     QList<int> ids;
     for (const auto& index : selected) {
-        if (!index.data(NoteModel::LockedRole).toBool()) {
+        // 凡是数据被绑定标签或绑定书签或保护(锁定)时, 不可被删除
+        QString tags = index.data(NoteModel::TagsRole).toString();
+        bool isFavorite = index.data(NoteModel::FavoriteRole).toBool();
+        bool isLocked = index.data(NoteModel::LockedRole).toBool();
+
+        if (tags.isEmpty() && !isFavorite && !isLocked) {
             ids << index.data(NoteModel::IdRole).toInt();
         }
     }
-    DatabaseManager::instance().updateNoteStateBatch(ids, "is_deleted", 1);
+
+    if (!ids.isEmpty()) {
+        DatabaseManager::instance().deleteNotesBatch(ids);
+        refreshData();
+    }
+}
+
+void QuickWindow::doDeleteSelected() {
+    auto selected = m_listView->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+
+    QList<int> toMoveToTrash;
+    QList<int> toPermanentlyDelete;
+
+    for (const auto& index : selected) {
+        // 凡是数据被绑定标签或绑定书签或保护(锁定)时, 不可被删除
+        QString tags = index.data(NoteModel::TagsRole).toString();
+        bool isFavorite = index.data(NoteModel::FavoriteRole).toBool();
+        bool isLocked = index.data(NoteModel::LockedRole).toBool();
+
+        if (!tags.isEmpty() || isFavorite || isLocked) {
+            continue; // 受保护，跳过
+        }
+
+        int id = index.data(NoteModel::IdRole).toInt();
+        if (m_currentFilterType == "trash") {
+            toPermanentlyDelete << id;
+        } else {
+            toMoveToTrash << id;
+        }
+    }
+
+    if (!toMoveToTrash.isEmpty()) {
+        DatabaseManager::instance().updateNoteStateBatch(toMoveToTrash, "is_deleted", 1);
+    }
+
+    if (!toPermanentlyDelete.isEmpty()) {
+        DatabaseManager::instance().deleteNotesBatch(toPermanentlyDelete);
+    }
+
     refreshData();
 }
 
@@ -876,7 +922,11 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
     }
 
     menu.addSeparator();
-    menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "移至回收站 (Delete)", this, &QuickWindow::doDeleteSelected);
+    if (m_currentFilterType == "trash") {
+        menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "彻底物理删除 (Delete)", this, &QuickWindow::doDeleteSelected);
+    } else {
+        menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "移至回收站 (Delete)", this, &QuickWindow::doDeleteSelected);
+    }
 
     menu.exec(m_listView->mapToGlobal(pos));
 }
