@@ -254,6 +254,9 @@ void QuickWindow::initUI() {
         QTreeView::branch:hover, QTreeView::branch:selected {
             background: transparent;
         }
+        QTreeView::branch {
+            image: none;
+        }
     )";
 
     m_systemTree = new DropTreeView();
