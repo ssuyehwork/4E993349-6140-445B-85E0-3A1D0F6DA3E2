@@ -67,7 +67,7 @@ QuickWindow::QuickWindow(QWidget* parent)
         
         // 如果当前正在查看某个分类，同步更新其高亮色
         if (m_currentFilterType == "category" && m_currentFilterValue != -1) {
-            auto categories = DatabaseManager::instance().getAllCategories();
+            const auto categories = DatabaseManager::instance().getAllCategories();
             for (const auto& cat : categories) {
                 if (cat["id"].toInt() == m_currentFilterValue) {
                     m_currentCategoryColor = cat["color"].toString();
@@ -568,7 +568,7 @@ void QuickWindow::activateNote(const QModelIndex& index) {
         img.loadFromData(note["data_blob"].toByteArray());
         QApplication::clipboard()->setImage(img);
     } else if (itemType != "text" && !itemType.isEmpty()) {
-        QStringList rawPaths = content.split(';', Qt::SkipEmptyParts);
+        const QStringList rawPaths = content.split(';', Qt::SkipEmptyParts);
         QList<QUrl> validUrls;
         QStringList missingFiles;
         
@@ -655,7 +655,7 @@ void QuickWindow::activateNote(const QModelIndex& index) {
 }
 
 void QuickWindow::doPermanentDeleteSelected() {
-    auto selected = m_listView->selectionModel()->selectedIndexes();
+    const auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
 
     QList<int> ids;
@@ -677,7 +677,7 @@ void QuickWindow::doPermanentDeleteSelected() {
 }
 
 void QuickWindow::doDeleteSelected() {
-    auto selected = m_listView->selectionModel()->selectedIndexes();
+    const auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
 
     QList<int> toMoveToTrash;
@@ -713,7 +713,7 @@ void QuickWindow::doDeleteSelected() {
 }
 
 void QuickWindow::doToggleFavorite() {
-    auto selected = m_listView->selectionModel()->selectedIndexes();
+    const auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
     for (const auto& index : selected) {
         int id = index.data(NoteModel::IdRole).toInt();
@@ -723,7 +723,7 @@ void QuickWindow::doToggleFavorite() {
 }
 
 void QuickWindow::doTogglePin() {
-    auto selected = m_listView->selectionModel()->selectedIndexes();
+    const auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
     for (const auto& index : selected) {
         int id = index.data(NoteModel::IdRole).toInt();
@@ -733,10 +733,9 @@ void QuickWindow::doTogglePin() {
 }
 
 void QuickWindow::doLockSelected() {
-    auto selected = m_listView->selectionModel()->selectedIndexes();
+    const auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
     
-    int firstId = selected.first().data(NoteModel::IdRole).toInt();
     bool firstState = selected.first().data(NoteModel::LockedRole).toBool();
     bool targetState = !firstState;
 
@@ -754,7 +753,7 @@ void QuickWindow::doNewIdea() {
 }
 
 void QuickWindow::doExtractContent() {
-    auto selected = m_listView->selectionModel()->selectedIndexes();
+    const auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
     QStringList texts;
     for (const auto& index : selected) {
@@ -778,7 +777,7 @@ void QuickWindow::doEditSelected() {
 }
 
 void QuickWindow::doSetRating(int rating) {
-    auto selected = m_listView->selectionModel()->selectedIndexes();
+    const auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
     for (const auto& index : selected) {
         int id = index.data(NoteModel::IdRole).toInt();
@@ -853,7 +852,8 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
         }
     }
 
-    int selCount = selected.size();
+    const auto constSelected = selected;
+    int selCount = constSelected.size();
     QMenu menu(this);
     menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
                        "QMenu::item { padding: 6px 10px 6px 28px; border-radius: 3px; } "
@@ -873,7 +873,7 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
 
     auto* ratingMenu = menu.addMenu(IconHelper::getIcon("star", "#f39c12"), QString("设置星级 (%1)").arg(selCount));
     auto* starGroup = new QActionGroup(this);
-    int currentRating = (selCount == 1) ? selected.first().data(NoteModel::RatingRole).toInt() : -1;
+    int currentRating = (selCount == 1) ? constSelected.first().data(NoteModel::RatingRole).toInt() : -1;
     
     for (int i = 1; i <= 5; ++i) {
         QString stars = QString("★").repeated(i);
@@ -885,15 +885,15 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
     ratingMenu->addSeparator();
     ratingMenu->addAction("清除评级", [this]() { doSetRating(0); });
 
-    bool isFavorite = selected.first().data(NoteModel::FavoriteRole).toBool();
+    bool isFavorite = constSelected.first().data(NoteModel::FavoriteRole).toBool();
     menu.addAction(IconHelper::getIcon(isFavorite ? "bookmark_filled" : "bookmark", "#ff6b81"), 
                    isFavorite ? "取消书签" : "添加书签 (Ctrl+E)", this, &QuickWindow::doToggleFavorite);
 
-    bool isPinned = selected.first().data(NoteModel::PinnedRole).toBool();
+    bool isPinned = constSelected.first().data(NoteModel::PinnedRole).toBool();
     menu.addAction(IconHelper::getIcon(isPinned ? "pin_vertical" : "pin_tilted", isPinned ? "#e74c3c" : "#aaaaaa"), 
                    isPinned ? "取消置顶" : "置顶选中项 (Ctrl+P)", this, &QuickWindow::doTogglePin);
     
-    bool isLocked = selected.first().data(NoteModel::LockedRole).toBool();
+    bool isLocked = constSelected.first().data(NoteModel::LockedRole).toBool();
     menu.addAction(IconHelper::getIcon("lock", isLocked ? "#2ecc71" : "#aaaaaa"), 
                    isLocked ? "解锁选中项" : "锁定选中项 (Ctrl+S)", this, &QuickWindow::doLockSelected);
     
@@ -903,8 +903,8 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
     catMenu->addAction("⚠️ 未分类", [this]() { doMoveToCategory(-1); });
     
     QSettings settings("RapidNotes", "QuickWindow");
-    QVariantList recentCats = settings.value("recentCategories").toList();
-    auto allCategories = DatabaseManager::instance().getAllCategories();
+    const QVariantList recentCats = settings.value("recentCategories").toList();
+    const auto allCategories = DatabaseManager::instance().getAllCategories();
     QMap<int, QVariantMap> catMap;
     for (const auto& cat : allCategories) catMap[cat["id"].toInt()] = cat;
 
@@ -1013,7 +1013,7 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
 }
 
 void QuickWindow::doMoveToCategory(int catId) {
-    auto selected = m_listView->selectionModel()->selectedIndexes();
+    const auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
 
     if (catId != -1) {
@@ -1140,7 +1140,7 @@ void QuickWindow::dropEvent(QDropEvent* event) {
     QStringList tags = {"External"};
 
     if (mime->hasUrls()) {
-        QList<QUrl> urls = mime->urls();
+        const QList<QUrl> urls = mime->urls();
         QStringList paths;
         for (const QUrl& url : urls) {
             if (url.isLocalFile()) {
