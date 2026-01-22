@@ -4,8 +4,14 @@
 #include <QWidget>
 #include <QTextEdit>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QPushButton>
+#include <QLabel>
 #include <QKeyEvent>
 #include <QGraphicsDropShadowEffect>
+#include <QMouseEvent>
+#include <QApplication>
+#include "IconHelper.h"
 
 class QuickPreview : public QWidget {
     Q_OBJECT
@@ -13,25 +19,75 @@ public:
     explicit QuickPreview(QWidget* parent = nullptr) : QWidget(parent, Qt::Tool | Qt::FramelessWindowHint) {
         setAttribute(Qt::WA_TranslucentBackground);
         
-        auto* layout = new QVBoxLayout(this);
+        auto* mainLayout = new QVBoxLayout(this);
+        mainLayout->setContentsMargins(10, 10, 10, 10);
+
         m_container = new QFrame();
-        m_container->setStyleSheet("background-color: #1e1e1e; border: 1px solid #444; border-radius: 8px;");
+        m_container->setObjectName("previewContainer");
+        m_container->setStyleSheet(
+            "QFrame#previewContainer { background-color: #1e1e1e; border: 1px solid #444; border-radius: 8px; }"
+            "QPushButton { border: none; border-radius: 4px; background: transparent; padding: 4px; }"
+            "QPushButton:hover { background-color: #3e3e42; }"
+            "QPushButton#btnClose:hover { background-color: #E81123; }"
+        );
         
         auto* containerLayout = new QVBoxLayout(m_container);
+        containerLayout->setContentsMargins(0, 0, 0, 0);
+        containerLayout->setSpacing(0);
+
+        // --- 标题栏 ---
+        m_titleBar = new QWidget();
+        m_titleBar->setFixedHeight(36);
+        auto* titleLayout = new QHBoxLayout(m_titleBar);
+        titleLayout->setContentsMargins(10, 0, 5, 0);
+        titleLayout->setSpacing(5);
+
+        QLabel* titleLabel = new QLabel("预览");
+        titleLabel->setStyleSheet("color: #888; font-size: 12px; font-weight: bold;");
+        titleLayout->addWidget(titleLabel);
+        titleLayout->addStretch();
+
+        auto createBtn = [this](const QString& icon, const QString& tooltip, const QString& objName = "") {
+            QPushButton* btn = new QPushButton();
+            btn->setIcon(IconHelper::getIcon(icon, "#aaaaaa"));
+            btn->setIconSize(QSize(16, 16));
+            btn->setFixedSize(32, 32);
+            btn->setToolTip(tooltip);
+            if (!objName.isEmpty()) btn->setObjectName(objName);
+            return btn;
+        };
+
+        QPushButton* btnMin = createBtn("minimize", "最小化");
+        QPushButton* btnMax = createBtn("maximize", "最大化");
+        QPushButton* btnClose = createBtn("close", "关闭", "btnClose");
+
+        connect(btnMin, &QPushButton::clicked, this, &QuickPreview::showMinimized);
+        connect(btnMax, &QPushButton::clicked, [this]() {
+            if (isMaximized()) showNormal();
+            else showMaximized();
+        });
+        connect(btnClose, &QPushButton::clicked, this, &QuickPreview::hide);
+
+        titleLayout->addWidget(btnMin);
+        titleLayout->addWidget(btnMax);
+        titleLayout->addWidget(btnClose);
+
+        containerLayout->addWidget(m_titleBar);
+
         m_textEdit = new QTextEdit();
         m_textEdit->setReadOnly(true);
-        m_textEdit->setStyleSheet("background: transparent; border: none; color: #ddd; font-size: 14px;");
+        m_textEdit->setStyleSheet("background: transparent; border: none; color: #ddd; font-size: 14px; padding: 10px;");
         containerLayout->addWidget(m_textEdit);
         
-        layout->addWidget(m_container);
+        mainLayout->addWidget(m_container);
         
         auto* shadow = new QGraphicsDropShadowEffect(this);
-        shadow->setBlurRadius(20);
+        shadow->setBlurRadius(15);
         shadow->setColor(QColor(0, 0, 0, 150));
         shadow->setOffset(0, 5);
         m_container->setGraphicsEffect(shadow);
         
-        resize(500, 600);
+        resize(900, 700);
     }
 
     void showPreview(const QString& title, const QString& content, const QPoint& pos) {
@@ -67,9 +123,40 @@ protected:
         QWidget::keyPressEvent(event);
     }
 
+    void mousePressEvent(QMouseEvent* event) override {
+        if (event->button() == Qt::LeftButton && m_titleBar->rect().contains(m_titleBar->mapFrom(this, event->pos()))) {
+            m_dragging = true;
+            m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
+            event->accept();
+        }
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override {
+        if (m_dragging && event->buttons() & Qt::LeftButton) {
+            move(event->globalPosition().toPoint() - m_dragPos);
+            event->accept();
+        }
+    }
+
+    void mouseReleaseEvent(QMouseEvent* event) override {
+        m_dragging = false;
+        QWidget::mouseReleaseEvent(event);
+    }
+
+    void mouseDoubleClickEvent(QMouseEvent* event) override {
+        if (m_titleBar->rect().contains(m_titleBar->mapFrom(this, event->pos()))) {
+            if (isMaximized()) showNormal();
+            else showMaximized();
+            event->accept();
+        }
+    }
+
 private:
     QFrame* m_container;
+    QWidget* m_titleBar;
     QTextEdit* m_textEdit;
+    bool m_dragging = false;
+    QPoint m_dragPos;
 };
 
 #endif // QUICKPREVIEW_H

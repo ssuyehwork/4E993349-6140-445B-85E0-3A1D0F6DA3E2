@@ -683,10 +683,15 @@ QList<QVariantMap> DatabaseManager::getAllCategories() {
 }
 
 bool DatabaseManager::emptyTrash() {
-    QMutexLocker locker(&m_mutex);
-    if (!m_db.isOpen()) return false;
-    QSqlQuery query(m_db);
-    return query.exec("DELETE FROM notes WHERE is_deleted = 1");
+    bool success = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
+        QSqlQuery query(m_db);
+        success = query.exec("DELETE FROM notes WHERE is_deleted = 1");
+    }
+    if (success) emit noteUpdated();
+    return success;
 }
 
 bool DatabaseManager::setCategoryPresetTags(int catId, const QString& tags) {

@@ -1039,6 +1039,7 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
             if (QMessageBox::question(this, "确认清空", "确定要永久删除回收站中的所有内容吗？") == QMessageBox::Yes) {
                 DatabaseManager::instance().emptyTrash();
                 refreshData();
+                refreshSidebar();
             }
         });
     }
