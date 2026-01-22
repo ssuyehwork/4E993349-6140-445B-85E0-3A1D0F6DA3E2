@@ -20,6 +20,7 @@ void CategoryModel::refresh() {
             QStandardItem* item = new QStandardItem(display);
             item->setData(type, TypeRole);
             item->setData(name, NameRole);
+            item->setData(color, ColorRole); // 设置颜色角色
             item->setEditable(false); // 系统项目不可重命名
             item->setIcon(IconHelper::getIcon(icon, color));
             root->appendRow(item);
@@ -39,6 +40,13 @@ void CategoryModel::refresh() {
         userGroup->setSelectable(false);
         userGroup->setEditable(false);
         userGroup->setIcon(IconHelper::getIcon("branch", "#FFFFFF"));
+        
+        // 设为粗体白色
+        QFont font = userGroup->font();
+        font.setBold(true);
+        userGroup->setFont(font);
+        userGroup->setForeground(QColor("#FFFFFF"));
+        
         root->appendRow(userGroup);
 
         auto categories = DatabaseManager::instance().getAllCategories();

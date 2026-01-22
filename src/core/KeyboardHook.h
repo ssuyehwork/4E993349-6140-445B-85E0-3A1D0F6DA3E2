@@ -14,10 +14,13 @@ public:
     void stop();
     bool isActive() const { return m_active; }
 
+    void setDigitInterceptEnabled(bool enabled) { m_digitInterceptEnabled = enabled; }
+
 signals:
     void digitPressed(int digit);
 
 private:
+    bool m_digitInterceptEnabled = false;
     KeyboardHook();
     ~KeyboardHook();
     bool m_active = false;

@@ -40,21 +40,24 @@ Toolbox::Toolbox(QWidget* parent) : QDialog(parent) {
     layout->addWidget(m_tabs);
 
     connect(&KeyboardHook::instance(), &KeyboardHook::digitPressed, this, &Toolbox::onDigitPressed);
+    connect(m_tabs, &QTabWidget::currentChanged, [this](int index) {
+        KeyboardHook::instance().setDigitInterceptEnabled(index == 0 && isVisible());
+    });
 }
 
 Toolbox::~Toolbox() {
-    KeyboardHook::instance().stop();
+    KeyboardHook::instance().setDigitInterceptEnabled(false);
 }
 
 void Toolbox::showEvent(QShowEvent* event) {
     QDialog::showEvent(event);
     if (m_tabs->currentIndex() == 0) {
-        KeyboardHook::instance().start();
+        KeyboardHook::instance().setDigitInterceptEnabled(true);
     }
 }
 
 void Toolbox::hideEvent(QHideEvent* event) {
-    KeyboardHook::instance().stop();
+    KeyboardHook::instance().setDigitInterceptEnabled(false);
     QDialog::hideEvent(event);
 }
 

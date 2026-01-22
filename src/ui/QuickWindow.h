@@ -41,6 +41,9 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragMoveEvent(QDragMoveEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
     void hideEvent(QHideEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -54,6 +57,9 @@ private:
     void applyListTheme(const QString& colorHex);
     int getResizeArea(const QPoint& pos);
     void setCursorShape(int area);
+
+public:
+    QString currentCategoryColor() const { return m_currentCategoryColor; }
 
     // 快捷键处理函数
     void doDeleteSelected();
@@ -91,6 +97,7 @@ private:
     int m_totalPages = 1;
     QString m_currentFilterType = "all";
     int m_currentFilterValue = -1;
+    QString m_currentCategoryColor = "#4a90e2"; // 默认蓝色
 
     int m_resizeArea = 0;
     QPoint m_resizeStartPos;

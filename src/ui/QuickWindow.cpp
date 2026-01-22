@@ -20,6 +20,7 @@
 #include <QActionGroup>
 #include <QAction>
 #include <QUrl>
+#include <QBuffer>
 #include <QToolTip>
 #include <QImage>
 #include <QMap>
@@ -30,11 +31,12 @@
 #include <QRandomGenerator>
 
 // 定义调整大小的边缘触发区域宽度
-#define RESIZE_MARGIN 20 
+#define RESIZE_MARGIN 10 
 
 QuickWindow::QuickWindow(QWidget* parent) 
     : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) 
 {
+    setAcceptDrops(true);
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_DeleteOnClose, false);
     
@@ -61,6 +63,20 @@ QuickWindow::QuickWindow(QWidget* parent)
 
     connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, [this](){
         m_model->updateCategoryMap();
+        
+        // 如果当前正在查看某个分类，同步更新其高亮色
+        if (m_currentFilterType == "category" && m_currentFilterValue != -1) {
+            auto categories = DatabaseManager::instance().getAllCategories();
+            for (const auto& cat : categories) {
+                if (cat["id"].toInt() == m_currentFilterValue) {
+                    m_currentCategoryColor = cat["color"].toString();
+                    if (m_currentCategoryColor.isEmpty()) m_currentCategoryColor = "#4a90e2";
+                    applyListTheme(m_currentCategoryColor);
+                    break;
+                }
+            }
+        }
+        
         refreshData();
         refreshSidebar();
     });
@@ -89,7 +105,7 @@ QuickWindow::QuickWindow(QWidget* parent)
 
 void QuickWindow::initUI() {
     auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(15, 15, 15, 15); // 给阴影留出空间
+    mainLayout->setContentsMargins(10, 10, 10, 10); // 缩小边距
 
     auto* container = new QWidget();
     container->setObjectName("container");
@@ -97,9 +113,10 @@ void QuickWindow::initUI() {
     container->setStyleSheet(
         "QWidget#container { background: #1E1E1E; border-radius: 10px; border: 1px solid #333; }"
         "QListView, QTreeView { background: transparent; border: none; color: #BBB; outline: none; }"
-        "QTreeView::item { height: 25px; padding: 0px 4px; }"
+        "QTreeView::item { height: 22px; padding: 0px 4px; border-radius: 4px; }"
+        "QTreeView::item:hover { background-color: #2a2d2e; }"
+        "QTreeView::item:selected { background-color: #37373d; color: white; }"
         "QListView::item { padding: 6px; border-bottom: 1px solid #2A2A2A; }"
-        "QListView::item:selected, QTreeView::item:selected { background: #4a90e2; color: white; }"
     );
     
     auto* shadow = new QGraphicsDropShadowEffect(this);
@@ -156,7 +173,8 @@ void QuickWindow::initUI() {
     m_systemModel = new CategoryModel(CategoryModel::System, this);
     m_systemTree->setModel(m_systemModel);
     m_systemTree->setHeaderHidden(true);
-    m_systemTree->setFixedHeight(150);
+    m_systemTree->setIndentation(12);
+    m_systemTree->setFixedHeight(132); // 6 items * 22px = 132px
     m_systemTree->setEditTriggers(QAbstractItemView::NoEditTriggers); // 绝不可重命名
     m_systemTree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_systemTree->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -166,6 +184,7 @@ void QuickWindow::initUI() {
     m_partitionModel = new CategoryModel(CategoryModel::User, this);
     m_partitionTree->setModel(m_partitionModel);
     m_partitionTree->setHeaderHidden(true);
+    m_partitionTree->setIndentation(12);
     m_partitionTree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_partitionTree->expandAll();
     m_partitionTree->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -187,13 +206,18 @@ void QuickWindow::initUI() {
         m_currentFilterType = index.data(CategoryModel::TypeRole).toString();
         QString name = index.data(CategoryModel::NameRole).toString();
         updatePartitionStatus(name);
+
+        // 统一从模型获取颜色，实现全分区变色联动
+        m_currentCategoryColor = index.data(CategoryModel::ColorRole).toString();
+        if (m_currentCategoryColor.isEmpty()) m_currentCategoryColor = "#4a90e2";
+
         if (m_currentFilterType == "category") {
             m_currentFilterValue = index.data(CategoryModel::IdRole).toInt();
-            applyListTheme(index.data(CategoryModel::ColorRole).toString());
         } else {
             m_currentFilterValue = -1;
-            applyListTheme("");
         }
+        
+        applyListTheme(m_currentCategoryColor);
         m_currentPage = 1;
         refreshData();
     };
@@ -501,25 +525,21 @@ void QuickWindow::applyListTheme(const QString& colorHex) {
     QString style;
     if (!colorHex.isEmpty()) {
         QColor c(colorHex);
-        QString bgColor = c.darker(350).name();
-        QString altBgColor = c.darker(450).name();
-        QString selColor = c.darker(110).name();
-        // 对齐 Python 版，QPalette::Highlight 对应选中色，Base/AlternateBase 对应斑马纹
+        // 对齐 Python 版，背景保持深色，高亮色由 Delegate 处理，这里主要设置斑马纹
         style = QString("QListView { "
                         "  border: none; "
-                        "  background-color: %1; "
-                        "  alternate-background-color: %2; "
-                        "  selection-background-color: %3; "
+                        "  background-color: #1e1e1e; "
+                        "  alternate-background-color: #252526; "
+                        "  selection-background-color: transparent; "
                         "  color: #eee; "
                         "  outline: none; "
-                        "}")
-                .arg(bgColor, altBgColor, selColor);
+                        "}");
     } else {
         style = "QListView { "
                 "  border: none; "
                 "  background-color: #1e1e1e; "
-                "  alternate-background-color: #151515; "
-                "  selection-background-color: #4a90e2; "
+                "  alternate-background-color: #252526; "
+                "  selection-background-color: transparent; "
                 "  color: #eee; "
                 "  outline: none; "
                 "}";
@@ -1006,6 +1026,76 @@ void QuickWindow::mouseReleaseEvent(QMouseEvent* event) {
     m_resizeArea = 0;
     setCursor(Qt::ArrowCursor);
     QWidget::mouseReleaseEvent(event);
+}
+
+void QuickWindow::dragEnterEvent(QDragEnterEvent* event) {
+    if (event->mimeData()->hasUrls() || event->mimeData()->hasText() || event->mimeData()->hasImage()) {
+        event->acceptProposedAction();
+    }
+}
+
+void QuickWindow::dragMoveEvent(QDragMoveEvent* event) {
+    event->acceptProposedAction();
+}
+
+void QuickWindow::dropEvent(QDropEvent* event) {
+    const QMimeData* mime = event->mimeData();
+    int targetId = -1;
+    if (m_currentFilterType == "category") {
+        targetId = m_currentFilterValue;
+    }
+
+    QString itemType = "text";
+    QString title;
+    QString content;
+    QByteArray dataBlob;
+    QStringList tags = {"External"};
+
+    if (mime->hasUrls()) {
+        QList<QUrl> urls = mime->urls();
+        QStringList paths;
+        for (const QUrl& url : urls) {
+            if (url.isLocalFile()) {
+                QString p = url.toLocalFile();
+                paths << p;
+                if (title.isEmpty()) {
+                    QFileInfo info(p);
+                    title = info.fileName();
+                    itemType = info.isDir() ? "folder" : "file";
+                }
+            } else {
+                paths << url.toString();
+                if (title.isEmpty()) {
+                    title = "外部链接";
+                    itemType = "link";
+                }
+            }
+        }
+        content = paths.join(";");
+        if (paths.size() > 1) {
+            title = QString("批量导入 (%1个文件)").arg(paths.size());
+            itemType = "files";
+        }
+    } else if (mime->hasImage()) {
+        QImage img = qvariant_cast<QImage>(mime->imageData());
+        if (!img.isNull()) {
+            QBuffer buffer(&dataBlob);
+            buffer.open(QIODevice::WriteOnly);
+            img.save(&buffer, "PNG");
+            itemType = "image";
+            title = "[拖入图片] " + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+            content = "[Image Data]";
+        }
+    } else if (mime->hasText()) {
+        content = mime->text();
+        title = content.trimmed().left(50).replace("\n", " ");
+        itemType = "text";
+    }
+
+    if (!content.isEmpty() || !dataBlob.isEmpty()) {
+        DatabaseManager::instance().addNote(title, content, tags, "", targetId, itemType, dataBlob);
+        event->acceptProposedAction();
+    }
 }
 
 void QuickWindow::hideEvent(QHideEvent* event) {
