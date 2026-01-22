@@ -592,7 +592,8 @@ void QuickWindow::setupShortcuts() {
         new QShortcut(QKeySequence(QString("Ctrl+%1").arg(i)), this, [this, i](){ doSetRating(i); });
     }
     
-    new QShortcut(QKeySequence(Qt::Key_Space), this, [this](){ doPreview(); });
+    auto* spaceShortcut = new QShortcut(QKeySequence(Qt::Key_Space), this, [this](){ doPreview(); });
+    spaceShortcut->setContext(Qt::WindowShortcut);
 }
 
 void QuickWindow::refreshData() {
@@ -1373,10 +1374,6 @@ bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
         }
         if (keyEvent->key() == Qt::Key_Escape) {
             hide();
-            return true;
-        }
-        if (keyEvent->key() == Qt::Key_Space && !keyEvent->isAutoRepeat()) {
-            doPreview();
             return true;
         }
     }

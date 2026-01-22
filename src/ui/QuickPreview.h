@@ -104,8 +104,10 @@ public:
         resize(900, 700);
 
         // 使用快捷键处理关闭逻辑，比 keyPressEvent 更可靠
-        new QShortcut(QKeySequence(Qt::Key_Space), this, [this](){ hide(); });
-        new QShortcut(QKeySequence(Qt::Key_Escape), this, [this](){ hide(); });
+        auto* spaceShortcut = new QShortcut(QKeySequence(Qt::Key_Space), this, [this](){ hide(); });
+        spaceShortcut->setContext(Qt::WindowShortcut);
+        auto* escShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), this, [this](){ hide(); });
+        escShortcut->setContext(Qt::WindowShortcut);
     }
 
     void showPreview(int noteId, const QString& title, const QString& content, const QPoint& pos) {
