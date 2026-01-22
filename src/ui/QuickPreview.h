@@ -13,6 +13,7 @@
 #include <QApplication>
 #include <QFrame>
 #include <QShortcut>
+#include <QAction>
 #include "IconHelper.h"
 
 class QuickPreview : public QWidget {
@@ -67,9 +68,13 @@ public:
         };
 
         QPushButton* btnEdit = createBtn("edit", "编辑 (Ctrl+B)");
+        btnEdit->setFocusPolicy(Qt::NoFocus);
         QPushButton* btnMin = createBtn("minimize", "最小化");
+        btnMin->setFocusPolicy(Qt::NoFocus);
         QPushButton* btnMax = createBtn("maximize", "最大化");
+        btnMax->setFocusPolicy(Qt::NoFocus);
         QPushButton* btnClose = createBtn("close", "关闭", "btnClose");
+        btnClose->setFocusPolicy(Qt::NoFocus);
 
         connect(btnEdit, &QPushButton::clicked, [this]() {
             emit editRequested(m_currentNoteId);
@@ -103,11 +108,18 @@ public:
         
         resize(900, 700);
 
-        // 使用快捷键处理关闭逻辑，比 keyPressEvent 更可靠
-        auto* spaceShortcut = new QShortcut(QKeySequence(Qt::Key_Space), this, [this](){ hide(); });
-        spaceShortcut->setContext(Qt::WindowShortcut);
-        auto* escShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), this, [this](){ hide(); });
-        escShortcut->setContext(Qt::WindowShortcut);
+        // 使用 QAction 绑定快捷键，比 QShortcut 在复杂焦点环境下更稳定
+        QAction* spaceAction = new QAction(this);
+        spaceAction->setShortcut(QKeySequence(Qt::Key_Space));
+        spaceAction->setShortcutContext(Qt::WindowShortcut);
+        connect(spaceAction, &QAction::triggered, this, &QuickPreview::hide);
+        addAction(spaceAction);
+
+        QAction* escAction = new QAction(this);
+        escAction->setShortcut(QKeySequence(Qt::Key_Escape));
+        escAction->setShortcutContext(Qt::WindowShortcut);
+        connect(escAction, &QAction::triggered, this, &QuickPreview::hide);
+        addAction(escAction);
     }
 
     void showPreview(int noteId, const QString& title, const QString& content, const QPoint& pos) {

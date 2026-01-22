@@ -592,8 +592,18 @@ void QuickWindow::setupShortcuts() {
         new QShortcut(QKeySequence(QString("Ctrl+%1").arg(i)), this, [this, i](){ doSetRating(i); });
     }
     
-    auto* spaceShortcut = new QShortcut(QKeySequence(Qt::Key_Space), this, [this](){ doPreview(); });
-    spaceShortcut->setContext(Qt::WindowShortcut);
+    // 使用 QAction 绑定快捷键，确保在列表/侧边栏焦点下依然能全局触发
+    QAction* spaceAction = new QAction(this);
+    spaceAction->setShortcut(QKeySequence(Qt::Key_Space));
+    spaceAction->setShortcutContext(Qt::WindowShortcut);
+    connect(spaceAction, &QAction::triggered, this, &QuickWindow::doPreview);
+    addAction(spaceAction);
+
+    QAction* escAction = new QAction(this);
+    escAction->setShortcut(QKeySequence(Qt::Key_Escape));
+    escAction->setShortcutContext(Qt::WindowShortcut);
+    connect(escAction, &QAction::triggered, this, &QuickWindow::hide);
+    addAction(escAction);
 }
 
 void QuickWindow::refreshData() {
@@ -1370,10 +1380,6 @@ bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
         if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
             activateNote(m_listView->currentIndex());
-            return true;
-        }
-        if (keyEvent->key() == Qt::Key_Escape) {
-            hide();
             return true;
         }
     }
