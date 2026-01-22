@@ -232,13 +232,18 @@ void QuickWindow::initUI() {
     auto onNotesDropped = [this](const QList<int>& ids, const QModelIndex& targetIndex) {
         if (!targetIndex.isValid()) return;
         QString type = targetIndex.data(CategoryModel::TypeRole).toString();
-        for (int id : ids) {
-            if (type == "category") {
-                int catId = targetIndex.data(CategoryModel::IdRole).toInt();
-                DatabaseManager::instance().updateNoteState(id, "category_id", catId);
-            } else if (type == "bookmark") DatabaseManager::instance().updateNoteState(id, "is_favorite", 1);
-            else if (type == "trash") DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
-            else if (type == "uncategorized") DatabaseManager::instance().updateNoteState(id, "category_id", QVariant());
+
+        if (type == "category") {
+            int catId = targetIndex.data(CategoryModel::IdRole).toInt();
+            // 使用 moveNotesToCategory，它会自动处理 is_deleted=0 的恢复逻辑
+            DatabaseManager::instance().moveNotesToCategory(ids, catId);
+        } else if (type == "uncategorized") {
+            DatabaseManager::instance().moveNotesToCategory(ids, -1);
+        } else {
+            for (int id : ids) {
+                if (type == "bookmark") DatabaseManager::instance().updateNoteState(id, "is_favorite", 1);
+                else if (type == "trash") DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
+            }
         }
         refreshData();
     };
@@ -1001,6 +1006,12 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
             }
         });
     } else if (type == "trash") {
+        menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "恢复全部到未分类", [this]() {
+            if (DatabaseManager::instance().restoreAllFromTrash()) {
+                refreshData();
+            }
+        });
+        menu.addSeparator();
         menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "清空回收站", [this]() {
             if (QMessageBox::question(this, "确认清空", "确定要永久删除回收站中的所有内容吗？") == QMessageBox::Yes) {
                 DatabaseManager::instance().emptyTrash();

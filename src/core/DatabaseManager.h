@@ -39,6 +39,7 @@ public:
     bool deleteCategory(int id);
     QList<QVariantMap> getAllCategories();
     bool emptyTrash();
+    bool restoreAllFromTrash();
 
     // 预设标签
     bool setCategoryPresetTags(int catId, const QString& tags);

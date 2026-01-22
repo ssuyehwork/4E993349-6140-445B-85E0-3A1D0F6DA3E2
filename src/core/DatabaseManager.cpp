@@ -779,6 +779,22 @@ bool DatabaseManager::emptyTrash() {
     return query.exec("DELETE FROM notes WHERE is_deleted = 1 AND (tags IS NULL OR tags = '') AND is_favorite = 0 AND is_locked = 0");
 }
 
+bool DatabaseManager::restoreAllFromTrash() {
+    bool success = false;
+    QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
+        QSqlQuery query(m_db);
+        // 恢复所有已删除项：设为未分类(NULL)，恢复未分类色(#0A362F)，is_deleted设为0
+        query.prepare("UPDATE notes SET is_deleted = 0, category_id = NULL, color = '#0A362F', updated_at = :now WHERE is_deleted = 1");
+        query.bindValue(":now", currentTime);
+        success = query.exec();
+    }
+    if (success) emit noteUpdated();
+    return success;
+}
+
 bool DatabaseManager::setCategoryPresetTags(int catId, const QString& tags) {
     QMutexLocker locker(&m_mutex);
     if (!m_db.isOpen()) return false;
