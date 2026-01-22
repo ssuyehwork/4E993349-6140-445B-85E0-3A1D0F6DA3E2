@@ -1197,10 +1197,18 @@ bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
 }
 
 void DittoListView::startDrag(Qt::DropActions supportedActions) {
-    // 深度对齐 Ditto：禁用笨重的快照卡片 Pixmap
-    // 这样在拖拽时不会出现遮挡视线的虚影卡片，仅保留光标反馈
+    // 深度对齐 Ditto：禁用笨重的快照卡片 Pixmap，保持视觉清爽
     QDrag* drag = new QDrag(this);
     drag->setMimeData(model()->mimeData(selectedIndexes()));
-    // 不调用 setPixmap，即保持轻量化
-    drag->exec(supportedActions);
+
+    // 【深度修复】提供 1x1 透明占位符。
+    // 许多现代应用（如 Chrome）在 Windows 上执行 DND 时会验证拖拽图像。
+    // 如果完全没有 Pixmap，投放信号可能无法在网页输入框触发。
+    QPixmap pix(1, 1);
+    pix.fill(Qt::transparent);
+    drag->setPixmap(pix);
+
+    // 【核心修复】显式指定默认动作为 CopyAction。
+    // 许多外部应用（特别是网页浏览器）需要明确的 Copy 握手信号。
+    drag->exec(Qt::CopyAction | Qt::MoveAction, Qt::CopyAction);
 }

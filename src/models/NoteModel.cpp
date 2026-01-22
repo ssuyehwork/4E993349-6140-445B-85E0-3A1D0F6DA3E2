@@ -181,7 +181,8 @@ Qt::ItemFlags NoteModel::flags(const QModelIndex& index) const {
 }
 
 QStringList NoteModel::mimeTypes() const {
-    return {"application/x-note-ids", "text/plain", "text/html", "text/uri-list"};
+    // 【核心修复】优先级调整：text/plain 必须放在第一位，确保浏览器等外部应用优先识别
+    return {"text/plain", "text/html", "text/uri-list", "application/x-note-ids"};
 }
 
 QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
@@ -214,10 +215,20 @@ QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
 
     mimeData->setData("application/x-note-ids", ids.join(",").toUtf8());
     if (!texts.isEmpty()) {
-        QString plainText = texts.join("\n---\n");
+        // 【核心修复】使用 Windows 标准换行符 \r\n，这是 100% 兼容网页输入框的关键
+        QString plainText = texts.join("\n---\n").replace("\n", "\r\n");
         mimeData->setText(plainText);
-        // 深度对齐专业工具：增加 HTML 格式支持，大幅提升浏览器/富文本编辑器的兼容性
-        mimeData->setHtml(plainText.toHtmlEscaped().replace("\n", "<br>"));
+
+        // 深度对齐专业工具：增加标准的 HTML 5 片段包裹，提升与网页富文本编辑器的兼容性
+        QString htmlContent = QString(
+            "<html>"
+            "<head><meta charset='utf-8'></head>"
+            "<body>"
+            "<div>%1</div>"
+            "</body>"
+            "</html>"
+        ).arg(plainText.toHtmlEscaped().replace("\r\n", "<br>"));
+        mimeData->setHtml(htmlContent);
     }
     if (!urls.isEmpty()) {
         mimeData->setUrls(urls);
