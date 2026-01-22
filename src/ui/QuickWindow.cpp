@@ -110,7 +110,6 @@ void QuickWindow::initUI() {
 
     auto* container = new QWidget();
     container->setObjectName("container");
-    container->setCursor(Qt::ArrowCursor); // 【核心强悍化】强制内容区光标，物理隔离缩放箭头
     container->setMouseTracking(true); // 确保容器不阻断鼠标追踪
     container->setStyleSheet(
         "QWidget#container { background: #1E1E1E; border-radius: 10px; border: 1px solid #333; }"
@@ -984,36 +983,41 @@ bool QuickWindow::event(QEvent* event) {
     return QWidget::event(event);
 }
 
-// 【强悍版】鼠标按下事件：通过数学判定物理隔离内容区与缩放边距
 void QuickWindow::mousePressEvent(QMouseEvent* event) {
-    // 优先判定缩放区域。若返回 0，说明在 10px 边距内（即内容容器范围内）
-    m_resizeArea = getResizeArea(event->pos());
-
-    if (m_resizeArea == 0) {
-        // 在内容区域内，绝对禁止窗口移动/调整大小，交给子控件处理
-        QWidget::mousePressEvent(event);
-        return;
-    }
-
     if (event->button() == Qt::LeftButton) {
-        if (m_resizeArea != 0) {
-            m_resizeStartPos = event->globalPosition().toPoint();
-            m_resizeStartGeometry = frameGeometry();
-            event->accept();
-        } else {
-            if (auto* handle = windowHandle()) {
-                handle->startSystemMove();
+        // 【核心修复】检查是否在10px边距区域
+        int x = event->pos().x();
+        int y = event->pos().y();
+        int w = width();
+        int h = height();
+
+        bool inMarginArea = (x < 10 || x > w - 10 || y < 10 || y > h - 10);
+
+        if (inMarginArea) {
+            // 在边距区域，启动调整大小
+            m_resizeArea = getResizeArea(event->pos());
+            if (m_resizeArea != 0) {
+                m_resizeStartPos = event->globalPosition().toPoint();
+                m_resizeStartGeometry = frameGeometry();
+                event->accept();
+                return;
             }
-            event->accept();
         }
+
+        // 不在边距区域，启动移动窗口（只有点击空白处时）
+        if (auto* handle = windowHandle()) {
+            handle->startSystemMove();
+        }
+        event->accept();
     }
 }
 
 void QuickWindow::mouseMoveEvent(QMouseEvent* event) {
-    // 1. 如果正在执行缩放，继续处理
+    // 如果正在拖拽改变大小，继续执行
     if (event->buttons() & Qt::LeftButton && m_resizeArea != 0) {
         QPoint delta = event->globalPosition().toPoint() - m_resizeStartPos;
         QRect newGeom = m_resizeStartGeometry;
+
         if (m_resizeArea & 0x1) newGeom.setLeft(m_resizeStartGeometry.left() + delta.x());
         if (m_resizeArea & 0x2) newGeom.setRight(m_resizeStartGeometry.right() + delta.x());
         if (m_resizeArea & 0x4) newGeom.setTop(m_resizeStartGeometry.top() + delta.y());
@@ -1026,15 +1030,18 @@ void QuickWindow::mouseMoveEvent(QMouseEvent* event) {
         return;
     }
 
-    // 2. 正常移动时，根据 getResizeArea 结果（10px 边距）判定光标状态
-    int area = getResizeArea(event->pos());
-    if (area != 0) {
-        // 确实在 10px 边距区域
-        if (event->buttons() == Qt::NoButton) {
-            setCursorShape(area);
-        }
+    // 【核心修复】检查是否在10px边距区域
+    int x = event->pos().x();
+    int y = event->pos().y();
+    int w = width();
+    int h = height();
+
+    // 只有在10px边距区域才显示调整大小光标
+    bool inMarginArea = (x < 10 || x > w - 10 || y < 10 || y > h - 10);
+
+    if (inMarginArea && event->buttons() == Qt::NoButton) {
+        setCursorShape(getResizeArea(event->pos()));
     } else {
-        // 在内容区域：强制重置为普通箭头，并清除所有缩放状态
         setCursor(Qt::ArrowCursor);
         m_resizeArea = 0;
     }
