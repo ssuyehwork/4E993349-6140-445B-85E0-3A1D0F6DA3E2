@@ -232,15 +232,20 @@ void QuickWindow::initUI() {
     auto onNotesDropped = [this](const QList<int>& ids, const QModelIndex& targetIndex) {
         if (!targetIndex.isValid()) return;
         QString type = targetIndex.data(CategoryModel::TypeRole).toString();
-        for (int id : ids) {
-            if (type == "category") {
-                int catId = targetIndex.data(CategoryModel::IdRole).toInt();
-                DatabaseManager::instance().updateNoteState(id, "category_id", catId);
-            } else if (type == "bookmark") DatabaseManager::instance().updateNoteState(id, "is_favorite", 1);
-            else if (type == "trash") DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
-            else if (type == "uncategorized") DatabaseManager::instance().updateNoteState(id, "category_id", QVariant());
+        
+        if (type == "category") {
+            int catId = targetIndex.data(CategoryModel::IdRole).toInt();
+            DatabaseManager::instance().moveNotesToCategory(ids, catId);
+        } else if (type == "uncategorized") {
+            DatabaseManager::instance().moveNotesToCategory(ids, -1);
+        } else {
+            for (int id : ids) {
+                if (type == "bookmark") DatabaseManager::instance().updateNoteState(id, "is_favorite", 1);
+                else if (type == "trash") DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
+            }
         }
         refreshData();
+        refreshSidebar();
     };
     connect(m_systemTree, &DropTreeView::notesDropped, [this, onNotesDropped](const QList<int>& ids, const QModelIndex& idx){ onNotesDropped(ids, idx); });
     connect(m_partitionTree, &DropTreeView::notesDropped, [this, onNotesDropped](const QList<int>& ids, const QModelIndex& idx){ onNotesDropped(ids, idx); });
@@ -408,7 +413,7 @@ void QuickWindow::initUI() {
     mainLayout->addWidget(container);
     
     // 初始大小和最小大小
-    resize(830, 630);
+    resize(900, 630);
     setMinimumSize(400, 300);
 
     m_quickPreview = new QuickPreview(this);
@@ -468,7 +473,8 @@ void QuickWindow::restoreState() {
 
 void QuickWindow::setupShortcuts() {
     new QShortcut(QKeySequence("Ctrl+F"), this, [this](){ m_searchEdit->setFocus(); m_searchEdit->selectAll(); });
-    new QShortcut(QKeySequence("Delete"), this, [this](){ doDeleteSelected(); });
+    new QShortcut(QKeySequence("Delete"), this, [this](){ doDeleteSelected(false); });
+    new QShortcut(QKeySequence("Ctrl+Shift+Delete"), this, [this](){ doDeleteSelected(true); });
     new QShortcut(QKeySequence("Ctrl+E"), this, [this](){ doToggleFavorite(); });
     new QShortcut(QKeySequence("Ctrl+P"), this, [this](){ doTogglePin(); });
     new QShortcut(QKeySequence("Ctrl+W"), this, [this](){ hide(); });
@@ -614,32 +620,43 @@ void QuickWindow::activateNote(const QModelIndex& index) {
         }
 
         DWORD lastThread = m_lastThreadId;
-        QTimer::singleShot(200, [lastThread, attached]() {
-            // 1. 强制清理当前可能的修饰键干扰状态 (如用户双击时正按着某些键)
-            keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
-            keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
-            keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
+        QTimer::singleShot(300, [lastThread, attached]() {
+            // 1. 使用 SendInput 强制清理所有修饰键状态 (L/R Ctrl, Shift, Alt, Win)
+            // 替换旧的 keybd_event，确保清理逻辑更原子化
+            INPUT releaseInputs[8];
+            memset(releaseInputs, 0, sizeof(releaseInputs));
+            BYTE keys[] = { VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN };
+            for (int i = 0; i < 8; ++i) {
+                releaseInputs[i].type = INPUT_KEYBOARD;
+                releaseInputs[i].ki.wVk = keys[i];
+                releaseInputs[i].ki.dwFlags = KEYEVENTF_KEYUP;
+            }
+            SendInput(8, releaseInputs, sizeof(INPUT));
 
-            // 2. 使用 SendInput 原子化发送 Ctrl+V 序列，对齐 Ditto 的专业实现
+            // 2. 使用 SendInput 发送 Ctrl+V 序列 (显式指定 VK_LCONTROL 提高兼容性)
             INPUT inputs[4];
             memset(inputs, 0, sizeof(inputs));
 
             // Ctrl 按下
             inputs[0].type = INPUT_KEYBOARD;
-            inputs[0].ki.wVk = VK_CONTROL;
+            inputs[0].ki.wVk = VK_LCONTROL;
+            inputs[0].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
 
             // V 按下
             inputs[1].type = INPUT_KEYBOARD;
             inputs[1].ki.wVk = 'V';
+            inputs[1].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
 
             // V 抬起
             inputs[2].type = INPUT_KEYBOARD;
             inputs[2].ki.wVk = 'V';
+            inputs[2].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
             inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
 
             // Ctrl 抬起
             inputs[3].type = INPUT_KEYBOARD;
-            inputs[3].ki.wVk = VK_CONTROL;
+            inputs[3].ki.wVk = VK_LCONTROL;
+            inputs[3].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
             inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
 
             SendInput(4, inputs, sizeof(INPUT));
@@ -653,17 +670,69 @@ void QuickWindow::activateNote(const QModelIndex& index) {
 #endif
 }
 
-void QuickWindow::doDeleteSelected() {
+void QuickWindow::doDeleteSelected(bool physical) {
     auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
-    QList<int> ids;
-    for (const auto& index : selected) {
-        if (!index.data(NoteModel::LockedRole).toBool()) {
-            ids << index.data(NoteModel::IdRole).toInt();
+
+    bool inTrash = (m_currentFilterType == "trash");
+    
+    if (physical || inTrash) {
+        // 物理删除前检查保护
+        QList<int> idsToDelete;
+        int protectedCount = 0;
+        for (const auto& index : selected) {
+            bool locked = index.data(NoteModel::LockedRole).toBool();
+            bool favorite = index.data(NoteModel::FavoriteRole).toBool();
+            QString tags = index.data(NoteModel::TagsRole).toString();
+            
+            if (locked || favorite || !tags.isEmpty()) {
+                protectedCount++;
+            } else {
+                idsToDelete << index.data(NoteModel::IdRole).toInt();
+            }
         }
+
+        if (idsToDelete.isEmpty()) {
+            if (protectedCount > 0) {
+                QMessageBox::warning(this, "删除失败", "选中的数据处于保护状态（已锁定、已收藏或带有标签），无法物理删除。");
+            }
+            return;
+        }
+
+        QString msg = QString("确定要从数据库中永久删除选中的 %1 条数据吗？此操作不可逆。").arg(idsToDelete.size());
+        if (protectedCount > 0) {
+            msg += QString("\n\n(注意：另有 %1 条受保护的数据将被跳过)").arg(protectedCount);
+        }
+
+        if (QMessageBox::question(this, "确认永久删除", msg, QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes) 
+        {
+            for (int id : idsToDelete) {
+                DatabaseManager::instance().deleteNote(id);
+            }
+            refreshData();
+            refreshSidebar();
+        }
+    } else {
+        // 移入回收站 (一级删除)，静默且无视保护
+        QList<int> ids;
+        for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+        DatabaseManager::instance().updateNoteStateBatch(ids, "is_deleted", 1);
+        refreshData();
+        refreshSidebar();
     }
-    DatabaseManager::instance().updateNoteStateBatch(ids, "is_deleted", 1);
-    refreshData();
+}
+
+void QuickWindow::doRestoreTrash() {
+    // 恢复所有回收站数据到未分类
+    QList<QVariantMap> trashNotes = DatabaseManager::instance().searchNotes("", "trash");
+    QList<int> ids;
+    for (const auto& note : trashNotes) ids << note["id"].toInt();
+    
+    if (!ids.isEmpty()) {
+        DatabaseManager::instance().moveNotesToCategory(ids, -1); // moveNotesToCategory 会重置 is_deleted=0
+        refreshData();
+        refreshSidebar();
+    }
 }
 
 void QuickWindow::doToggleFavorite() {
@@ -742,12 +811,22 @@ void QuickWindow::doSetRating(int rating) {
 }
 
 void QuickWindow::doPreview() {
+    if (m_quickPreview->isVisible()) {
+        m_quickPreview->hide();
+        return;
+    }
     QModelIndex index = m_listView->currentIndex();
     if (!index.isValid()) return;
     int id = index.data(NoteModel::IdRole).toInt();
     QVariantMap note = DatabaseManager::instance().getNoteById(id);
     QPoint globalPos = m_listView->mapToGlobal(m_listView->rect().center()) - QPoint(250, 300);
-    m_quickPreview->showPreview(note["title"].toString(), note["content"].toString(), globalPos);
+    m_quickPreview->showPreview(
+        note["title"].toString(), 
+        note["content"].toString(), 
+        note["item_type"].toString(),
+        note["data_blob"].toByteArray(),
+        globalPos
+    );
 }
 
 void QuickWindow::toggleStayOnTop(bool checked) {
@@ -876,7 +955,18 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
     }
 
     menu.addSeparator();
-    menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "移至回收站 (Delete)", this, &QuickWindow::doDeleteSelected);
+    if (m_currentFilterType == "trash") {
+        menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "恢复 (还原到未分类)", [this, selected](){
+            QList<int> ids;
+            for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+            DatabaseManager::instance().moveNotesToCategory(ids, -1);
+            refreshData();
+            refreshSidebar();
+        });
+        menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "彻底删除 (不可逆)", [this](){ doDeleteSelected(true); });
+    } else {
+        menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "移至回收站 (Delete)", [this](){ doDeleteSelected(false); });
+    }
 
     menu.exec(m_listView->mapToGlobal(pos));
 }
@@ -951,10 +1041,13 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
             }
         });
     } else if (type == "trash") {
+        menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "全部恢复 (到未分类)", this, &QuickWindow::doRestoreTrash);
+        menu.addSeparator();
         menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "清空回收站", [this]() {
-            if (QMessageBox::question(this, "确认清空", "确定要永久删除回收站中的所有内容吗？") == QMessageBox::Yes) {
+            if (QMessageBox::question(this, "确认清空", "确定要永久删除回收站中的所有非保护内容吗？\n(受保护的项将继续保留)") == QMessageBox::Yes) {
                 DatabaseManager::instance().emptyTrash();
                 refreshData();
+                refreshSidebar();
             }
         });
     }
@@ -1183,14 +1276,8 @@ bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
             return true;
         }
         if (keyEvent->key() == Qt::Key_Space && !keyEvent->isAutoRepeat()) {
-            QModelIndex index = m_listView->currentIndex();
-            if (index.isValid()) {
-                int id = index.data(NoteModel::IdRole).toInt();
-                QVariantMap note = DatabaseManager::instance().getNoteById(id);
-                QPoint globalPos = m_listView->mapToGlobal(m_listView->rect().center()) - QPoint(250, 300);
-                m_quickPreview->showPreview(note["title"].toString(), note["content"].toString(), globalPos);
-                return true;
-            }
+            doPreview();
+            return true;
         }
     }
     return QWidget::eventFilter(watched, event);

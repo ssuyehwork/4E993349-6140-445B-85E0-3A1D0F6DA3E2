@@ -43,6 +43,16 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             QString iconColor = "#95a5a6";
 
             if (type == "image") {
+                int id = note.value("id").toInt();
+                if (m_thumbnailCache.contains(id)) return m_thumbnailCache[id];
+                
+                QImage img;
+                img.loadFromData(note.value("data_blob").toByteArray());
+                if (!img.isNull()) {
+                    QIcon thumb(QPixmap::fromImage(img.scaled(32, 32, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+                    m_thumbnailCache[id] = thumb;
+                    return thumb;
+                }
                 iconName = "image";
                 iconColor = "#9b59b6";
             } else if (type == "file" || type == "files") {
@@ -87,6 +97,9 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             return IconHelper::getIcon(iconName, iconColor, 32);
         }
         case Qt::ToolTipRole: {
+            int id = note.value("id").toInt();
+            if (m_tooltipCache.contains(id)) return m_tooltipCache[id];
+
             QString title = note.value("title").toString();
             QString content = note.value("content").toString();
             int catId = note.value("category_id").toInt();
@@ -112,11 +125,17 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             for(int i=0; i<rating; ++i) ratingStr += getIconHtml("star_filled", "#f39c12") + " ";
             if (ratingStr.isEmpty()) ratingStr = "无";
 
-            QString preview = content.left(400).toHtmlEscaped().replace("\n", "<br>").trimmed();
-            if (content.length() > 400) preview += "...";
+            QString preview;
+            if (note.value("item_type").toString() == "image") {
+                QByteArray ba = note.value("data_blob").toByteArray();
+                preview = QString("<img src='data:image/png;base64,%1' width='300'>").arg(QString(ba.toBase64()));
+            } else {
+                preview = content.left(400).toHtmlEscaped().replace("\n", "<br>").trimmed();
+                if (content.length() > 400) preview += "...";
+            }
             if (preview.isEmpty()) preview = title.toHtmlEscaped();
 
-            return QString("<html><body style='color: #ddd;'>"
+            QString html = QString("<html><body style='color: #ddd;'>"
                            "<table border='0' cellpadding='2' cellspacing='0'>"
                            "<tr><td width='22'>%1</td><td><b>分区:</b> %2</td></tr>"
                            "<tr><td width='22'>%3</td><td><b>标签:</b> %4</td></tr>"
@@ -131,8 +150,11 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
                      getIconHtml("tag", "#FFAB91"), tags,
                      getIconHtml("star", "#f39c12"), ratingStr,
                      getIconHtml("pin_tilted", "#aaa"), statusStr,
-                     getIconHtml("monitor", "#aaaaaa"), sourceApp,
-                     preview);
+                     getIconHtml("monitor", "#aaaaaa"))
+                .arg(sourceApp, preview);
+            
+            m_tooltipCache[id] = html;
+            return html;
         }
         case Qt::DisplayRole: {
             QString type = note.value("item_type").toString();
@@ -239,6 +261,8 @@ QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
 
 void NoteModel::setNotes(const QList<QVariantMap>& notes) {
     updateCategoryMap();
+    m_thumbnailCache.clear();
+    m_tooltipCache.clear();
     beginResetModel();
     m_notes = notes;
     endResetModel();
