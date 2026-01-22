@@ -15,6 +15,7 @@
 #include <QKeySequence>
 #include <QClipboard>
 #include <QMimeData>
+#include <QDrag>
 #include <QTimer>
 #include <QApplication>
 #include <QActionGroup>
@@ -30,7 +31,7 @@
 #include <QMessageBox>
 #include <QRandomGenerator>
 
-// 定义调整大小的边缘触发区域宽度
+// 定义调整大小的边缘触发区域宽度 (与边距一致)
 #define RESIZE_MARGIN 10 
 
 QuickWindow::QuickWindow(QWidget* parent) 
@@ -105,7 +106,8 @@ QuickWindow::QuickWindow(QWidget* parent)
 
 void QuickWindow::initUI() {
     auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(10, 10, 10, 10); // 缩小边距
+    // 【修改点1】边距调整为 10px，这也是调整窗口大小的触发区域
+    mainLayout->setContentsMargins(10, 10, 10, 10); 
 
     auto* container = new QWidget();
     container->setObjectName("container");
@@ -147,7 +149,7 @@ void QuickWindow::initUI() {
     m_splitter->setHandleWidth(4);
     m_splitter->setChildrenCollapsible(false);
     
-    m_listView = new QListView();
+    m_listView = new DittoListView();
     m_listView->setDragEnabled(true);
     m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_listView->setIconSize(QSize(28, 28));
@@ -173,6 +175,7 @@ void QuickWindow::initUI() {
     m_systemModel = new CategoryModel(CategoryModel::System, this);
     m_systemTree->setModel(m_systemModel);
     m_systemTree->setHeaderHidden(true);
+    m_systemTree->setMouseTracking(true);
     m_systemTree->setIndentation(12);
     m_systemTree->setFixedHeight(132); // 6 items * 22px = 132px
     m_systemTree->setEditTriggers(QAbstractItemView::NoEditTriggers); // 绝不可重命名
@@ -184,6 +187,7 @@ void QuickWindow::initUI() {
     m_partitionModel = new CategoryModel(CategoryModel::User, this);
     m_partitionTree->setModel(m_partitionModel);
     m_partitionTree->setHeaderHidden(true);
+    m_partitionTree->setMouseTracking(true);
     m_partitionTree->setIndentation(12);
     m_partitionTree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_partitionTree->expandAll();
@@ -409,6 +413,8 @@ void QuickWindow::initUI() {
 
     m_quickPreview = new QuickPreview(this);
     m_listView->installEventFilter(this);
+    m_systemTree->installEventFilter(this);
+    m_partitionTree->installEventFilter(this);
 
     // 搜索逻辑
     m_searchTimer = new QTimer(this);
@@ -609,12 +615,37 @@ void QuickWindow::activateNote(const QModelIndex& index) {
 
         DWORD lastThread = m_lastThreadId;
         QTimer::singleShot(200, [lastThread, attached]() {
-            keybd_event(VK_CONTROL, 0, 0, 0);
-            keybd_event('V', 0, 0, 0);
-            keybd_event('V', 0, KEYEVENTF_KEYUP, 0);
+            // 1. 强制清理当前可能的修饰键干扰状态 (如用户双击时正按着某些键)
             keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+            keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
+            keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
+
+            // 2. 使用 SendInput 原子化发送 Ctrl+V 序列，对齐 Ditto 的专业实现
+            INPUT inputs[4];
+            memset(inputs, 0, sizeof(inputs));
+
+            // Ctrl 按下
+            inputs[0].type = INPUT_KEYBOARD;
+            inputs[0].ki.wVk = VK_CONTROL;
+
+            // V 按下
+            inputs[1].type = INPUT_KEYBOARD;
+            inputs[1].ki.wVk = 'V';
+
+            // V 抬起
+            inputs[2].type = INPUT_KEYBOARD;
+            inputs[2].ki.wVk = 'V';
+            inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+
+            // Ctrl 抬起
+            inputs[3].type = INPUT_KEYBOARD;
+            inputs[3].ki.wVk = VK_CONTROL;
+            inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+
+            SendInput(4, inputs, sizeof(INPUT));
 
             if (attached) {
+                // 确保按键消息推入后再分离线程
                 AttachThreadInput(GetCurrentThreadId(), lastThread, FALSE);
             }
         });
@@ -978,53 +1009,60 @@ void QuickWindow::showCentered() {
     m_searchEdit->selectAll();
 }
 
+#ifdef Q_OS_WIN
+bool QuickWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr *result) {
+    MSG* msg = static_cast<MSG*>(message);
+    if (msg->message == WM_NCHITTEST) {
+        // 原生边缘检测，实现丝滑的双向箭头缩放体验
+        int x = GET_X_LPARAM(msg->lParam);
+        int y = GET_Y_LPARAM(msg->lParam);
+        
+        // 转换为本地坐标
+        QPoint pos = mapFromGlobal(QPoint(x, y));
+        int margin = RESIZE_MARGIN;
+        int w = width();
+        int h = height();
+
+        bool left = pos.x() < margin;
+        bool right = pos.x() > w - margin;
+        bool top = pos.y() < margin;
+        bool bottom = pos.y() > h - margin;
+
+        if (top && left) *result = HTTOPLEFT;
+        else if (top && right) *result = HTTOPRIGHT;
+        else if (bottom && left) *result = HTBOTTOMLEFT;
+        else if (bottom && right) *result = HTBOTTOMRIGHT;
+        else if (top) *result = HTTOP;
+        else if (bottom) *result = HTBOTTOM;
+        else if (left) *result = HTLEFT;
+        else if (right) *result = HTRIGHT;
+        else return QWidget::nativeEvent(eventType, message, result);
+
+        return true;
+    }
+    return QWidget::nativeEvent(eventType, message, result);
+}
+#endif
+
 bool QuickWindow::event(QEvent* event) {
     return QWidget::event(event);
 }
 
 void QuickWindow::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        m_resizeArea = getResizeArea(event->pos());
-        if (m_resizeArea != 0) {
-            m_resizeStartPos = event->globalPosition().toPoint();
-            m_resizeStartGeometry = frameGeometry();
-            event->accept();
-        } else {
-            if (auto* handle = windowHandle()) {
-                handle->startSystemMove();
-            }
-            event->accept();
+        // 不在边距区域，启动移动窗口（只有点击空白处时）
+        if (auto* handle = windowHandle()) {
+            handle->startSystemMove();
         }
+        event->accept();
     }
 }
 
 void QuickWindow::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() == Qt::NoButton) {
-        setCursorShape(getResizeArea(event->pos()));
-    } 
-    else if (event->buttons() & Qt::LeftButton) {
-        if (m_resizeArea != 0) {
-            QPoint delta = event->globalPosition().toPoint() - m_resizeStartPos;
-            QRect newGeom = m_resizeStartGeometry;
-            
-            if (m_resizeArea & 0x1) newGeom.setLeft(m_resizeStartGeometry.left() + delta.x());
-            if (m_resizeArea & 0x2) newGeom.setRight(m_resizeStartGeometry.right() + delta.x());
-            if (m_resizeArea & 0x4) newGeom.setTop(m_resizeStartGeometry.top() + delta.y());
-            if (m_resizeArea & 0x8) newGeom.setBottom(m_resizeStartGeometry.bottom() + delta.y());
-            
-            if (newGeom.width() >= minimumWidth() && newGeom.height() >= minimumHeight()) {
-                setGeometry(newGeom);
-            }
-            event->accept();
-            return;
-        }
-    }
     QWidget::mouseMoveEvent(event);
 }
 
 void QuickWindow::mouseReleaseEvent(QMouseEvent* event) {
-    m_resizeArea = 0;
-    setCursor(Qt::ArrowCursor);
     QWidget::mouseReleaseEvent(event);
 }
 
@@ -1103,17 +1141,6 @@ void QuickWindow::hideEvent(QHideEvent* event) {
     QWidget::hideEvent(event);
 }
 
-int QuickWindow::getResizeArea(const QPoint& pos) {
-    int area = 0;
-    int x = pos.x();
-    int y = pos.y();
-    if (x < RESIZE_MARGIN) area |= 0x1;
-    else if (x > width() - RESIZE_MARGIN) area |= 0x2;
-    if (y < RESIZE_MARGIN) area |= 0x4;
-    else if (y > height() - RESIZE_MARGIN) area |= 0x8;
-    return area;
-}
-
 void QuickWindow::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_Escape) {
         hide();
@@ -1122,15 +1149,29 @@ void QuickWindow::keyPressEvent(QKeyEvent* event) {
     QWidget::keyPressEvent(event);
 }
 
-void QuickWindow::setCursorShape(int area) {
-    if (area == 0) setCursor(Qt::ArrowCursor);
-    else if ((area & 0x1 && area & 0x4) || (area & 0x2 && area & 0x8)) setCursor(Qt::SizeFDiagCursor);
-    else if ((area & 0x2 && area & 0x4) || (area & 0x1 && area & 0x8)) setCursor(Qt::SizeBDiagCursor);
-    else if (area & 0x1 || area & 0x2) setCursor(Qt::SizeHorCursor);
-    else if (area & 0x4 || area & 0x8) setCursor(Qt::SizeVerCursor);
-}
-
 bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
+    // 逻辑 1: 鼠标移动到列表或侧边栏范围内，立即恢复正常光标
+    if (watched == m_listView || watched == m_systemTree || watched == m_partitionTree) {
+        if (event->type() == QEvent::MouseMove || event->type() == QEvent::Enter) {
+            setCursor(Qt::ArrowCursor);
+        }
+    }
+
+    // 逻辑 2: 侧边栏点击分类且不释放左键时，显示手指光标
+    if (watched == m_systemTree || watched == m_partitionTree) {
+        if (event->type() == QEvent::MouseButtonPress) {
+            QMouseEvent* me = static_cast<QMouseEvent*>(event);
+            if (me->button() == Qt::LeftButton) {
+                QTreeView* tree = qobject_cast<QTreeView*>(watched);
+                if (tree && tree->indexAt(me->pos()).isValid()) {
+                    setCursor(Qt::PointingHandCursor);
+                }
+            }
+        } else if (event->type() == QEvent::MouseButtonRelease) {
+            setCursor(Qt::ArrowCursor);
+        }
+    }
+
     if (watched == m_listView && event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
         if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
@@ -1153,4 +1194,13 @@ bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
         }
     }
     return QWidget::eventFilter(watched, event);
+}
+
+void DittoListView::startDrag(Qt::DropActions supportedActions) {
+    // 深度对齐 Ditto：禁用笨重的快照卡片 Pixmap
+    // 这样在拖拽时不会出现遮挡视线的虚影卡片，仅保留光标反馈
+    QDrag* drag = new QDrag(this);
+    drag->setMimeData(model()->mimeData(selectedIndexes()));
+    // 不调用 setPixmap，即保持轻量化
+    drag->exec(supportedActions);
 }

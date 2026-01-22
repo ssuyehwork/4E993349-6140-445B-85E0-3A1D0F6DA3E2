@@ -19,7 +19,17 @@
 
 #ifdef Q_OS_WIN
 #include <windows.h>
+#include <windowsx.h>
 #endif
+
+// 自定义列表视图，实现 Ditto 风格的轻量化拖拽
+class DittoListView : public QListView {
+    Q_OBJECT
+public:
+    using QListView::QListView;
+protected:
+    void startDrag(Qt::DropActions supportedActions) override;
+};
 
 class QuickWindow : public QWidget {
     Q_OBJECT
@@ -37,6 +47,9 @@ signals:
     void toolboxRequested();
 
 protected:
+#ifdef Q_OS_WIN
+    bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
+#endif
     bool event(QEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
@@ -55,9 +68,6 @@ private:
     void updatePartitionStatus(const QString& name);
     void refreshSidebar();
     void applyListTheme(const QString& colorHex);
-    int getResizeArea(const QPoint& pos);
-    void setCursorShape(int area);
-
 public:
     QString currentCategoryColor() const { return m_currentCategoryColor; }
 
@@ -98,11 +108,6 @@ public:
     QString m_currentFilterType = "all";
     int m_currentFilterValue = -1;
     QString m_currentCategoryColor = "#4a90e2"; // 默认蓝色
-
-    int m_resizeArea = 0;
-    QPoint m_resizeStartPos;
-    QRect m_resizeStartGeometry;
-    static const int RESIZE_MARGIN = 15;
 
 #ifdef Q_OS_WIN
     HWND m_lastActiveHwnd = nullptr;
