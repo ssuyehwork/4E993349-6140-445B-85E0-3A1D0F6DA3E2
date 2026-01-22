@@ -833,12 +833,29 @@ void QuickWindow::doSetRating(int rating) {
 }
 
 void QuickWindow::doPreview() {
+    // 切换逻辑：如果已经显示，则隐藏
+    if (m_quickPreview->isVisible()) {
+        m_quickPreview->hide();
+        return;
+    }
+
     QModelIndex index = m_listView->currentIndex();
     if (!index.isValid()) return;
+
     int id = index.data(NoteModel::IdRole).toInt();
+    // 核心修复：必须获取包含 data_blob 的完整记录
     QVariantMap note = DatabaseManager::instance().getNoteById(id);
-    QPoint globalPos = m_listView->mapToGlobal(m_listView->rect().center()) - QPoint(250, 300);
-    m_quickPreview->showPreview(note["title"].toString(), note["content"].toString(), globalPos);
+
+    // 定位在列表右侧或居中
+    QPoint globalPos = m_listView->mapToGlobal(m_listView->rect().topRight()) + QPoint(20, 0);
+
+    m_quickPreview->showPreview(
+        note["title"].toString(),
+        note["content"].toString(),
+        note["item_type"].toString(),
+        note["data_blob"].toByteArray(),
+        globalPos
+    );
 }
 
 void QuickWindow::toggleStayOnTop(bool checked) {
@@ -1284,14 +1301,8 @@ bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
             return true;
         }
         if (keyEvent->key() == Qt::Key_Space && !keyEvent->isAutoRepeat()) {
-            QModelIndex index = m_listView->currentIndex();
-            if (index.isValid()) {
-                int id = index.data(NoteModel::IdRole).toInt();
-                QVariantMap note = DatabaseManager::instance().getNoteById(id);
-                QPoint globalPos = m_listView->mapToGlobal(m_listView->rect().center()) - QPoint(250, 300);
-                m_quickPreview->showPreview(note["title"].toString(), note["content"].toString(), globalPos);
-                return true;
-            }
+            doPreview();
+            return true;
         }
     }
     return QWidget::eventFilter(watched, event);
