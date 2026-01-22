@@ -39,17 +39,20 @@ public:
     }
 
     void showPreview(const QString& title, const QString& content, const QString& type, const QByteArray& data, const QPoint& pos) {
+        QString html;
+        QString titleHtml = QString("<h3 style='color: #eee; margin-bottom: 5px;'>%1</h3>").arg(title.toHtmlEscaped());
+        QString hrHtml = "<hr style='border: 0; border-top: 1px solid #444; margin: 10px 0;'>";
+
         if (type == "image" && !data.isEmpty()) {
-            QString html = QString("<h2>%1</h2><hr/><img src='data:image/png;base64,%2' width='450'>")
-                           .arg(title, QString(data.toBase64()));
-            m_textEdit->setHtml(html);
+            html = QString("%1%2<div style='text-align: center;'><img src='data:image/png;base64,%3' width='450'></div>")
+                   .arg(titleHtml, hrHtml, QString(data.toBase64()));
         } else {
-            QString formattedContent = content;
+            QString formattedContent = content.toHtmlEscaped();
             formattedContent.replace("\n", "<br>");
-            QString html = QString("<h2>%1</h2><hr/><div style='line-height: 1.5;'>%2</div>")
-                           .arg(title, formattedContent);
-            m_textEdit->setHtml(html);
+            html = QString("%1%2<div style='line-height: 1.6; color: #ccc; font-size: 13px;'>%3</div>")
+                   .arg(titleHtml, hrHtml, formattedContent);
         }
+        m_textEdit->setHtml(html);
         move(pos);
         show();
     }

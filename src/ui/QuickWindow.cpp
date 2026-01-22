@@ -413,7 +413,7 @@ void QuickWindow::initUI() {
     mainLayout->addWidget(container);
     
     // 初始大小和最小大小
-    resize(830, 630);
+    resize(900, 630);
     setMinimumSize(400, 300);
 
     m_quickPreview = new QuickPreview(this);
