@@ -621,18 +621,26 @@ void QuickWindow::activateNote(const QModelIndex& index) {
 
         DWORD lastThread = m_lastThreadId;
         QTimer::singleShot(300, [lastThread, attached]() {
-            // 1. 强制清理 8 个修饰键状态 (L/R Ctrl, Shift, Alt, Win)
+            // 1. 使用 SendInput 强制清理所有修饰键状态 (L/R Ctrl, Shift, Alt, Win)
+            // 替换旧的 keybd_event，确保清理逻辑更原子化
+            INPUT releaseInputs[8];
+            memset(releaseInputs, 0, sizeof(releaseInputs));
             BYTE keys[] = { VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN };
-            for (BYTE k : keys) keybd_event(k, 0, KEYEVENTF_KEYUP, 0);
+            for (int i = 0; i < 8; ++i) {
+                releaseInputs[i].type = INPUT_KEYBOARD;
+                releaseInputs[i].ki.wVk = keys[i];
+                releaseInputs[i].ki.dwFlags = KEYEVENTF_KEYUP;
+            }
+            SendInput(8, releaseInputs, sizeof(INPUT));
 
-            // 2. 使用 SendInput 原子化发送 Ctrl+V 序列 (包含扫描码以对齐不同输入法环境)
+            // 2. 使用 SendInput 发送 Ctrl+V 序列 (显式指定 VK_LCONTROL 提高兼容性)
             INPUT inputs[4];
             memset(inputs, 0, sizeof(inputs));
 
             // Ctrl 按下
             inputs[0].type = INPUT_KEYBOARD;
-            inputs[0].ki.wVk = VK_CONTROL;
-            inputs[0].ki.wScan = MapVirtualKey(VK_CONTROL, MAPVK_VK_TO_VSC);
+            inputs[0].ki.wVk = VK_LCONTROL;
+            inputs[0].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
 
             // V 按下
             inputs[1].type = INPUT_KEYBOARD;
@@ -647,8 +655,8 @@ void QuickWindow::activateNote(const QModelIndex& index) {
 
             // Ctrl 抬起
             inputs[3].type = INPUT_KEYBOARD;
-            inputs[3].ki.wVk = VK_CONTROL;
-            inputs[3].ki.wScan = MapVirtualKey(VK_CONTROL, MAPVK_VK_TO_VSC);
+            inputs[3].ki.wVk = VK_LCONTROL;
+            inputs[3].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
             inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
 
             SendInput(4, inputs, sizeof(INPUT));
@@ -948,14 +956,14 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
 
     menu.addSeparator();
     if (m_currentFilterType == "trash") {
-        menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "还原到未分类", [this, selected](){
+        menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "恢复 (还原到未分类)", [this, selected](){
             QList<int> ids;
             for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
             DatabaseManager::instance().moveNotesToCategory(ids, -1);
             refreshData();
             refreshSidebar();
         });
-        menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "彻底物理删除 (Delete)", [this](){ doDeleteSelected(true); });
+        menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "彻底删除 (不可逆)", [this](){ doDeleteSelected(true); });
     } else {
         menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "移至回收站 (Delete)", [this](){ doDeleteSelected(false); });
     }
@@ -1033,10 +1041,10 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
             }
         });
     } else if (type == "trash") {
-        menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "恢复全部到未分类", this, &QuickWindow::doRestoreTrash);
+        menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "全部恢复 (到未分类)", this, &QuickWindow::doRestoreTrash);
         menu.addSeparator();
         menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "清空回收站", [this]() {
-            if (QMessageBox::question(this, "确认清空", "确定要永久删除回收站中的所有内容吗？") == QMessageBox::Yes) {
+            if (QMessageBox::question(this, "确认清空", "确定要永久删除回收站中的所有非保护内容吗？\n(受保护的项将继续保留)") == QMessageBox::Yes) {
                 DatabaseManager::instance().emptyTrash();
                 refreshData();
                 refreshSidebar();

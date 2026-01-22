@@ -61,7 +61,14 @@ public:
         // 图标 (DecorationRole)
         QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
         if (!icon.isNull()) {
-            icon.paint(painter, rect.left() + 10, rect.top() + (rect.height() - 20) / 2, 20, 20);
+            QString type = index.data(NoteModel::TypeRole).toString();
+            if (type == "image") {
+                // 如果是图片，绘制更大的缩略图 (32x32)
+                int size = 32;
+                icon.paint(painter, rect.left() + 10, rect.top() + (rect.height() - size) / 2, size, size);
+            } else {
+                icon.paint(painter, rect.left() + 10, rect.top() + (rect.height() - 20) / 2, 20, 20);
+            }
         }
 
         // 标题文本

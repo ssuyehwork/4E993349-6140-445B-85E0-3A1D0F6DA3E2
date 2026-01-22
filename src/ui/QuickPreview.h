@@ -11,6 +11,7 @@
 #include <QGraphicsDropShadowEffect>
 #include <QMouseEvent>
 #include <QApplication>
+#include <QFrame>
 #include "IconHelper.h"
 
 class QuickPreview : public QWidget {
@@ -26,6 +27,8 @@ public:
         m_container->setObjectName("previewContainer");
         m_container->setStyleSheet(
             "QFrame#previewContainer { background-color: #1e1e1e; border: 1px solid #444; border-radius: 8px; }"
+            "QFrame#previewTitleBar { background-color: #1e1e1e; border-top-left-radius: 7px; border-top-right-radius: 7px; border-bottom: 1px solid #333; }"
+            "QTextEdit { border-bottom-left-radius: 7px; border-bottom-right-radius: 7px; background: transparent; border: none; color: #ddd; font-size: 14px; padding: 10px; }"
             "QPushButton { border: none; border-radius: 4px; background: transparent; padding: 4px; }"
             "QPushButton:hover { background-color: #3e3e42; }"
             "QPushButton#btnClose:hover { background-color: #E81123; }"
@@ -36,8 +39,10 @@ public:
         containerLayout->setSpacing(0);
 
         // --- 标题栏 ---
-        m_titleBar = new QWidget();
+        m_titleBar = new QFrame();
+        m_titleBar->setObjectName("previewTitleBar");
         m_titleBar->setFixedHeight(36);
+        m_titleBar->setAttribute(Qt::WA_StyledBackground);
         auto* titleLayout = new QHBoxLayout(m_titleBar);
         titleLayout->setContentsMargins(10, 0, 5, 0);
         titleLayout->setSpacing(5);
@@ -76,7 +81,7 @@ public:
 
         m_textEdit = new QTextEdit();
         m_textEdit->setReadOnly(true);
-        m_textEdit->setStyleSheet("background: transparent; border: none; color: #ddd; font-size: 14px; padding: 10px;");
+        m_textEdit->setFocusPolicy(Qt::NoFocus); // 防止拦截空格键
         containerLayout->addWidget(m_textEdit);
         
         mainLayout->addWidget(m_container);

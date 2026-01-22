@@ -688,7 +688,8 @@ bool DatabaseManager::emptyTrash() {
         QMutexLocker locker(&m_mutex);
         if (!m_db.isOpen()) return false;
         QSqlQuery query(m_db);
-        success = query.exec("DELETE FROM notes WHERE is_deleted = 1");
+        // 对齐保护准则：严禁物理删除任何带有标签、书签或锁定状态的数据项
+        success = query.exec("DELETE FROM notes WHERE is_deleted = 1 AND is_locked = 0 AND is_favorite = 0 AND (tags IS NULL OR tags = '')");
     }
     if (success) emit noteUpdated();
     return success;
