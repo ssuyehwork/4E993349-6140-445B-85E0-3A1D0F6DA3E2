@@ -215,6 +215,10 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     if (watched == m_noteList && event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
         if (keyEvent->key() == Qt::Key_Space && !keyEvent->isAutoRepeat()) {
+            if (m_quickPreview->isVisible()) {
+                m_quickPreview->hide();
+                return true;
+            }
             QModelIndex index = m_noteList->currentIndex();
             if (index.isValid()) {
                 int id = index.data(NoteModel::IdRole).toInt();
