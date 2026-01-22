@@ -185,7 +185,29 @@ void MainWindow::initUI() {
     mainLayout->addWidget(splitter);
 
     m_quickPreview = new QuickPreview(this);
-    m_noteList->installEventFilter(this);
+    // 使用全局快捷键替代 eventFilter 以获得更好的 Toggle 体验
+    auto* spaceAction = new QAction(this);
+    spaceAction->setShortcut(QKeySequence(Qt::Key_Space));
+    connect(spaceAction, &QAction::triggered, this, [this](){
+        if (m_quickPreview->isVisible()) {
+            m_quickPreview->hide();
+        } else {
+            QModelIndex index = m_noteList->currentIndex();
+            if (index.isValid()) {
+                int id = index.data(NoteModel::IdRole).toInt();
+                QVariantMap note = DatabaseManager::instance().getNoteById(id);
+                QPoint globalPos = m_noteList->mapToGlobal(m_noteList->rect().center()) - QPoint(250, 300);
+                m_quickPreview->showPreview(
+                    note["title"].toString(),
+                    note["content"].toString(),
+                    note["item_type"].toString(),
+                    note["data_blob"].toByteArray(),
+                    globalPos
+                );
+            }
+        }
+    });
+    addAction(spaceAction);
 }
 
 // 【新增】增量更新逻辑
@@ -212,29 +234,6 @@ void MainWindow::onNoteSelected(const QModelIndex& index) {
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
-    if (watched == m_noteList && event->type() == QEvent::KeyPress) {
-        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
-        if (keyEvent->key() == Qt::Key_Space && !keyEvent->isAutoRepeat()) {
-            if (m_quickPreview->isVisible()) {
-                m_quickPreview->hide();
-                return true;
-            }
-            QModelIndex index = m_noteList->currentIndex();
-            if (index.isValid()) {
-                int id = index.data(NoteModel::IdRole).toInt();
-                QVariantMap note = DatabaseManager::instance().getNoteById(id);
-                QPoint globalPos = m_noteList->mapToGlobal(m_noteList->rect().center()) - QPoint(250, 300);
-                m_quickPreview->showPreview(
-                    note["title"].toString(),
-                    note["content"].toString(),
-                    note["item_type"].toString(),
-                    note["data_blob"].toByteArray(),
-                    globalPos
-                );
-                return true;
-            }
-        }
-    }
     return QMainWindow::eventFilter(watched, event);
 }
 

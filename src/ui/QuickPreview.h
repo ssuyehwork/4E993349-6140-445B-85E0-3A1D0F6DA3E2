@@ -22,6 +22,7 @@
 #include "IconHelper.h"
 #include "Editor.h"
 
+// 1:1 对齐 Python 版 ScalableImageLabel
 class ScalableImageLabel : public QLabel {
     Q_OBJECT
 public:
@@ -57,12 +58,21 @@ public:
         setupUI();
     }
 
+    // 实现 Toggle 与 内容更新
     void showPreview(const QString& title, const QString& content, const QString& type, const QByteArray& dataBlob, const QPoint& pos) {
-        m_currentTitle = title;
+        // 如果内容完全一致且已显示，则视为 Toggle 关闭
+        if (isVisible() && m_lastContent == content && m_lastTitle == title) {
+            hide();
+            return;
+        }
+
+        m_lastTitle = title;
+        m_lastContent = content;
         m_mode = "text";
         m_dataList.clear();
         m_currentIndex = 0;
 
+        // 识别模式
         if (type == "image" && !dataBlob.isEmpty()) {
             m_mode = "gallery";
             m_dataList.append(dataBlob);
@@ -115,11 +125,12 @@ private:
         containerLayout->setContentsMargins(0, 0, 0, 0);
         containerLayout->setSpacing(0);
 
+        // 1. 标题栏
         auto* titleBar = new QWidget();
         titleBar->setFixedHeight(36);
         titleBar->setStyleSheet("background-color: #252526; border-top-left-radius: 8px; border-top-right-radius: 8px; border-bottom: 1px solid #333;");
         auto* titleLayout = new QHBoxLayout(titleBar);
-        titleLayout->setContentsMargins(12, 0, 4, 0);
+        titleLayout->setContentsMargins(10, 0, 0, 0); // 右边距设为0，由按钮自带 Padding/Size 决定
         titleLayout->setSpacing(0);
 
         m_titleLabel = new QLabel("预览");
@@ -127,32 +138,35 @@ private:
         titleLayout->addWidget(m_titleLabel);
         titleLayout->addStretch();
 
-        // 【修复】改用 SVG 图标，确保按钮 100% 可见
-        auto createTitleBtn = [this](const QString& iconName, const QString& hoverColor = "") {
+        // 按钮构建工具
+        auto createBtn = [this](const QString& iconName, const QString& hoverColor = "") {
             QPushButton* btn = new QPushButton();
-            btn->setFixedSize(32, 32);
+            btn->setFixedSize(36, 36); // 稍微加大点击区域，对齐标题栏高度
             btn->setIcon(IconHelper::getIcon(iconName, "#aaaaaa"));
             btn->setIconSize(QSize(16, 16));
-            QString style = "QPushButton { background: transparent; border: none; border-radius: 4px; } "
+            QString style = "QPushButton { background: transparent; border: none; } "
                             "QPushButton:hover { background-color: " + (hoverColor.isEmpty() ? "rgba(255, 255, 255, 0.1)" : hoverColor) + "; }";
+            if (iconName == "close") style += " QPushButton:hover { border-top-right-radius: 8px; }"; // 右上角圆角适配
             btn->setStyleSheet(style);
+            btn->setFocusPolicy(Qt::NoFocus);
             return btn;
         };
 
-        auto* btnMin = createTitleBtn("minimize");
+        auto* btnMin = createBtn("minimize");
         connect(btnMin, &QPushButton::clicked, this, &QuickPreview::showMinimized);
         titleLayout->addWidget(btnMin);
 
-        m_btnMax = createTitleBtn("maximize");
+        m_btnMax = createBtn("maximize");
         connect(m_btnMax, &QPushButton::clicked, this, &QuickPreview::toggleMaximize);
         titleLayout->addWidget(m_btnMax);
 
-        auto* btnClose = createTitleBtn("close", "#e74c3c");
+        auto* btnClose = createBtn("close", "#e74c3c");
         connect(btnClose, &QPushButton::clicked, this, &QuickPreview::hide);
         titleLayout->addWidget(btnClose);
 
         containerLayout->addWidget(titleBar);
 
+        // 2. 内容区
         auto* contentArea = new QWidget();
         auto* contentLayout = new QVBoxLayout(contentArea);
         contentLayout->setContentsMargins(15, 5, 15, 5);
@@ -171,6 +185,7 @@ private:
 
         containerLayout->addWidget(contentArea, 1);
 
+        // 3. 底部画廊控制栏
         m_controlBar = new QWidget();
         auto* ctrlLayout = new QHBoxLayout(m_controlBar);
         ctrlLayout->setContentsMargins(20, 5, 20, 10);
@@ -196,6 +211,7 @@ private:
         ctrlLayout->addWidget(m_btnNext);
 
         containerLayout->addWidget(m_controlBar);
+
         rootLayout->addWidget(m_container);
 
         auto* shadow = new QGraphicsDropShadowEffect(this);
@@ -204,7 +220,7 @@ private:
         shadow->setOffset(0, 5);
         m_container->setGraphicsEffect(shadow);
 
-        // 【修复】增加 Space 快捷键绑定，并设置 WindowShortcut 优先级，确保关闭逻辑
+        // 绑定全局 Space / Esc 关闭
         auto* spaceShortcut = new QShortcut(QKeySequence(Qt::Key_Space), this);
         spaceShortcut->setContext(Qt::WindowShortcut);
         connect(spaceShortcut, &QShortcut::activated, this, &QuickPreview::hide);
@@ -212,9 +228,6 @@ private:
         auto* escShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), this);
         escShortcut->setContext(Qt::WindowShortcut);
         connect(escShortcut, &QShortcut::activated, this, &QuickPreview::hide);
-
-        new QShortcut(QKeySequence(Qt::Key_Left), this, [this](){ if(m_mode=="gallery") prevImage(); });
-        new QShortcut(QKeySequence(Qt::Key_Right), this, [this](){ if(m_mode=="gallery") nextImage(); });
     }
 
     void loadCurrentContent() {
@@ -325,7 +338,8 @@ private:
     QPushButton* m_btnMax;
 
     QPoint m_dragPos;
-    QString m_currentTitle;
+    QString m_lastTitle;
+    QString m_lastContent;
     QString m_mode;
     QList<QVariant> m_dataList;
     int m_currentIndex = 0;
