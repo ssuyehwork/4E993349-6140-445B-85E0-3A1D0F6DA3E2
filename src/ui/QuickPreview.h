@@ -45,11 +45,13 @@ public:
     }
 
 protected:
-    void keyReleaseEvent(QKeyEvent* event) override {
+    void keyPressEvent(QKeyEvent* event) override {
         if (event->key() == Qt::Key_Space || event->key() == Qt::Key_Escape) {
             hide();
+            event->accept();
+            return;
         }
-        QWidget::keyReleaseEvent(event);
+        QWidget::keyPressEvent(event);
     }
 
 private:
