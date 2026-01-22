@@ -15,6 +15,7 @@
 #include <QKeySequence>
 #include <QClipboard>
 #include <QMimeData>
+#include <QDrag>
 #include <QTimer>
 #include <QApplication>
 #include <QActionGroup>
