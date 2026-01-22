@@ -252,6 +252,35 @@ bool DatabaseManager::updateNote(int id, const QString& title, const QString& co
     return success;
 }
 
+bool DatabaseManager::deleteNotesBatch(const QList<int>& ids) {
+    if (ids.isEmpty()) return true;
+    bool success = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
+
+        m_db.transaction();
+        QSqlQuery query(m_db);
+        query.prepare("DELETE FROM notes WHERE id = :id");
+        for (int id : ids) {
+            // 凡是数据被绑定标签或绑定书签或保护(锁定)时, 不可被删除
+            QSqlQuery check(m_db);
+            check.prepare("SELECT tags, is_favorite, is_locked FROM notes WHERE id = :id");
+            check.bindValue(":id", id);
+            if (check.exec() && check.next()) {
+                if (!check.value(0).toString().isEmpty() || check.value(1).toBool() || check.value(2).toBool()) {
+                    continue;
+                }
+            }
+            query.bindValue(":id", id);
+            query.exec();
+        }
+        success = m_db.commit();
+    }
+    if (success) emit noteUpdated();
+    return success;
+}
+
 // 【修复核心】防止死锁的 updateNoteState
 bool DatabaseManager::updateNoteState(int id, const QString& column, const QVariant& value) {
     bool success = false;
@@ -262,6 +291,19 @@ bool DatabaseManager::updateNoteState(int id, const QString& column, const QVari
         
         QStringList allowedColumns = {"is_pinned", "is_locked", "is_favorite", "is_deleted", "tags", "rating", "category_id", "color"};
         if (!allowedColumns.contains(column)) return false;
+
+        // 凡是数据被绑定标签或绑定书签或保护(锁定)时, 不可被删除 (移入回收站)
+        if (column == "is_deleted" && value.toBool() == true) {
+            QSqlQuery check(m_db);
+            check.prepare("SELECT tags, is_favorite, is_locked FROM notes WHERE id = :id");
+            check.bindValue(":id", id);
+            if (check.exec() && check.next()) {
+                QString tags = check.value(0).toString();
+                bool isFav = check.value(1).toBool();
+                bool isLocked = check.value(2).toBool();
+                if (!tags.isEmpty() || isFav || isLocked) return false;
+            }
+        }
 
         QSqlQuery query(m_db);
         
@@ -311,10 +353,47 @@ bool DatabaseManager::updateNoteStateBatch(const QList<int>& ids, const QString&
         if (!allowedColumns.contains(column)) return false;
 
         m_db.transaction();
+
+        // 凡是数据被绑定标签或绑定书签或保护(锁定)时, 不可被删除
+        QList<int> filteredIds;
+        if (column == "is_deleted" && value.toBool() == true) {
+            QSqlQuery check(m_db);
+            for (int id : ids) {
+                check.prepare("SELECT tags, is_favorite, is_locked FROM notes WHERE id = :id");
+                check.bindValue(":id", id);
+                if (check.exec() && check.next()) {
+                    if (check.value(0).toString().isEmpty() && !check.value(1).toBool() && !check.value(2).toBool()) {
+                        filteredIds << id;
+                    }
+                }
+            }
+        } else {
+            filteredIds = ids;
+        }
+
+        if (filteredIds.isEmpty() && column == "is_deleted") {
+            m_db.rollback();
+            return false;
+        }
+
         QSqlQuery query(m_db);
-        QString sql = QString("UPDATE notes SET %1 = :val, updated_at = :updated_at WHERE id = :id").arg(column);
+
+        QString sql;
+        if (column == "is_deleted") {
+            bool del = value.toBool();
+            QString color = del ? "#2d2d2d" : "#0A362F";
+            sql = QString("UPDATE notes SET is_deleted = :val, color = '%1', category_id = NULL, updated_at = :updated_at WHERE id = :id").arg(color);
+        } else if (column == "is_favorite") {
+            // 注意：Batch 收藏暂不处理复杂的颜色恢复逻辑，简单设置颜色
+            bool fav = value.toBool();
+            QString color = fav ? "#ff6b81" : "#0A362F";
+            sql = QString("UPDATE notes SET is_favorite = :val, color = '%1', updated_at = :updated_at WHERE id = :id").arg(color);
+        } else {
+            sql = QString("UPDATE notes SET %1 = :val, updated_at = :updated_at WHERE id = :id").arg(column);
+        }
+
         query.prepare(sql);
-        for (int id : ids) {
+        for (int id : filteredIds) {
             query.bindValue(":val", value);
             query.bindValue(":updated_at", currentTime);
             query.bindValue(":id", id);
@@ -411,6 +490,16 @@ bool DatabaseManager::deleteNote(int id) {
     {
         QMutexLocker locker(&m_mutex);
         if (!m_db.isOpen()) return false;
+
+        // 保护检查
+        QSqlQuery check(m_db);
+        check.prepare("SELECT tags, is_favorite, is_locked FROM notes WHERE id = :id");
+        check.bindValue(":id", id);
+        if (check.exec() && check.next()) {
+            if (!check.value(0).toString().isEmpty() || check.value(1).toBool() || check.value(2).toBool()) {
+                return false;
+            }
+        }
 
         QSqlQuery query(m_db);
         query.prepare("DELETE FROM notes WHERE id=:id");
@@ -686,7 +775,8 @@ bool DatabaseManager::emptyTrash() {
     QMutexLocker locker(&m_mutex);
     if (!m_db.isOpen()) return false;
     QSqlQuery query(m_db);
-    return query.exec("DELETE FROM notes WHERE is_deleted = 1");
+    // 依然遵循保护原则，含有标签/书签/锁定的内容即使在回收站中也不允许物理删除
+    return query.exec("DELETE FROM notes WHERE is_deleted = 1 AND (tags IS NULL OR tags = '') AND is_favorite = 0 AND is_locked = 0");
 }
 
 bool DatabaseManager::setCategoryPresetTags(int catId, const QString& tags) {
