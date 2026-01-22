@@ -13,10 +13,10 @@ class NoteDelegate : public QStyledItemDelegate {
 public:
     explicit NoteDelegate(QObject* parent = nullptr) : QStyledItemDelegate(parent) {}
 
-    // 定义卡片高度
+    // 定义卡片高度 (仅显示标题时大幅压缩)
     QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override {
         Q_UNUSED(index);
-        return QSize(option.rect.width(), 110); // 每个卡片高度 110px
+        return QSize(option.rect.width(), 76);
     }
 
     void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
@@ -54,10 +54,10 @@ public:
         painter->drawPath(path);
 
         // 3. 绘制标题 (加粗，主文本色)
-        painter->setPen(QColor("#cccccc"));
+        painter->setPen(isSelected ? Qt::white : QColor("#cccccc"));
         QFont titleFont("Microsoft YaHei", 10, QFont::Bold);
         painter->setFont(titleFont);
-        QRect titleRect = rect.adjusted(12, 10, -35, -70);
+        QRect titleRect = rect.adjusted(12, 10, -35, -35); // 腾出空间给底部元数据
         painter->drawText(titleRect, Qt::AlignLeft | Qt::AlignTop, painter->fontMetrics().elidedText(title, Qt::ElideRight, titleRect.width()));
 
         // 4. 绘制置顶/星级标识
@@ -66,16 +66,10 @@ public:
             painter->drawPixmap(rect.right() - 25, rect.top() + 12, pin);
         }
 
-        // 5. 绘制内容预览 (副文本色，最多2行)
-        painter->setPen(QColor("#858585"));
-        painter->setFont(QFont("Microsoft YaHei", 9));
-        QRect contentRect = rect.adjusted(12, 34, -12, -32);
-        QString cleanContent = content.simplified();
-        QString elidedContent = painter->fontMetrics().elidedText(cleanContent, Qt::ElideRight, contentRect.width() * 2);
-        painter->drawText(contentRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, elidedContent);
+        // 5. 移除内容预览 (按用户要求仅显示标题)
 
         // 6. 绘制底部元数据栏 (时间图标 + 时间 + 类型标签)
-        QRect bottomRect = rect.adjusted(12, 78, -12, -8);
+        QRect bottomRect = rect.adjusted(12, 42, -12, -8);
         
         // 时间
         painter->setPen(QColor("#666666"));
