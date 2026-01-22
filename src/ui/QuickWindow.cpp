@@ -39,27 +39,59 @@ public:
     using QStyledItemDelegate::QStyledItemDelegate;
 
     void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-        if (option.state & QStyle::State_Selected) {
+        if (!index.isValid()) return;
+
+        bool selected = option.state & QStyle::State_Selected;
+        bool hover = option.state & QStyle::State_MouseOver;
+        bool isSelectable = index.flags() & Qt::ItemIsSelectable;
+
+        if (isSelectable && (selected || hover)) {
             painter->save();
+            painter->setRenderHint(QPainter::Antialiasing);
 
-            // 获取分类颜色并应用半透明高亮 (40% alpha)
+            // 获取分类颜色
             QString colorHex = index.data(CategoryModel::ColorRole).toString();
-            QColor highlightColor = colorHex.isEmpty() ? QColor("#37373d") : QColor(colorHex);
-            highlightColor.setAlpha(100);
+            QColor baseColor = colorHex.isEmpty() ? QColor("#37373d") : QColor(colorHex);
 
-            painter->fillRect(option.rect, highlightColor);
+            QColor bg;
+            if (selected) {
+                bg = baseColor;
+                bg.setAlpha(120); // 选中态，透明度稍微调高以实现即时视觉反馈
+            } else {
+                bg = QColor(255, 255, 255, 25); // 悬停态
+            }
 
-            // 移除选中状态以防止 QCommonStyle 再次绘制默认高亮，但保持文字白色
-            QStyleOptionViewItem opt = option;
-            opt.state &= ~QStyle::State_Selected;
-            opt.palette.setColor(QPalette::Text, Qt::white);
-            opt.palette.setColor(QPalette::WindowText, Qt::white);
+            // 精准计算高亮区域：联合图标与文字区域，避开左侧缩进/箭头区域
+            QStyle* style = option.widget ? option.widget->style() : QApplication::style();
+            QRect decoRect = style->subElementRect(QStyle::SE_ItemViewItemDecoration, &option, option.widget);
+            QRect textRect = style->subElementRect(QStyle::SE_ItemViewItemText, &option, option.widget);
 
-            QStyledItemDelegate::paint(painter, opt, index);
+            // 联合区域并与当前行 rect 取交集，防止溢出
+            QRect contentRect = decoRect.united(textRect);
+            contentRect = contentRect.intersected(option.rect);
+
+            // 向左右微调 (padding)，并保持上下略有间隙以体现圆角效果
+            contentRect.adjust(-6, 1, 6, -1);
+
+            painter->setBrush(bg);
+            painter->setPen(Qt::NoPen);
+            painter->drawRoundedRect(contentRect, 5, 5);
             painter->restore();
-        } else {
-            QStyledItemDelegate::paint(painter, option, index);
         }
+
+        // 绘制原内容 (图标、文字)
+        QStyleOptionViewItem opt = option;
+        // 关键：移除 Selected 状态，由我们自己控制背景，防止 QStyle 绘制默认的蓝色/灰色整行高亮
+        opt.state &= ~QStyle::State_Selected;
+        opt.state &= ~QStyle::State_MouseOver;
+
+        // 选中时文字强制设为白色以确保清晰度
+        if (selected) {
+            opt.palette.setColor(QPalette::Text, Qt::white);
+            opt.palette.setColor(QPalette::HighlightedText, Qt::white);
+        }
+
+        QStyledItemDelegate::paint(painter, opt, index);
     }
 };
 
@@ -203,7 +235,29 @@ void QuickWindow::initUI() {
     sidebarLayout->setContentsMargins(0, 0, 0, 0);
     sidebarLayout->setSpacing(0);
 
+    QString treeStyle = R"(
+        QTreeView {
+            background-color: transparent;
+            border: none;
+            outline: none;
+            color: #ccc;
+        }
+        QTreeView::item {
+            height: 22px;
+            padding: 0px;
+            border: none;
+            background: transparent;
+        }
+        QTreeView::item:hover, QTreeView::item:selected {
+            background: transparent;
+        }
+        QTreeView::branch:hover, QTreeView::branch:selected {
+            background: transparent;
+        }
+    )";
+
     m_systemTree = new DropTreeView();
+    m_systemTree->setStyleSheet(treeStyle);
     m_systemTree->setItemDelegate(new CategoryDelegate(this));
     m_systemModel = new CategoryModel(CategoryModel::System, this);
     m_systemTree->setModel(m_systemModel);
@@ -217,6 +271,7 @@ void QuickWindow::initUI() {
     connect(m_systemTree, &QTreeView::customContextMenuRequested, this, &QuickWindow::showSidebarMenu);
 
     m_partitionTree = new DropTreeView();
+    m_partitionTree->setStyleSheet(treeStyle);
     m_partitionTree->setItemDelegate(new CategoryDelegate(this));
     m_partitionModel = new CategoryModel(CategoryModel::User, this);
     m_partitionTree->setModel(m_partitionModel);
@@ -867,6 +922,8 @@ void QuickWindow::doPreview() {
         note["data_blob"].toByteArray(),
         globalPos
     );
+    m_quickPreview->raise();
+    m_quickPreview->activateWindow();
 }
 
 void QuickWindow::toggleStayOnTop(bool checked) {

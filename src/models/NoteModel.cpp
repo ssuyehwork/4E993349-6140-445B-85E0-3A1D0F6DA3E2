@@ -156,8 +156,16 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             m_tooltipCache[id] = html;
             return html;
         }
-        case Qt::DisplayRole:
-            return note.value("title");
+        case Qt::DisplayRole: {
+            QString type = note.value("item_type").toString();
+            QString title = note.value("title").toString();
+            QString content = note.value("content").toString();
+            if (type == "text" || type.isEmpty()) {
+                QString display = content.replace('\n', ' ').replace('\r', ' ').trimmed().left(150);
+                return display.isEmpty() ? title : display;
+            }
+            return title;
+        }
         case TitleRole:
             return note.value("title");
         case ContentRole:

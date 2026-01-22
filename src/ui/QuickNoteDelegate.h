@@ -71,8 +71,8 @@ public:
             }
         }
 
-        // 标题文本
-        QString text = index.data(Qt::DisplayRole).toString();
+        // 标题文本 (根据用户要求，QuickWindow 仅显示笔记标题)
+        QString text = index.data(NoteModel::TitleRole).toString();
         painter->setPen(isSelected ? Qt::white : QColor("#CCCCCC"));
         painter->setFont(QFont("Microsoft YaHei", 9));
         

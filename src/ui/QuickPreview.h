@@ -12,6 +12,7 @@
 #include <QMouseEvent>
 #include <QApplication>
 #include <QFrame>
+#include <QShortcut>
 #include "IconHelper.h"
 
 class QuickPreview : public QWidget {
@@ -101,6 +102,10 @@ public:
         m_container->setGraphicsEffect(shadow);
         
         resize(900, 700);
+
+        // 使用快捷键处理关闭逻辑，比 keyPressEvent 更可靠
+        new QShortcut(QKeySequence(Qt::Key_Space), this, [this](){ hide(); });
+        new QShortcut(QKeySequence(Qt::Key_Escape), this, [this](){ hide(); });
     }
 
     void showPreview(int noteId, const QString& title, const QString& content, const QPoint& pos) {
@@ -128,15 +133,6 @@ public:
     }
 
 protected:
-    void keyPressEvent(QKeyEvent* event) override {
-        if (event->key() == Qt::Key_Space || event->key() == Qt::Key_Escape) {
-            hide();
-            event->accept();
-            return;
-        }
-        QWidget::keyPressEvent(event);
-    }
-
     void mousePressEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton && m_titleBar->rect().contains(m_titleBar->mapFrom(this, event->pos()))) {
             m_dragging = true;
