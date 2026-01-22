@@ -91,8 +91,8 @@ public:
         loadCurrentContent();
 
         if (!isVisible()) {
-            centerOnScreen();
             resize(1130, 740);
+            centerOnScreen();
         }
 
         show();
