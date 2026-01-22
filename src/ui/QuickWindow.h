@@ -79,6 +79,7 @@ public:
     void doNewIdea();
     void doExtractContent();
     void doEditSelected();
+    void doEditNote(int id);
     void doSetRating(int rating);
     void doMoveToCategory(int catId);
     void doRestoreTrash();

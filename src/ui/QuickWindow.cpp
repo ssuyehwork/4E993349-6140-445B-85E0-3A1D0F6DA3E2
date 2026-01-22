@@ -30,6 +30,38 @@
 #include <QColorDialog>
 #include <QMessageBox>
 #include <QRandomGenerator>
+#include <QStyledItemDelegate>
+#include <QPainter>
+
+// 侧边栏分类项自定义代理：实现动态高亮色
+class CategoryDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+        if (option.state & QStyle::State_Selected) {
+            painter->save();
+
+            // 获取分类颜色并应用半透明高亮 (40% alpha)
+            QString colorHex = index.data(CategoryModel::ColorRole).toString();
+            QColor highlightColor = colorHex.isEmpty() ? QColor("#37373d") : QColor(colorHex);
+            highlightColor.setAlpha(100);
+
+            painter->fillRect(option.rect, highlightColor);
+
+            // 移除选中状态以防止 QCommonStyle 再次绘制默认高亮，但保持文字白色
+            QStyleOptionViewItem opt = option;
+            opt.state &= ~QStyle::State_Selected;
+            opt.palette.setColor(QPalette::Text, Qt::white);
+            opt.palette.setColor(QPalette::WindowText, Qt::white);
+
+            QStyledItemDelegate::paint(painter, opt, index);
+            painter->restore();
+        } else {
+            QStyledItemDelegate::paint(painter, option, index);
+        }
+    }
+};
 
 // 定义调整大小的边缘触发区域宽度 (与边距一致)
 #define RESIZE_MARGIN 10 
@@ -117,7 +149,7 @@ void QuickWindow::initUI() {
         "QListView, QTreeView { background: transparent; border: none; color: #BBB; outline: none; }"
         "QTreeView::item { height: 22px; padding: 0px 4px; border-radius: 4px; }"
         "QTreeView::item:hover { background-color: #2a2d2e; }"
-        "QTreeView::item:selected { background-color: #37373d; color: white; }"
+        "QTreeView::item:selected { background-color: transparent; color: white; }"
         "QListView::item { padding: 6px; border-bottom: 1px solid #2A2A2A; }"
     );
     
@@ -172,6 +204,7 @@ void QuickWindow::initUI() {
     sidebarLayout->setSpacing(0);
 
     m_systemTree = new DropTreeView();
+    m_systemTree->setItemDelegate(new CategoryDelegate(this));
     m_systemModel = new CategoryModel(CategoryModel::System, this);
     m_systemTree->setModel(m_systemModel);
     m_systemTree->setHeaderHidden(true);
@@ -184,6 +217,7 @@ void QuickWindow::initUI() {
     connect(m_systemTree, &QTreeView::customContextMenuRequested, this, &QuickWindow::showSidebarMenu);
 
     m_partitionTree = new DropTreeView();
+    m_partitionTree->setItemDelegate(new CategoryDelegate(this));
     m_partitionModel = new CategoryModel(CategoryModel::User, this);
     m_partitionTree->setModel(m_partitionModel);
     m_partitionTree->setHeaderHidden(true);
@@ -417,6 +451,7 @@ void QuickWindow::initUI() {
     setMinimumSize(400, 300);
 
     m_quickPreview = new QuickPreview(this);
+    connect(m_quickPreview, &QuickPreview::editRequested, this, &QuickWindow::doEditNote);
     m_listView->installEventFilter(this);
     m_systemTree->installEventFilter(this);
     m_partitionTree->installEventFilter(this);
@@ -794,7 +829,11 @@ void QuickWindow::doExtractContent() {
 void QuickWindow::doEditSelected() {
     QModelIndex index = m_listView->currentIndex();
     if (!index.isValid()) return;
-    int id = index.data(NoteModel::IdRole).toInt();
+    doEditNote(index.data(NoteModel::IdRole).toInt());
+}
+
+void QuickWindow::doEditNote(int id) {
+    if (id <= 0) return;
     NoteEditWindow* win = new NoteEditWindow(id);
     connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
     win->show();
@@ -821,6 +860,7 @@ void QuickWindow::doPreview() {
     QVariantMap note = DatabaseManager::instance().getNoteById(id);
     QPoint globalPos = m_listView->mapToGlobal(m_listView->rect().center()) - QPoint(250, 300);
     m_quickPreview->showPreview(
+        id,
         note["title"].toString(),
         note["content"].toString(),
         note["item_type"].toString(),

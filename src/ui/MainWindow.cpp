@@ -185,6 +185,11 @@ void MainWindow::initUI() {
     mainLayout->addWidget(splitter);
 
     m_quickPreview = new QuickPreview(this);
+    connect(m_quickPreview, &QuickPreview::editRequested, this, [this](int id){
+        NoteEditWindow* win = new NoteEditWindow(id);
+        connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
+        win->show();
+    });
     m_noteList->installEventFilter(this);
 }
 
@@ -221,6 +226,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
                 QVariantMap note = DatabaseManager::instance().getNoteById(id);
                 QPoint globalPos = m_noteList->mapToGlobal(m_noteList->rect().center()) - QPoint(250, 300);
                 m_quickPreview->showPreview(
+                    id,
                     note["title"].toString(),
                     note["content"].toString(),
                     note["item_type"].toString(),

@@ -16,6 +16,9 @@
 
 class QuickPreview : public QWidget {
     Q_OBJECT
+signals:
+    void editRequested(int noteId);
+
 public:
     explicit QuickPreview(QWidget* parent = nullptr) : QWidget(parent, Qt::Tool | Qt::FramelessWindowHint) {
         setAttribute(Qt::WA_TranslucentBackground);
@@ -62,10 +65,14 @@ public:
             return btn;
         };
 
+        QPushButton* btnEdit = createBtn("edit", "编辑 (Ctrl+B)");
         QPushButton* btnMin = createBtn("minimize", "最小化");
         QPushButton* btnMax = createBtn("maximize", "最大化");
         QPushButton* btnClose = createBtn("close", "关闭", "btnClose");
 
+        connect(btnEdit, &QPushButton::clicked, [this]() {
+            emit editRequested(m_currentNoteId);
+        });
         connect(btnMin, &QPushButton::clicked, this, &QuickPreview::showMinimized);
         connect(btnMax, &QPushButton::clicked, [this]() {
             if (isMaximized()) showNormal();
@@ -73,6 +80,7 @@ public:
         });
         connect(btnClose, &QPushButton::clicked, this, &QuickPreview::hide);
 
+        titleLayout->addWidget(btnEdit);
         titleLayout->addWidget(btnMin);
         titleLayout->addWidget(btnMax);
         titleLayout->addWidget(btnClose);
@@ -95,11 +103,12 @@ public:
         resize(900, 700);
     }
 
-    void showPreview(const QString& title, const QString& content, const QPoint& pos) {
-        showPreview(title, content, "text", QByteArray(), pos);
+    void showPreview(int noteId, const QString& title, const QString& content, const QPoint& pos) {
+        showPreview(noteId, title, content, "text", QByteArray(), pos);
     }
 
-    void showPreview(const QString& title, const QString& content, const QString& type, const QByteArray& data, const QPoint& pos) {
+    void showPreview(int noteId, const QString& title, const QString& content, const QString& type, const QByteArray& data, const QPoint& pos) {
+        m_currentNoteId = noteId;
         QString html;
         QString titleHtml = QString("<h3 style='color: #eee; margin-bottom: 5px;'>%1</h3>").arg(title.toHtmlEscaped());
         QString hrHtml = "<hr style='border: 0; border-top: 1px solid #444; margin: 10px 0;'>";
@@ -160,6 +169,7 @@ private:
     QFrame* m_container;
     QWidget* m_titleBar;
     QTextEdit* m_textEdit;
+    int m_currentNoteId = -1;
     bool m_dragging = false;
     QPoint m_dragPos;
 };
