@@ -20,7 +20,8 @@ public:
     // 核心 CRUD 操作
     bool addNote(const QString& title, const QString& content, const QStringList& tags, 
                  const QString& color = "", int categoryId = -1, 
-                 const QString& itemType = "text", const QByteArray& dataBlob = QByteArray());
+                 const QString& itemType = "text", const QByteArray& dataBlob = QByteArray(),
+                 const QString& sourceApp = "", const QString& sourceTitle = "");
     bool updateNote(int id, const QString& title, const QString& content, const QStringList& tags, 
                     const QString& color = "", int categoryId = -1);
     bool deleteNote(int id);
@@ -59,7 +60,8 @@ public:
     // 异步操作
     void addNoteAsync(const QString& title, const QString& content, const QStringList& tags,
                       const QString& color = "", int categoryId = -1,
-                      const QString& itemType = "text", const QByteArray& dataBlob = QByteArray());
+                      const QString& itemType = "text", const QByteArray& dataBlob = QByteArray(),
+                      const QString& sourceApp = "", const QString& sourceTitle = "");
 
 signals:
     // 【修改】现在信号携带具体数据，实现增量更新

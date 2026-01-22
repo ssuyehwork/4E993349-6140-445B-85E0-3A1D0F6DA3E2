@@ -13,7 +13,8 @@ public:
     static ClipboardMonitor& instance();
 
 signals:
-    void newContentDetected(const QString& content, const QString& type, const QByteArray& data = QByteArray());
+    void newContentDetected(const QString& content, const QString& type, const QByteArray& data = QByteArray(),
+                            const QString& sourceApp = "", const QString& sourceTitle = "");
 
 private slots:
     void onClipboardChanged();

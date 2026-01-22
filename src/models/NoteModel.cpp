@@ -95,6 +95,7 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             bool locked = note.value("is_locked").toBool();
             bool favorite = note.value("is_favorite").toBool();
             int rating = note.value("rating").toInt();
+            QString sourceApp = note.value("source_app").toString();
 
             QString catName = m_categoryMap.value(catId, "未分类");
             if (tags.isEmpty()) tags = "无";
@@ -104,6 +105,8 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             if (locked) statusStr += getIconHtml("lock", "#2ecc71") + " 锁定 ";
             if (favorite) statusStr += getIconHtml("bookmark_filled", "#ff6b81") + " 书签 ";
             if (statusStr.isEmpty()) statusStr = "无";
+
+            if (sourceApp.isEmpty()) sourceApp = "未知应用";
 
             QString ratingStr;
             for(int i=0; i<rating; ++i) ratingStr += getIconHtml("star_filled", "#f39c12") + " ";
@@ -119,14 +122,16 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
                            "<tr><td width='22'>%3</td><td><b>标签:</b> %4</td></tr>"
                            "<tr><td width='22'>%5</td><td><b>评级:</b> %6</td></tr>"
                            "<tr><td width='22'>%7</td><td><b>状态:</b> %8</td></tr>"
+                           "<tr><td width='22'>%9</td><td><b>来源:</b> %10</td></tr>"
                            "</table>"
                            "<hr style='border: 0; border-top: 1px solid #555; margin: 5px 0;'>"
-                           "<div style='color: #ccc; font-size: 12px; line-height: 1.4;'>%9</div>"
+                           "<div style='color: #ccc; font-size: 12px; line-height: 1.4;'>%11</div>"
                            "</body></html>")
                 .arg(getIconHtml("branch", "#4a90e2"), catName,
                      getIconHtml("tag", "#FFAB91"), tags,
                      getIconHtml("star", "#f39c12"), ratingStr,
                      getIconHtml("pin_tilted", "#aaa"), statusStr,
+                     getIconHtml("monitor", "#aaaaaa"), sourceApp,
                      preview);
         }
         case Qt::DisplayRole: {
@@ -161,6 +166,10 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             return note.value("rating");
         case CategoryIdRole:
             return note.value("category_id");
+        case SourceAppRole:
+            return note.value("source_app");
+        case SourceTitleRole:
+            return note.value("source_title");
         default:
             return QVariant();
     }

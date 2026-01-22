@@ -6,6 +6,7 @@
 #include <QDateTime>
 #include <QFile>
 #include <QDir>
+#include <QCryptographicHash>
 
 DatabaseManager& DatabaseManager::instance() {
     static DatabaseManager inst;
@@ -75,7 +76,9 @@ bool DatabaseManager::createTables() {
             is_pinned INTEGER DEFAULT 0,
             is_locked INTEGER DEFAULT 0,
             is_favorite INTEGER DEFAULT 0,
-            is_deleted INTEGER DEFAULT 0
+            is_deleted INTEGER DEFAULT 0,
+            source_app TEXT,
+            source_title TEXT
         )
     )";
     
@@ -88,7 +91,9 @@ bool DatabaseManager::createTables() {
         "ALTER TABLE notes ADD COLUMN item_type TEXT DEFAULT 'text'",
         "ALTER TABLE notes ADD COLUMN data_blob BLOB",
         "ALTER TABLE notes ADD COLUMN content_hash TEXT",
-        "ALTER TABLE notes ADD COLUMN rating INTEGER DEFAULT 0"
+        "ALTER TABLE notes ADD COLUMN rating INTEGER DEFAULT 0",
+        "ALTER TABLE notes ADD COLUMN source_app TEXT",
+        "ALTER TABLE notes ADD COLUMN source_title TEXT"
     };
     for (const QString& sql : columnsToAdd) {
         query.exec(sql); // 忽略已存在的错误
@@ -134,21 +139,52 @@ bool DatabaseManager::createTables() {
     return true;
 }
 
-// 【修复核心】防止死锁的 addNote
+// 【重构核心】对标 Ditto 的“查重并置顶”创建逻辑
 bool DatabaseManager::addNote(const QString& title, const QString& content, const QStringList& tags,
                              const QString& color, int categoryId,
-                             const QString& itemType, const QByteArray& dataBlob) {
+                             const QString& itemType, const QByteArray& dataBlob,
+                             const QString& sourceApp, const QString& sourceTitle) {
     QVariantMap newNoteMap;
     bool success = false;
     QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+
+    // 计算 SHA256 哈希值
+    QByteArray hashData = dataBlob.isEmpty() ? content.toUtf8() : dataBlob;
+    QString contentHash = QCryptographicHash::hash(hashData, QCryptographicHash::Sha256).toHex();
 
     {   // === 锁的作用域开始 ===
         QMutexLocker locker(&m_mutex);
         if (!m_db.isOpen()) return false;
 
+        QSqlQuery checkQuery(m_db);
+        // 首先检查哈希是否存在（且未删除）
+        checkQuery.prepare("SELECT id FROM notes WHERE content_hash = :hash AND is_deleted = 0 LIMIT 1");
+        checkQuery.bindValue(":hash", contentHash);
+
+        if (checkQuery.exec() && checkQuery.next()) {
+            // --- 命中重复：更新时间戳和来源（即置顶逻辑） ---
+            int existingId = checkQuery.value(0).toInt();
+            QSqlQuery updateQuery(m_db);
+            updateQuery.prepare("UPDATE notes SET updated_at = :now, source_app = :app, source_title = :stitle "
+                                "WHERE id = :id");
+            updateQuery.bindValue(":now", currentTime);
+            updateQuery.bindValue(":app", sourceApp);
+            updateQuery.bindValue(":stitle", sourceTitle);
+            updateQuery.bindValue(":id", existingId);
+
+            if (updateQuery.exec()) {
+                // 触发更新信号而非添加信号，通知 UI 刷新列表顺序
+                emit noteUpdated();
+                return true;
+            }
+        }
+
+        // --- 未命中：插入新记录 ---
         QSqlQuery query(m_db);
-        query.prepare("INSERT INTO notes (title, content, tags, color, category_id, item_type, data_blob, created_at, updated_at) "
-                      "VALUES (:title, :content, :tags, :color, :category_id, :item_type, :data_blob, :created_at, :updated_at)");
+        query.prepare("INSERT INTO notes (title, content, tags, color, category_id, item_type, data_blob, "
+                      "content_hash, created_at, updated_at, source_app, source_title) "
+                      "VALUES (:title, :content, :tags, :color, :category_id, :item_type, :data_blob, "
+                      ":hash, :created_at, :updated_at, :source_app, :source_title)");
         query.bindValue(":title", title);
         query.bindValue(":content", content);
         query.bindValue(":tags", tags.join(","));
@@ -156,8 +192,11 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
         query.bindValue(":category_id", categoryId == -1 ? QVariant(QMetaType::fromType<int>()) : categoryId);
         query.bindValue(":item_type", itemType);
         query.bindValue(":data_blob", dataBlob);
+        query.bindValue(":hash", contentHash);
         query.bindValue(":created_at", currentTime);
         query.bindValue(":updated_at", currentTime);
+        query.bindValue(":source_app", sourceApp);
+        query.bindValue(":source_title", sourceTitle);
         
         if (query.exec()) {
             success = true;
@@ -385,9 +424,10 @@ bool DatabaseManager::deleteNote(int id) {
 
 void DatabaseManager::addNoteAsync(const QString& title, const QString& content, const QStringList& tags,
                                  const QString& color, int categoryId,
-                                 const QString& itemType, const QByteArray& dataBlob) {
-    QMetaObject::invokeMethod(this, [this, title, content, tags, color, categoryId, itemType, dataBlob]() {
-        addNote(title, content, tags, color, categoryId, itemType, dataBlob);
+                                 const QString& itemType, const QByteArray& dataBlob,
+                                 const QString& sourceApp, const QString& sourceTitle) {
+    QMetaObject::invokeMethod(this, [this, title, content, tags, color, categoryId, itemType, dataBlob, sourceApp, sourceTitle]() {
+        addNote(title, content, tags, color, categoryId, itemType, dataBlob, sourceApp, sourceTitle);
     }, Qt::QueuedConnection);
 }
 
