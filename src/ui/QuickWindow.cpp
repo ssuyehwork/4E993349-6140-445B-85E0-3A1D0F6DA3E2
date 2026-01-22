@@ -435,7 +435,7 @@ void QuickWindow::initUI() {
         if (text.isEmpty()) return;
         m_searchEdit->addHistoryEntry(text);
         if (m_model->rowCount() == 0) {
-            DatabaseManager::instance().addNoteAsync("快速记录", text, {"Quick"});
+            DatabaseManager::instance().addNoteAsync("快速记录", text, {});
             m_searchEdit->clear();
             hide();
         }
@@ -664,6 +664,7 @@ void QuickWindow::doPermanentDeleteSelected() {
     if (selected.isEmpty()) return;
 
     QList<int> ids;
+    int blockedCount = 0;
     for (const auto& index : selected) {
         // 凡是数据被绑定标签或绑定书签或保护(锁定)时, 不可被删除
         QString tags = index.data(NoteModel::TagsRole).toString();
@@ -672,12 +673,18 @@ void QuickWindow::doPermanentDeleteSelected() {
 
         if (tags.isEmpty() && !isFavorite && !isLocked) {
             ids << index.data(NoteModel::IdRole).toInt();
+        } else {
+            blockedCount++;
         }
     }
 
     if (!ids.isEmpty()) {
         DatabaseManager::instance().deleteNotesBatch(ids);
         refreshData();
+    }
+
+    if (blockedCount > 0) {
+        QToolTip::showText(QCursor::pos(), QString("⚠️ 有 %1 项数据受保护（带标签/书签/锁定），无法删除").arg(blockedCount), this);
     }
 }
 
@@ -687,6 +694,7 @@ void QuickWindow::doDeleteSelected() {
 
     QList<int> toMoveToTrash;
     QList<int> toPermanentlyDelete;
+    int blockedCount = 0;
 
     for (const auto& index : selected) {
         // 凡是数据被绑定标签或绑定书签或保护(锁定)时, 不可被删除
@@ -695,6 +703,7 @@ void QuickWindow::doDeleteSelected() {
         bool isLocked = index.data(NoteModel::LockedRole).toBool();
 
         if (!tags.isEmpty() || isFavorite || isLocked) {
+            blockedCount++;
             continue; // 受保护，跳过
         }
 
@@ -715,6 +724,10 @@ void QuickWindow::doDeleteSelected() {
     }
 
     refreshData();
+
+    if (blockedCount > 0) {
+        QToolTip::showText(QCursor::pos(), QString("⚠️ 有 %1 项数据受保护（带标签/书签/锁定），无法删除").arg(blockedCount), this);
+    }
 }
 
 void QuickWindow::doToggleFavorite() {
@@ -1148,7 +1161,7 @@ void QuickWindow::dropEvent(QDropEvent* event) {
     QString title;
     QString content;
     QByteArray dataBlob;
-    QStringList tags = {"External"};
+    QStringList tags;
 
     if (mime->hasUrls()) {
         const QList<QUrl> urls = mime->urls();

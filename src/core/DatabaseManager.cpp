@@ -260,12 +260,15 @@ bool DatabaseManager::deleteNotesBatch(const QList<int>& ids) {
         if (!m_db.isOpen()) return false;
 
         m_db.transaction();
+
+        QSqlQuery check(m_db);
+        check.prepare("SELECT tags, is_favorite, is_locked FROM notes WHERE id = :id");
+
         QSqlQuery query(m_db);
         query.prepare("DELETE FROM notes WHERE id = :id");
+
         for (int id : ids) {
             // 凡是数据被绑定标签或绑定书签或保护(锁定)时, 不可被删除
-            QSqlQuery check(m_db);
-            check.prepare("SELECT tags, is_favorite, is_locked FROM notes WHERE id = :id");
             check.bindValue(":id", id);
             if (check.exec() && check.next()) {
                 if (!check.value(0).toString().isEmpty() || check.value(1).toBool() || check.value(2).toBool()) {
@@ -358,8 +361,8 @@ bool DatabaseManager::updateNoteStateBatch(const QList<int>& ids, const QString&
         QList<int> filteredIds;
         if (column == "is_deleted" && value.toBool() == true) {
             QSqlQuery check(m_db);
+            check.prepare("SELECT tags, is_favorite, is_locked FROM notes WHERE id = :id");
             for (int id : ids) {
-                check.prepare("SELECT tags, is_favorite, is_locked FROM notes WHERE id = :id");
                 check.bindValue(":id", id);
                 if (check.exec() && check.next()) {
                     if (check.value(0).toString().isEmpty() && !check.value(1).toBool() && !check.value(2).toBool()) {
