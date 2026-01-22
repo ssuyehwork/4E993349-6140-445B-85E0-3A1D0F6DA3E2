@@ -45,14 +45,15 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
         bool isKeyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
         bool isKeyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
 
-        // 使用 GetAsyncKeyState 获取实时物理按键状态，提高全局环境下的准确性
-        bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000);
-        bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000);
+        // 使用 GetKeyState 确保修饰键状态与当前消息同步，防止输入法干扰
+        bool ctrlDown = (GetKeyState(VK_CONTROL) & 0x8000);
+        bool shiftDown = (GetKeyState(VK_SHIFT) & 0x8000);
 
-        // 1. Ctrl + Shift + Space -> Ctrl+A then Backspace (全选删除)
-        if (pKey->vkCode == VK_SPACE && ctrlDown && shiftDown) {
+        // 1. Ctrl + Shift + Backspace -> Ctrl+A then Backspace (全选删除)
+        // 迁移至 Backspace 键触发，彻底避开中文输入法对 Space 的依赖
+        if (pKey->vkCode == VK_BACK && ctrlDown && shiftDown) {
             if (isKeyDown) {
-                qDebug() << "[Hook] Triggered: Ctrl + Shift + Space";
+                qDebug() << "[Hook] Triggered: Ctrl + Shift + Backspace";
                 // 模拟执行：释放 Shift -> 发送 A (Ctrl 已按下) -> 释放 Ctrl -> 发送 Backspace
                 keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
                 keybd_event('A', 0, 0, 0);
@@ -61,10 +62,11 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
                 keybd_event(VK_BACK, 0, 0, 0);
                 keybd_event(VK_BACK, 0, KEYEVENTF_KEYUP, 0);
             }
-            return 1; // 彻底拦截原始空格
+            return 1;
         }
 
         // 2. Shift + Space -> Shift + Enter (换行)
+        // 增加严密的逻辑判断：必须同时拦截 KeyDown 和 KeyUp，且在无 Ctrl 干扰下生效
         if (pKey->vkCode == VK_SPACE && shiftDown && !ctrlDown) {
             if (isKeyDown) {
                 qDebug() << "[Hook] Triggered: Shift + Space";
