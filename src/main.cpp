@@ -150,8 +150,9 @@ int main(int argc, char *argv[]) {
 
     // 8. 监听剪贴板 (智能标题与自动分类)
     QObject::connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, 
-        [&](const QString& content, const QString& type, const QByteArray& data){
-        qDebug() << "[Main] 接收到剪贴板信号:" << type;
+        [&](const QString& content, const QString& type, const QByteArray& data,
+            const QString& sourceApp, const QString& sourceTitle){
+        qDebug() << "[Main] 接收到剪贴板信号:" << type << "来自:" << sourceApp;
         
         QString title;
         if (type == "image") {
@@ -173,7 +174,7 @@ int main(int argc, char *argv[]) {
             }
         }
         
-        DatabaseManager::instance().addNoteAsync(title, content, {"剪贴板"}, "", -1, type, data);
+        DatabaseManager::instance().addNoteAsync(title, content, {"剪贴板"}, "", -1, type, data, sourceApp, sourceTitle);
     });
 
     return a.exec();

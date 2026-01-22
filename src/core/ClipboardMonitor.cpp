@@ -18,10 +18,40 @@ ClipboardMonitor::ClipboardMonitor(QObject* parent) : QObject(parent) {
 #include <QUrl>
 #include <QFileInfo>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <psapi.h>
+#endif
+
 void ClipboardMonitor::onClipboardChanged() {
     // 1. 过滤本程序自身的复制
     QWidget* activeWin = QApplication::activeWindow();
     if (activeWin) return;
+
+    // 抓取来源窗口信息 (对标 Ditto)
+    QString sourceApp = "未知应用";
+    QString sourceTitle = "未知窗口";
+
+#ifdef Q_OS_WIN
+    HWND hwnd = GetForegroundWindow();
+    if (hwnd) {
+        wchar_t title[512];
+        if (GetWindowTextW(hwnd, title, 512)) {
+            sourceTitle = QString::fromWCharArray(title);
+        }
+
+        DWORD processId;
+        GetWindowThreadProcessId(hwnd, &processId);
+        HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processId);
+        if (hProcess) {
+            wchar_t exePath[MAX_PATH];
+            if (GetModuleFileNameExW(hProcess, NULL, exePath, MAX_PATH)) {
+                sourceApp = QFileInfo(QString::fromWCharArray(exePath)).baseName();
+            }
+            CloseHandle(hProcess);
+        }
+    }
+#endif
 
     const QMimeData* mimeData = QGuiApplication::clipboard()->mimeData();
     if (!mimeData) return;
@@ -62,6 +92,6 @@ void ClipboardMonitor::onClipboardChanged() {
     if (currentHash == m_lastHash) return;
     m_lastHash = currentHash;
 
-    qDebug() << "[ClipboardMonitor] 捕获新内容:" << type << content.left(30);
-    emit newContentDetected(content, type, dataBlob);
+    qDebug() << "[ClipboardMonitor] 捕获新内容 (来自:" << sourceApp << "):" << type << content.left(30);
+    emit newContentDetected(content, type, dataBlob, sourceApp, sourceTitle);
 }

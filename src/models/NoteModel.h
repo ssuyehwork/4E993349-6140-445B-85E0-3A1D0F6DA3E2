@@ -20,7 +20,9 @@ public:
         FavoriteRole,
         TypeRole,
         RatingRole,
-        CategoryIdRole
+        CategoryIdRole,
+        SourceAppRole,
+        SourceTitleRole
     };
 
     explicit NoteModel(QObject* parent = nullptr);
