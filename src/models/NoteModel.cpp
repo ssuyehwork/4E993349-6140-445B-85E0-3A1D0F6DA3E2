@@ -172,7 +172,7 @@ Qt::ItemFlags NoteModel::flags(const QModelIndex& index) const {
 }
 
 QStringList NoteModel::mimeTypes() const {
-    return {"application/x-note-ids"};
+    return {"application/x-note-ids", "text/plain", "text/html", "text/uri-list"};
 }
 
 QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
@@ -205,7 +205,10 @@ QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
     
     mimeData->setData("application/x-note-ids", ids.join(",").toUtf8());
     if (!texts.isEmpty()) {
-        mimeData->setText(texts.join("\n---\n"));
+        QString plainText = texts.join("\n---\n");
+        mimeData->setText(plainText);
+        // 深度对齐专业工具：增加 HTML 格式支持，大幅提升浏览器/富文本编辑器的兼容性
+        mimeData->setHtml(plainText.toHtmlEscaped().replace("\n", "<br>"));
     }
     if (!urls.isEmpty()) {
         mimeData->setUrls(urls);
