@@ -148,7 +148,7 @@ void QuickWindow::initUI() {
     m_splitter->setHandleWidth(4);
     m_splitter->setChildrenCollapsible(false);
     
-    m_listView = new QListView();
+    m_listView = new DittoListView();
     m_listView->setDragEnabled(true);
     m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_listView->setIconSize(QSize(28, 28));
@@ -1008,31 +1008,47 @@ void QuickWindow::showCentered() {
     m_searchEdit->selectAll();
 }
 
+#ifdef Q_OS_WIN
+bool QuickWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr *result) {
+    MSG* msg = static_cast<MSG*>(message);
+    if (msg->message == WM_NCHITTEST) {
+        // 原生边缘检测，实现丝滑的双向箭头缩放体验
+        int x = GET_X_LPARAM(msg->lParam);
+        int y = GET_Y_LPARAM(msg->lParam);
+
+        // 转换为本地坐标
+        QPoint pos = mapFromGlobal(QPoint(x, y));
+        int margin = RESIZE_MARGIN;
+        int w = width();
+        int h = height();
+
+        bool left = pos.x() < margin;
+        bool right = pos.x() > w - margin;
+        bool top = pos.y() < margin;
+        bool bottom = pos.y() > h - margin;
+
+        if (top && left) *result = HTTOPLEFT;
+        else if (top && right) *result = HTTOPRIGHT;
+        else if (bottom && left) *result = HTBOTTOMLEFT;
+        else if (bottom && right) *result = HTBOTTOMRIGHT;
+        else if (top) *result = HTTOP;
+        else if (bottom) *result = HTBOTTOM;
+        else if (left) *result = HTLEFT;
+        else if (right) *result = HTRIGHT;
+        else return QWidget::nativeEvent(eventType, message, result);
+
+        return true;
+    }
+    return QWidget::nativeEvent(eventType, message, result);
+}
+#endif
+
 bool QuickWindow::event(QEvent* event) {
     return QWidget::event(event);
 }
 
 void QuickWindow::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        // 【核心修复】检查是否在10px边距区域
-        int x = event->pos().x();
-        int y = event->pos().y();
-        int w = width();
-        int h = height();
-
-        bool inMarginArea = (x < 10 || x > w - 10 || y < 10 || y > h - 10);
-
-        if (inMarginArea) {
-            // 在边距区域，启动调整大小
-            m_resizeArea = getResizeArea(event->pos());
-            if (m_resizeArea != 0) {
-                m_resizeStartPos = event->globalPosition().toPoint();
-                m_resizeStartGeometry = frameGeometry();
-                event->accept();
-                return;
-            }
-        }
-
         // 不在边距区域，启动移动窗口（只有点击空白处时）
         if (auto* handle = windowHandle()) {
             handle->startSystemMove();
@@ -1042,45 +1058,10 @@ void QuickWindow::mousePressEvent(QMouseEvent* event) {
 }
 
 void QuickWindow::mouseMoveEvent(QMouseEvent* event) {
-    // 如果正在拖拽改变大小，继续执行
-    if (event->buttons() & Qt::LeftButton && m_resizeArea != 0) {
-        QPoint delta = event->globalPosition().toPoint() - m_resizeStartPos;
-        QRect newGeom = m_resizeStartGeometry;
-
-        if (m_resizeArea & 0x1) newGeom.setLeft(m_resizeStartGeometry.left() + delta.x());
-        if (m_resizeArea & 0x2) newGeom.setRight(m_resizeStartGeometry.right() + delta.x());
-        if (m_resizeArea & 0x4) newGeom.setTop(m_resizeStartGeometry.top() + delta.y());
-        if (m_resizeArea & 0x8) newGeom.setBottom(m_resizeStartGeometry.bottom() + delta.y());
-
-        if (newGeom.width() >= minimumWidth() && newGeom.height() >= minimumHeight()) {
-            setGeometry(newGeom);
-        }
-        event->accept();
-        return;
-    }
-
-    // 【核心修复】检查是否在10px边距区域
-    int x = event->pos().x();
-    int y = event->pos().y();
-    int w = width();
-    int h = height();
-
-    // 只有在10px边距区域才显示调整大小光标
-    bool inMarginArea = (x < 10 || x > w - 10 || y < 10 || y > h - 10);
-
-    if (inMarginArea && event->buttons() == Qt::NoButton) {
-        setCursorShape(getResizeArea(event->pos()));
-    } else {
-        setCursor(Qt::ArrowCursor);
-        m_resizeArea = 0;
-    }
-
     QWidget::mouseMoveEvent(event);
 }
 
 void QuickWindow::mouseReleaseEvent(QMouseEvent* event) {
-    m_resizeArea = 0;
-    setCursor(Qt::ArrowCursor);
     QWidget::mouseReleaseEvent(event);
 }
 
@@ -1159,17 +1140,6 @@ void QuickWindow::hideEvent(QHideEvent* event) {
     QWidget::hideEvent(event);
 }
 
-int QuickWindow::getResizeArea(const QPoint& pos) {
-    int area = 0;
-    int x = pos.x();
-    int y = pos.y();
-    if (x < RESIZE_MARGIN) area |= 0x1;
-    else if (x > width() - RESIZE_MARGIN) area |= 0x2;
-    if (y < RESIZE_MARGIN) area |= 0x4;
-    else if (y > height() - RESIZE_MARGIN) area |= 0x8;
-    return area;
-}
-
 void QuickWindow::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_Escape) {
         hide();
@@ -1178,20 +1148,11 @@ void QuickWindow::keyPressEvent(QKeyEvent* event) {
     QWidget::keyPressEvent(event);
 }
 
-void QuickWindow::setCursorShape(int area) {
-    if (area == 0) setCursor(Qt::ArrowCursor);
-    else if ((area & 0x1 && area & 0x4) || (area & 0x2 && area & 0x8)) setCursor(Qt::SizeFDiagCursor);
-    else if ((area & 0x2 && area & 0x4) || (area & 0x1 && area & 0x8)) setCursor(Qt::SizeBDiagCursor);
-    else if (area & 0x1 || area & 0x2) setCursor(Qt::SizeHorCursor);
-    else if (area & 0x4 || area & 0x8) setCursor(Qt::SizeVerCursor);
-}
-
 bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
     // 逻辑 1: 鼠标移动到列表或侧边栏范围内，立即恢复正常光标
     if (watched == m_listView || watched == m_systemTree || watched == m_partitionTree) {
         if (event->type() == QEvent::MouseMove || event->type() == QEvent::Enter) {
             setCursor(Qt::ArrowCursor);
-            m_resizeArea = 0; // 物理隔离，确保不误触发缩放
         }
     }
 
@@ -1232,4 +1193,13 @@ bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
         }
     }
     return QWidget::eventFilter(watched, event);
+}
+
+void DittoListView::startDrag(Qt::DropActions supportedActions) {
+    // 深度对齐 Ditto：禁用笨重的快照卡片 Pixmap
+    // 这样在拖拽时不会出现遮挡视线的虚影卡片，仅保留光标反馈
+    QDrag* drag = new QDrag(this);
+    drag->setMimeData(model()->mimeData(selectedIndexes()));
+    // 不调用 setPixmap，即保持轻量化
+    drag->exec(supportedActions);
 }
