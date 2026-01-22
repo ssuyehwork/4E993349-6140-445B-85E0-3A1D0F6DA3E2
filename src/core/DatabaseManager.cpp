@@ -295,19 +295,6 @@ bool DatabaseManager::updateNoteState(int id, const QString& column, const QVari
         QStringList allowedColumns = {"is_pinned", "is_locked", "is_favorite", "is_deleted", "tags", "rating", "category_id", "color"};
         if (!allowedColumns.contains(column)) return false;
 
-        // 凡是数据被绑定标签或绑定书签或保护(锁定)时, 不可被删除 (移入回收站)
-        if (column == "is_deleted" && value.toBool() == true) {
-            QSqlQuery check(m_db);
-            check.prepare("SELECT tags, is_favorite, is_locked FROM notes WHERE id = :id");
-            check.bindValue(":id", id);
-            if (check.exec() && check.next()) {
-                QString tags = check.value(0).toString();
-                bool isFav = check.value(1).toBool();
-                bool isLocked = check.value(2).toBool();
-                if (!tags.isEmpty() || isFav || isLocked) return false;
-            }
-        }
-
         QSqlQuery query(m_db);
         
         // 增强逻辑：同步更新颜色 (对标 Python)
@@ -357,28 +344,6 @@ bool DatabaseManager::updateNoteStateBatch(const QList<int>& ids, const QString&
 
         m_db.transaction();
 
-        // 凡是数据被绑定标签或绑定书签或保护(锁定)时, 不可被删除
-        QList<int> filteredIds;
-        if (column == "is_deleted" && value.toBool() == true) {
-            QSqlQuery check(m_db);
-            check.prepare("SELECT tags, is_favorite, is_locked FROM notes WHERE id = :id");
-            for (int id : ids) {
-                check.bindValue(":id", id);
-                if (check.exec() && check.next()) {
-                    if (check.value(0).toString().isEmpty() && !check.value(1).toBool() && !check.value(2).toBool()) {
-                        filteredIds << id;
-                    }
-                }
-            }
-        } else {
-            filteredIds = ids;
-        }
-
-        if (filteredIds.isEmpty() && column == "is_deleted") {
-            m_db.rollback();
-            return false;
-        }
-
         QSqlQuery query(m_db);
 
         QString sql;
@@ -396,7 +361,7 @@ bool DatabaseManager::updateNoteStateBatch(const QList<int>& ids, const QString&
         }
 
         query.prepare(sql);
-        for (int id : filteredIds) {
+        for (int id : ids) {
             query.bindValue(":val", value);
             query.bindValue(":updated_at", currentTime);
             query.bindValue(":id", id);

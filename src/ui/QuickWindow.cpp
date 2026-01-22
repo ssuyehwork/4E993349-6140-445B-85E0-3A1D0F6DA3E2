@@ -696,45 +696,42 @@ void QuickWindow::doDeleteSelected() {
     const auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
 
-    QList<int> ids;
-    int blockedCount = 0;
-
-    for (const auto& index : selected) {
-        // 凡是数据被绑定标签或绑定书签或保护(锁定)时, 不可被删除
-        QString tags = index.data(NoteModel::TagsRole).toString();
-        bool isFavorite = index.data(NoteModel::FavoriteRole).toBool();
-        bool isLocked = index.data(NoteModel::LockedRole).toBool();
-
-        if (!tags.isEmpty() || isFavorite || isLocked) {
-            blockedCount++;
-            continue; // 受保护，跳过
-        }
-
-        ids << index.data(NoteModel::IdRole).toInt();
-    }
-
-    if (ids.isEmpty()) {
-        if (blockedCount > 0) {
-            QToolTip::showText(QCursor::pos(), QString("⚠️ 有 %1 项数据受保护（带标签/书签/锁定），无法删除").arg(blockedCount), this);
-        }
-        return;
-    }
-
     if (m_currentFilterType == "trash") {
-        // 二级删除：弹出警告
-        if (QMessageBox::warning(this, "永久删除确认", "确定要永久删除选中的数据吗？此操作将无法恢复！",
-                                QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
-            DatabaseManager::instance().deleteNotesBatch(ids);
-            refreshData();
+        // --- 二级删除：执行物理删除，应用严格保护规则 ---
+        QList<int> safeIds;
+        int blockedCount = 0;
+        for (const auto& index : selected) {
+            QString tags = index.data(NoteModel::TagsRole).toString();
+            bool isFavorite = index.data(NoteModel::FavoriteRole).toBool();
+            bool isLocked = index.data(NoteModel::LockedRole).toBool();
+
+            if (tags.isEmpty() && !isFavorite && !isLocked) {
+                safeIds << index.data(NoteModel::IdRole).toInt();
+            } else {
+                blockedCount++;
+            }
+        }
+
+        if (!safeIds.isEmpty()) {
+            if (QMessageBox::warning(this, "永久删除确认", "确定要永久删除选中的数据吗？此操作将无法恢复！",
+                                    QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
+                DatabaseManager::instance().deleteNotesBatch(safeIds);
+                refreshData();
+            }
+        }
+
+        if (blockedCount > 0) {
+            QToolTip::showText(QCursor::pos(), QString("⚠️ 有 %1 项数据受保护（带标签/书签/锁定），无法彻底删除").arg(blockedCount), this);
         }
     } else {
-        // 一级删除：静默移至回收站
-        DatabaseManager::instance().updateNoteStateBatch(ids, "is_deleted", 1);
-        refreshData();
-    }
+        // --- 一级删除：移入回收站，无视任何保护规则，静默执行 ---
+        QList<int> allIds;
+        for (const auto& index : selected) {
+            allIds << index.data(NoteModel::IdRole).toInt();
+        }
 
-    if (blockedCount > 0) {
-        QToolTip::showText(QCursor::pos(), QString("⚠️ 有 %1 项数据受保护（带标签/书签/锁定），无法删除").arg(blockedCount), this);
+        DatabaseManager::instance().updateNoteStateBatch(allIds, "is_deleted", 1);
+        refreshData();
     }
 }
 
