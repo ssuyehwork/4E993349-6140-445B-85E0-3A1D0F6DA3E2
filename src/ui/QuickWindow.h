@@ -70,6 +70,8 @@ private:
     void applyListTheme(const QString& colorHex);
 public:
     QString currentCategoryColor() const { return m_currentCategoryColor; }
+    bool isAutoCategorizeEnabled() const { return m_autoCategorizeClipboard; }
+    int getCurrentCategoryId() const { return (m_currentFilterType == "category") ? m_currentFilterValue : -1; }
 
     // 快捷键处理函数
     void doDeleteSelected(bool physical = false);
@@ -88,6 +90,7 @@ public:
     void toggleSidebar();
     void showListContextMenu(const QPoint& pos);
     void showSidebarMenu(const QPoint& pos);
+    void showToolboxMenu(const QPoint& pos);
     
     SearchLineEdit* m_searchEdit;
     QListView* m_listView;
@@ -110,6 +113,7 @@ public:
     QString m_currentFilterType = "all";
     int m_currentFilterValue = -1;
     QString m_currentCategoryColor = "#4a90e2"; // 默认蓝色
+    bool m_autoCategorizeClipboard = false;
 
 #ifdef Q_OS_WIN
     HWND m_lastActiveHwnd = nullptr;

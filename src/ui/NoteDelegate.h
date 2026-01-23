@@ -84,12 +84,14 @@ public:
         painter->drawPixmap(bottomRect.left(), bottomRect.top() + (bottomRect.height() - 12) / 2, clock);
         painter->drawText(bottomRect.adjusted(16, 0, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, timeStr);
 
-        // 模拟 Python 版的“剪贴板”或“类型”标签
+        // 处理类型标签显示 (对齐智能标签逻辑)
         QString itemType = index.data(NoteModel::TypeRole).toString();
-        if (itemType.isEmpty()) itemType = "笔记";
-        else if (itemType == "text") itemType = "剪贴板";
+        if (itemType == "text") itemType = "文本";
+        else if (itemType == "image") itemType = "图片";
+        else if (itemType == "file") itemType = "文件";
+        else if (itemType.isEmpty()) itemType = "笔记";
         
-        QString tagText = itemType.toUpper();
+        QString tagText = itemType;
         int tagWidth = painter->fontMetrics().horizontalAdvance(tagText) + 16;
         QRect tagRect(bottomRect.right() - tagWidth, bottomRect.top() + 2, tagWidth, 18);
         

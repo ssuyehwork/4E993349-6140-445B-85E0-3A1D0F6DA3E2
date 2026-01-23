@@ -180,6 +180,27 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
         }
 
         // --- 未命中：插入新记录 ---
+        QString finalColor = color.isEmpty() ? "#2d2d2d" : color;
+        QStringList finalTags = tags;
+
+        // 获取分类预设标签和颜色 (如果指定了分类且未指定颜色)
+        if (categoryId != -1) {
+            QSqlQuery catQuery(m_db);
+            catQuery.prepare("SELECT color, preset_tags FROM categories WHERE id = :id");
+            catQuery.bindValue(":id", categoryId);
+            if (catQuery.exec() && catQuery.next()) {
+                if (color.isEmpty()) finalColor = catQuery.value(0).toString();
+                QString preset = catQuery.value(1).toString();
+                if (!preset.isEmpty()) {
+                    QStringList pTags = preset.split(",", Qt::SkipEmptyParts);
+                    for (const QString& t : pTags) {
+                        QString trimmed = t.trimmed();
+                        if (!finalTags.contains(trimmed)) finalTags << trimmed;
+                    }
+                }
+            }
+        }
+
         QSqlQuery query(m_db);
         query.prepare("INSERT INTO notes (title, content, tags, color, category_id, item_type, data_blob, "
                       "content_hash, created_at, updated_at, source_app, source_title) "
@@ -187,8 +208,8 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
                       ":hash, :created_at, :updated_at, :source_app, :source_title)");
         query.bindValue(":title", title);
         query.bindValue(":content", content);
-        query.bindValue(":tags", tags.join(","));
-        query.bindValue(":color", color.isEmpty() ? "#2d2d2d" : color);
+        query.bindValue(":tags", finalTags.join(","));
+        query.bindValue(":color", finalColor);
         query.bindValue(":category_id", categoryId == -1 ? QVariant(QMetaType::fromType<int>()) : categoryId);
         query.bindValue(":item_type", itemType);
         query.bindValue(":data_blob", dataBlob);
@@ -249,6 +270,23 @@ bool DatabaseManager::updateNote(int id, const QString& title, const QString& co
     }
 
     if (success) emit noteUpdated();
+    return success;
+}
+
+bool DatabaseManager::restoreAllFromTrash() {
+    bool success = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
+        QSqlQuery query(m_db);
+        // 恢复所有回收站数据到未分类 (category_id = NULL, is_deleted = 0)
+        // 颜色恢复为默认未分类色 #0A362F
+        success = query.exec("UPDATE notes SET is_deleted = 0, category_id = NULL, color = '#0A362F' WHERE is_deleted = 1");
+    }
+    if (success) {
+        emit noteUpdated();
+        emit categoriesChanged();
+    }
     return success;
 }
 
@@ -702,7 +740,9 @@ bool DatabaseManager::setCategoryPresetTags(int catId, const QString& tags) {
     query.prepare("UPDATE categories SET preset_tags=:tags WHERE id=:id");
     query.bindValue(":tags", tags);
     query.bindValue(":id", catId);
-    return query.exec();
+    bool ok = query.exec();
+    if (ok) emit categoriesChanged();
+    return ok;
 }
 
 QString DatabaseManager::getCategoryPresetTags(int catId) {

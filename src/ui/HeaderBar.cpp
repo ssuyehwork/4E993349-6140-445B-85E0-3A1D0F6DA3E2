@@ -12,11 +12,13 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
 
     QHBoxLayout* layout = new QHBoxLayout(this);
     layout->setContentsMargins(10, 0, 10, 0);
+    layout->setSpacing(4);
     
     QPushButton* btnSidebar = new QPushButton();
-    btnSidebar->setIcon(IconHelper::getIcon("sidebar", "#aaaaaa"));
+    btnSidebar->setIcon(IconHelper::getIcon("sidebar", "#aaaaaa", 20));
+    btnSidebar->setIconSize(QSize(20, 20));
     btnSidebar->setFixedSize(32, 32);
-    btnSidebar->setStyleSheet("background: transparent; border: none;");
+    btnSidebar->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } QPushButton:hover { background: rgba(255,255,255,0.1); }");
     connect(btnSidebar, &QPushButton::clicked, this, &HeaderBar::toggleSidebar);
     layout->addWidget(btnSidebar);
 
@@ -56,35 +58,44 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     layout->addWidget(btnAdd);
 
     QPushButton* btnTool = new QPushButton();
-    btnTool->setIcon(IconHelper::getIcon("toolbox", "#aaaaaa"));
+    btnTool->setIcon(IconHelper::getIcon("toolbox", "#aaaaaa", 20));
+    btnTool->setIconSize(QSize(20, 20));
     btnTool->setFixedSize(32, 32);
-    btnTool->setStyleSheet("background: transparent; border: none;");
+    btnTool->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } QPushButton:hover { background: rgba(255,255,255,0.1); }");
     connect(btnTool, &QPushButton::clicked, this, &HeaderBar::toolboxRequested);
     layout->addWidget(btnTool);
 
     QPushButton* btnPreview = new QPushButton();
-    btnPreview->setIcon(IconHelper::getIcon("eye", "#aaaaaa"));
+    btnPreview->setIcon(IconHelper::getIcon("eye", "#aaaaaa", 20));
+    btnPreview->setIconSize(QSize(20, 20));
     btnPreview->setFixedSize(32, 32);
     btnPreview->setCheckable(true);
-    btnPreview->setStyleSheet("QPushButton { background: transparent; border: none; } QPushButton:checked { background: #444; border-radius: 4px; }");
+    btnPreview->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } QPushButton:hover { background: rgba(255,255,255,0.1); } QPushButton:checked { background: #0E639C; }");
     connect(btnPreview, &QPushButton::toggled, this, &HeaderBar::previewToggled);
     layout->addWidget(btnPreview);
 
-    layout->addSpacing(20);
+    layout->addSpacing(10);
 
-    // 窗口控制按钮
+    // 窗口控制按钮容器，实现 0 间距紧凑布局
+    QWidget* winCtrlWidget = new QWidget();
+    QHBoxLayout* winCtrlLayout = new QHBoxLayout(winCtrlWidget);
+    winCtrlLayout->setContentsMargins(0, 0, 0, 0);
+    winCtrlLayout->setSpacing(0);
+
     auto addWinBtn = [&](const QString& icon, const QString& hoverColor, auto signal) {
         QPushButton* btn = new QPushButton();
-        btn->setIcon(IconHelper::getIcon(icon, "#aaaaaa", 16));
+        btn->setIcon(IconHelper::getIcon(icon, "#aaaaaa", 20)); // 图标增大到 20px，锁定比例
+        btn->setIconSize(QSize(20, 20));
         btn->setFixedSize(32, 32);
-        btn->setStyleSheet(QString("QPushButton { background: transparent; border: none; } QPushButton:hover { background: %1; }").arg(hoverColor));
+        btn->setStyleSheet(QString("QPushButton { background: transparent; border: none; border-radius: 0px; } QPushButton:hover { background: %1; }").arg(hoverColor));
         connect(btn, &QPushButton::clicked, this, signal);
-        layout->addWidget(btn);
+        winCtrlLayout->addWidget(btn);
     };
 
     addWinBtn("minimize", "rgba(255,255,255,0.1)", &HeaderBar::windowMinimize);
     addWinBtn("maximize", "rgba(255,255,255,0.1)", &HeaderBar::windowMaximize);
     addWinBtn("close", "#e81123", &HeaderBar::windowClose);
+    layout->addWidget(winCtrlWidget);
 }
 
 void HeaderBar::mousePressEvent(QMouseEvent* event) {
