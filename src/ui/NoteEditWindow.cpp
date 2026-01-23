@@ -73,9 +73,9 @@ bool NoteEditWindow::eventFilter(QObject* watched, QEvent* event) {
         QPushButton* btn = qobject_cast<QPushButton*>(watched);
         if (btn) {
             if (event->type() == QEvent::Enter) {
-                btn->setIcon(IconHelper::getIcon("close", "#ffffff", 16));
+                btn->setIcon(IconHelper::getIcon("close", "#ffffff", 20));
             } else if (event->type() == QEvent::Leave) {
-                btn->setIcon(IconHelper::getIcon("close", "#aaaaaa", 16));
+                btn->setIcon(IconHelper::getIcon("close", "#aaaaaa", 20));
             }
         }
     }
