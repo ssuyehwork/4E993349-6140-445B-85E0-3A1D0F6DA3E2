@@ -71,10 +71,13 @@ void MainWindow::initUI() {
     m_sideModel = new CategoryModel(CategoryModel::Both, this);
     m_sideBar->setModel(m_sideModel);
     m_sideBar->setHeaderHidden(true);
+    m_sideBar->setRootIsDecorated(false);
+    m_sideBar->setIndentation(12);
     m_sideBar->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_sideBar->setStyleSheet(
         "QTreeView { background-color: #252526; border: none; color: #CCC; outline: none; }"
-        "QTreeView::branch { image: none; }"
+        "QTreeView::branch { image: none; border: none; }"
+        "QTreeView::branch:has-children:closed, QTreeView::branch:has-children:open { image: none; }"
         "QTreeView::item { height: 30px; }"
     );
     m_sideBar->expandAll();

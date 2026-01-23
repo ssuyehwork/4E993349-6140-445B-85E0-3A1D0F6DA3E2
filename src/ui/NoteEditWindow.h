@@ -38,10 +38,12 @@ private:
     void setupRightPanel(QVBoxLayout* layout);
     QPushButton* createColorBtn(const QString& color, int id);
     
+private slots:
     void toggleMaximize();
     void saveNote();
     void toggleSearchBar();
 
+private:
     int m_noteId;
     int m_catId = -1;
     

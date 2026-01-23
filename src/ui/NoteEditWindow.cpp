@@ -247,14 +247,28 @@ QPushButton* NoteEditWindow::createColorBtn(const QString& color, int id) {
 }
 
 void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
+    QHBoxLayout* headerLayout = new QHBoxLayout();
+    headerLayout->setContentsMargins(0, 0, 0, 0);
+    headerLayout->setSpacing(2);
+
+    QLabel* titleLabel = new QLabel("详细内容");
+    titleLabel->setStyleSheet("color: #888; font-size: 12px; font-weight: bold;");
+    headerLayout->addWidget(titleLabel);
+    headerLayout->addStretch();
+
     QHBoxLayout* toolBar = new QHBoxLayout();
-    QString btnStyle = "QPushButton { background: transparent; border: 1px solid #444; border-radius: 4px; margin-left: 2px; } QPushButton:hover { background-color: #444; }";
+    toolBar->setContentsMargins(0, 0, 0, 0);
+    toolBar->setSpacing(2);
+
+    QString btnStyle = "QPushButton { background: transparent; border: none; border-radius: 4px; padding: 0; } "
+                       "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
+                       "QPushButton:checked { background-color: rgba(255, 255, 255, 0.2); }";
     
     auto addTool = [&](const QString& iconName, const QString& tip, std::function<void()> callback) {
         QPushButton* btn = new QPushButton();
-        btn->setIcon(IconHelper::getIcon(iconName, "#cccccc"));
+        btn->setIcon(IconHelper::getIcon(iconName, "#aaaaaa", 14));
         btn->setToolTip(tip);
-        btn->setFixedSize(28, 28);
+        btn->setFixedSize(24, 24);
         btn->setCursor(Qt::PointingHandCursor);
         btn->setStyleSheet(btnStyle);
         connect(btn, &QPushButton::clicked, callback);
@@ -262,18 +276,21 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
         return btn;
     };
 
-    layout->addWidget(new QLabel("详细内容"));
-    
     addTool("undo", "撤销 (Ctrl+Z)", [this](){ m_contentEdit->undo(); });
     addTool("redo", "重做 (Ctrl+Y)", [this](){ m_contentEdit->redo(); });
-    toolBar->addSpacing(5);
+
+    QFrame* sep1 = new QFrame();
+    sep1->setFixedWidth(1);
+    sep1->setFixedHeight(14);
+    sep1->setStyleSheet("background-color: #333; margin-left: 4px; margin-right: 4px;");
+    toolBar->addWidget(sep1);
+
     addTool("list_ul", "无序列表", [this](){ m_contentEdit->toggleList(false); });
     addTool("list_ol", "有序列表", [this](){ m_contentEdit->toggleList(true); });
-    toolBar->addSpacing(5);
     
     QPushButton* btnTodo = new QPushButton();
-    btnTodo->setIcon(IconHelper::getIcon("todo", "#cccccc", 18));
-    btnTodo->setFixedSize(28, 28);
+    btnTodo->setIcon(IconHelper::getIcon("todo", "#aaaaaa", 14));
+    btnTodo->setFixedSize(24, 24);
     btnTodo->setToolTip("插入待办事项");
     btnTodo->setStyleSheet(btnStyle);
     btnTodo->setCursor(Qt::PointingHandCursor);
@@ -281,8 +298,8 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     toolBar->addWidget(btnTodo);
 
     QPushButton* btnPre = new QPushButton();
-    btnPre->setIcon(IconHelper::getIcon("eye", "#cccccc", 18));
-    btnPre->setFixedSize(28, 28);
+    btnPre->setIcon(IconHelper::getIcon("eye", "#aaaaaa", 14));
+    btnPre->setFixedSize(24, 24);
     btnPre->setToolTip("切换 Markdown 预览/编辑");
     btnPre->setStyleSheet(btnStyle);
     btnPre->setCursor(Qt::PointingHandCursor);
@@ -292,14 +309,19 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
 
     addTool("edit_clear", "清除格式", [this](){ m_contentEdit->clearFormatting(); });
     
-    toolBar->addStretch();
-    
+    QFrame* sep2 = new QFrame();
+    sep2->setFixedWidth(1);
+    sep2->setFixedHeight(14);
+    sep2->setStyleSheet("background-color: #333; margin-left: 4px; margin-right: 4px;");
+    toolBar->addWidget(sep2);
+
     // 高亮颜色
     QStringList hColors = {"#c0392b", "#d35400", "#f1c40f", "#27ae60", "#2980b9", "#8e44ad"};
     for (const auto& color : hColors) {
         QPushButton* hBtn = new QPushButton();
-        hBtn->setFixedSize(24, 24);
-        hBtn->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #444; border-radius: 12px; margin-left: 2px; } QPushButton:hover { border-color: white; }").arg(color));
+        hBtn->setFixedSize(20, 20);
+        hBtn->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid rgba(0,0,0,0.2); border-radius: 10px; } "
+                                    "QPushButton:hover { border-color: white; }").arg(color));
         hBtn->setCursor(Qt::PointingHandCursor);
         connect(hBtn, &QPushButton::clicked, [this, color](){ m_contentEdit->highlightSelection(QColor(color)); });
         toolBar->addWidget(hBtn);
@@ -307,15 +329,17 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
 
     // 清除高亮按钮
     QPushButton* btnClearHighlight = new QPushButton();
-    btnClearHighlight->setIcon(IconHelper::getIcon("edit_clear", "#cccccc", 14));
-    btnClearHighlight->setFixedSize(24, 24);
+    btnClearHighlight->setIcon(IconHelper::getIcon("edit_clear", "#aaaaaa", 12));
+    btnClearHighlight->setFixedSize(20, 20);
     btnClearHighlight->setToolTip("清除高亮");
-    btnClearHighlight->setStyleSheet(btnStyle + " QPushButton { border-radius: 12px; }");
+    btnClearHighlight->setStyleSheet("QPushButton { background: transparent; border: 1px solid #444; border-radius: 10px; } "
+                                     "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); border-color: #666; }");
     btnClearHighlight->setCursor(Qt::PointingHandCursor);
     connect(btnClearHighlight, &QPushButton::clicked, [this](){ m_contentEdit->highlightSelection(Qt::transparent); });
     toolBar->addWidget(btnClearHighlight);
     
-    layout->addLayout(toolBar);
+    headerLayout->addLayout(toolBar);
+    layout->addLayout(headerLayout);
 
     // 搜索栏 (默认隐藏)
     m_searchBar = new QWidget();
