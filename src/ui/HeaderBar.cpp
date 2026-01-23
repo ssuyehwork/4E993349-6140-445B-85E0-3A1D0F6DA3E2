@@ -25,7 +25,7 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     m_searchEdit = new SearchLineEdit();
     m_searchEdit->setPlaceholderText("搜索灵感 (双击查看历史)...");
     m_searchEdit->setFixedWidth(300);
-    m_searchEdit->setStyleSheet("background: #1e1e1e; border-radius: 15px; padding: 5px 15px; border: 1px solid #444; color: white;");
+    // 移除硬编码样式，改用 SearchLineEdit 类的统一规范样式 (背景 #252526)
     connect(m_searchEdit, &QLineEdit::textChanged, this, &HeaderBar::searchChanged);
     connect(m_searchEdit, &QLineEdit::returnPressed, [this](){
         m_searchEdit->addHistoryEntry(m_searchEdit->text().trimmed());
@@ -35,6 +35,7 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     layout->addStretch();
 
     m_pageLabel = new QLabel("1 / 1");
+    m_pageLabel->setStyleSheet("background: transparent;"); // 确保透明，继承全局文本颜色
     layout->addWidget(m_pageLabel);
 
     QPushButton* btnPrev = new QPushButton();
@@ -78,6 +79,7 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
 
     // 窗口控制按钮容器，实现 0 间距紧凑布局
     QWidget* winCtrlWidget = new QWidget();
+    winCtrlWidget->setStyleSheet("background: transparent;"); // 关键：防止显示全局 QWidget 背景色
     QHBoxLayout* winCtrlLayout = new QHBoxLayout(winCtrlWidget);
     winCtrlLayout->setContentsMargins(0, 0, 0, 0);
     winCtrlLayout->setSpacing(0);
