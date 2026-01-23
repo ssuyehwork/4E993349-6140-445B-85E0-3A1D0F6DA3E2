@@ -12,6 +12,8 @@
 #include <QMessageBox>
 #include <QCursor>
 #include <QKeyEvent>
+#include <QInputDialog>
+#include <QColorDialog>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindowHint) {
     setWindowTitle("极速灵感 (RapidNotes) - 开发版");
@@ -70,28 +72,102 @@ void MainWindow::initUI() {
     m_sideBar->setModel(m_sideModel);
     m_sideBar->setHeaderHidden(true);
     m_sideBar->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_sideBar->setStyleSheet("background-color: #252526; border: none; color: #CCC;");
+    m_sideBar->setStyleSheet(
+        "QTreeView { background-color: #252526; border: none; color: #CCC; outline: none; }"
+        "QTreeView::branch { image: none; }"
+        "QTreeView::item { height: 30px; }"
+    );
     m_sideBar->expandAll();
     m_sideBar->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_sideBar, &QTreeView::customContextMenuRequested, this, [this](const QPoint& pos){
         QModelIndex index = m_sideBar->indexAt(pos);
         QMenu menu(this);
-        if (index.isValid()) {
-            QString type = index.data(Qt::UserRole).toString();
-            if (type == "category") {
-                int id = index.data(Qt::UserRole + 1).toInt();
-                menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名分类");
-                menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "删除分类", [this, id](){
-                    DatabaseManager::instance().deleteCategory(id);
+        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                           "QMenu::item { padding: 6px 10px 6px 28px; border-radius: 3px; } "
+                           "QMenu::item:selected { background-color: #4a90e2; color: white; }");
+
+        if (!index.isValid() || index.data().toString() == "我的分区") {
+            menu.addAction("➕ 新建分组", [this]() {
+                bool ok;
+                QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
+                if (ok && !text.isEmpty()) {
+                    DatabaseManager::instance().addCategory(text);
                     refreshData();
-                });
-            } else if (type == "trash") {
-                menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "清空回收站");
-            }
-        } else {
-            menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分类", [this](){
-                DatabaseManager::instance().addCategory("新建分类");
+                }
+            });
+            menu.exec(m_sideBar->mapToGlobal(pos));
+            return;
+        }
+
+        QString type = index.data(CategoryModel::TypeRole).toString();
+        if (type == "category") {
+            int catId = index.data(CategoryModel::IdRole).toInt();
+            QString currentName = index.data(CategoryModel::NameRole).toString();
+
+            menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建数据", [this, catId]() {
+                auto* win = new NoteEditWindow();
+                win->setDefaultCategory(catId);
+                connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
+                win->show();
+            });
+            menu.addSeparator();
+            menu.addAction(IconHelper::getIcon("palette", "#e67e22"), "设置颜色", [this, catId]() {
+                QColor color = QColorDialog::getColor(Qt::gray, this, "选择分类颜色");
+                if (color.isValid()) {
+                    DatabaseManager::instance().setCategoryColor(catId, color.name());
+                    refreshData();
+                }
+            });
+            menu.addAction(IconHelper::getIcon("tag", "#FFAB91"), "设置预设标签", [this, catId]() {
+                QString currentTags = DatabaseManager::instance().getCategoryPresetTags(catId);
+                bool ok;
+                QString text = QInputDialog::getText(this, "预设标签", "标签 (逗号分隔):", QLineEdit::Normal, currentTags, &ok);
+                if (ok) {
+                    DatabaseManager::instance().setCategoryPresetTags(catId, text);
+                }
+            });
+            menu.addSeparator();
+            menu.addAction("新建分组", [this]() {
+                bool ok;
+                QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
+                if (ok && !text.isEmpty()) {
+                    DatabaseManager::instance().addCategory(text);
+                    refreshData();
+                }
+            });
+            menu.addAction("新建子分区", [this, catId]() {
+                bool ok;
+                QString text = QInputDialog::getText(this, "新建区", "区名称:", QLineEdit::Normal, "", &ok);
+                if (ok && !text.isEmpty()) {
+                    DatabaseManager::instance().addCategory(text, catId);
+                    refreshData();
+                }
+            });
+            menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名", [this, catId, currentName]() {
+                bool ok;
+                QString text = QInputDialog::getText(this, "重命名", "新名称:", QLineEdit::Normal, currentName, &ok);
+                if (ok && !text.isEmpty()) {
+                    DatabaseManager::instance().renameCategory(catId, text);
+                    refreshData();
+                }
+            });
+            menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "删除", [this, catId]() {
+                if (QMessageBox::question(this, "确认删除", "确定要删除此分类吗？内容将移至未分类。") == QMessageBox::Yes) {
+                    DatabaseManager::instance().deleteCategory(catId);
+                    refreshData();
+                }
+            });
+        } else if (type == "trash") {
+            menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "全部恢复 (到未分类)", [this](){
+                DatabaseManager::instance().restoreAllFromTrash();
                 refreshData();
+            });
+            menu.addSeparator();
+            menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "清空回收站", [this]() {
+                if (QMessageBox::question(this, "确认清空", "确定要永久删除回收站中的所有非保护内容吗？\n(受保护的项将继续保留)") == QMessageBox::Yes) {
+                    DatabaseManager::instance().emptyTrash();
+                    refreshData();
+                }
             });
         }
         menu.exec(m_sideBar->mapToGlobal(pos));

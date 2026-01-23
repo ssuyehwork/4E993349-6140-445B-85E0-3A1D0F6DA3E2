@@ -823,13 +823,7 @@ void QuickWindow::doDeleteSelected(bool physical) {
 }
 
 void QuickWindow::doRestoreTrash() {
-    // 恢复所有回收站数据到未分类
-    QList<QVariantMap> trashNotes = DatabaseManager::instance().searchNotes("", "trash");
-    QList<int> ids;
-    for (const auto& note : trashNotes) ids << note["id"].toInt();
-    
-    if (!ids.isEmpty()) {
-        DatabaseManager::instance().moveNotesToCategory(ids, -1); // moveNotesToCategory 会重置 is_deleted=0
+    if (DatabaseManager::instance().restoreAllFromTrash()) {
         refreshData();
         refreshSidebar();
     }

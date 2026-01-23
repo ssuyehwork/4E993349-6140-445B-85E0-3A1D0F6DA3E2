@@ -181,8 +181,21 @@ int main(int argc, char *argv[]) {
         if (quickWin && quickWin->isAutoCategorizeEnabled()) {
             catId = quickWin->getCurrentCategoryId();
         }
+
+        // 自动生成类型标签
+        QStringList tags;
+        if (type == "image") tags << "图片";
+        else if (type == "file") tags << "文件";
+        else {
+            QString trimmed = content.trimmed();
+            if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("www.")) {
+                tags << "链接";
+            } else {
+                tags << "文本";
+            }
+        }
         
-        DatabaseManager::instance().addNoteAsync(title, content, {"剪贴板"}, "", catId, type, data, sourceApp, sourceTitle);
+        DatabaseManager::instance().addNoteAsync(title, content, tags, "", catId, type, data, sourceApp, sourceTitle);
     });
 
     return a.exec();
