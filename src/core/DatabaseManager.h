@@ -18,7 +18,7 @@ public:
     bool init(const QString& dbPath = "rapid_notes.db");
     
     // 核心 CRUD 操作
-    bool addNote(const QString& title, const QString& content, const QStringList& tags, 
+    bool addNote(const QString& title, const QString& content, const QStringList& tags = QStringList(),
                  const QString& color = "", int categoryId = -1, 
                  const QString& itemType = "text", const QByteArray& dataBlob = QByteArray(),
                  const QString& sourceApp = "", const QString& sourceTitle = "");
@@ -60,7 +60,7 @@ public:
     QVariantMap getCounts();
 
     // 异步操作
-    void addNoteAsync(const QString& title, const QString& content, const QStringList& tags,
+    void addNoteAsync(const QString& title, const QString& content, const QStringList& tags = QStringList(),
                       const QString& color = "", int categoryId = -1,
                       const QString& itemType = "text", const QByteArray& dataBlob = QByteArray(),
                       const QString& sourceApp = "", const QString& sourceTitle = "");
