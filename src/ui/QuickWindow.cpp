@@ -525,7 +525,7 @@ void QuickWindow::initUI() {
         if (text.isEmpty()) return;
         m_searchEdit->addHistoryEntry(text);
         if (m_model->rowCount() == 0) {
-            DatabaseManager::instance().addNoteAsync("快速记录", text);
+            DatabaseManager::instance().addNoteAsync("快速记录", text, QStringList());
             m_searchEdit->clear();
             hide();
         }

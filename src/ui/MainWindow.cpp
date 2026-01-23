@@ -76,9 +76,9 @@ void MainWindow::initUI() {
     m_sideBar->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_sideBar->setStyleSheet(
         "QTreeView { background-color: #252526; border: none; color: #CCC; outline: none; }"
-        "QTreeView::branch { image: none; border: none; }"
+        "QTreeView::branch { image: none; border: none; width: 0px; }"
         "QTreeView::branch:has-children:closed, QTreeView::branch:has-children:open, "
-        "QTreeView::branch:has-siblings:has-children:closed, QTreeView::branch:has-siblings:has-children:open { image: none; }"
+        "QTreeView::branch:has-siblings:has-children:closed, QTreeView::branch:has-siblings:has-children:open { image: none; width: 0px; }"
         "QTreeView::item { height: 30px; }"
     );
     m_sideBar->expandAll();
