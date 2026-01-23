@@ -33,6 +33,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindo
 
 void MainWindow::initUI() {
     auto* centralWidget = new QWidget(this);
+    centralWidget->setStyleSheet("background-color: #1E1E1E;"); // 统一底色
     setCentralWidget(centralWidget);
     auto* mainLayout = new QVBoxLayout(centralWidget);
     mainLayout->setContentsMargins(0, 0, 0, 0);

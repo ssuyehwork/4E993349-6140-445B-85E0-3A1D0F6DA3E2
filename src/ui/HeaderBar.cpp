@@ -9,7 +9,8 @@
 
 HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     setFixedHeight(40);
-    setStyleSheet("background-color: #252526; border-bottom: 1px solid #333;");
+    // 移除 border-bottom 以实现与下方面板的无缝衔接
+    setStyleSheet("background-color: #252526; border: none;");
 
     QHBoxLayout* layout = new QHBoxLayout(this);
     layout->setContentsMargins(10, 0, 10, 0);
