@@ -377,7 +377,39 @@ void MainWindow::refreshData() {
                 }
                 if (!tagMatch) match = false;
             }
-            // 可以继续添加日期过滤
+
+            if (match && criteria.contains("date_create")) {
+                bool dateMatch = false;
+                QDateTime now = QDateTime::currentDateTime();
+                QDateTime createdAt;
+
+                QVariant cv = note["created_at"];
+                if (cv.typeId() == QMetaType::QDateTime) {
+                    createdAt = cv.toDateTime();
+                } else {
+                    createdAt = QDateTime::fromString(cv.toString(), Qt::ISODate);
+                    if (!createdAt.isValid()) {
+                        createdAt = QDateTime::fromString(cv.toString(), "yyyy-MM-dd HH:mm:ss");
+                    }
+                }
+
+                if (createdAt.isValid()) {
+                    for (const QString& d_opt : criteria["date_create"].toStringList()) {
+                        if (d_opt == "today") {
+                            if (createdAt.date() == now.date()) dateMatch = true;
+                        } else if (d_opt == "yesterday") {
+                            if (createdAt.date() == now.date().addDays(-1)) dateMatch = true;
+                        } else if (d_opt == "this_week" || d_opt == "week") {
+                            if (createdAt.date() >= now.date().addDays(-6)) dateMatch = true;
+                        } else if (d_opt == "this_month" || d_opt == "month") {
+                            if (createdAt.date().year() == now.date().year() && createdAt.date().month() == now.date().month()) dateMatch = true;
+                        }
+                        if (dateMatch) break;
+                    }
+                    if (!dateMatch) match = false;
+                }
+            }
+
             if (match) filtered.append(note);
         }
         notes = filtered;
