@@ -2,6 +2,7 @@
 #include <QMimeData>
 #include <QFileInfo>
 #include <QUrl>
+#include <QTextList>
 
 MarkdownHighlighter::MarkdownHighlighter(QTextDocument* parent) : QSyntaxHighlighter(parent) {
     HighlightingRule rule;

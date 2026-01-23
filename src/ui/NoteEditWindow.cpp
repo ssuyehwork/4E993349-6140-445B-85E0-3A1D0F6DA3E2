@@ -52,7 +52,7 @@ void NoteEditWindow::paintEvent(QPaintEvent* event) {
 void NoteEditWindow::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         if (event->pos().y() < 40) {
-            m_dragPos = event->globalPos() - frameGeometry().topLeft();
+            m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
             event->accept();
         }
     }
@@ -61,7 +61,7 @@ void NoteEditWindow::mousePressEvent(QMouseEvent* event) {
 void NoteEditWindow::mouseMoveEvent(QMouseEvent* event) {
     if (event->buttons() & Qt::LeftButton) {
         if (!m_dragPos.isNull()) {
-            move(event->globalPos() - m_dragPos);
+            move(event->globalPosition().toPoint() - m_dragPos);
             event->accept();
         }
     }
