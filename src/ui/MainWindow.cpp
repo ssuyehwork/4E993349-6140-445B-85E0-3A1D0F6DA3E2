@@ -202,7 +202,7 @@ void MainWindow::initUI() {
 
     // 3. 中间列表
     m_noteList = new QListView();
-    m_noteList->setMinimumWidth(240); // 设置最小宽度为240px
+    m_noteList->setMinimumWidth(268); // 设置最小宽度为268px
     m_noteList->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // 隐藏垂直滚动条
     m_noteList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // 隐藏水平滚动条
     m_noteModel = new NoteModel(this);
