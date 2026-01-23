@@ -49,10 +49,7 @@ public:
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
 
-            QString colorHex = index.data(CategoryModel::ColorRole).toString();
-            QColor baseColor = colorHex.isEmpty() ? QColor("#4a90e2") : QColor(colorHex);
-            QColor bg = selected ? baseColor : QColor("#2a2d2e");
-            if (selected) bg.setAlphaF(0.2); // 选中时应用 20% 透明度联动分类颜色
+            QColor bg = selected ? QColor("#37373d") : QColor("#2a2d2e");
 
             // 精准计算高亮区域：联合图标与文字区域，避开左侧缩进/箭头区域
             QStyle* style = option.widget ? option.widget->style() : QApplication::style();
@@ -241,7 +238,7 @@ void QuickWindow::initUI() {
             font-weight: bold;
         }
         QTreeView::item {
-            height: 22px;
+            height: 30px;
             padding: 0px;
             border: none;
             background: transparent;
@@ -265,7 +262,7 @@ void QuickWindow::initUI() {
     m_systemTree->setHeaderHidden(true);
     m_systemTree->setMouseTracking(true);
     m_systemTree->setIndentation(12);
-    m_systemTree->setFixedHeight(132); // 6 items * 22px = 132px
+    m_systemTree->setFixedHeight(180); // 6 items * 30px = 180px
     m_systemTree->setEditTriggers(QAbstractItemView::NoEditTriggers); // 绝不可重命名
     m_systemTree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_systemTree->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -391,7 +388,7 @@ void QuickWindow::initUI() {
         } else {
             btn->setIcon(icon);
         }
-        btn->setIconSize(QSize(20, 20)); // 统一标准化为 20px 图标
+        btn->setIconSize(QSize(18, 18));
         btn->setFixedSize(32, 32);
         btn->setToolTip(tooltip);
         btn->setCursor(Qt::PointingHandCursor);
@@ -438,9 +435,7 @@ void QuickWindow::initUI() {
     connect(btnRefresh, &QPushButton::clicked, this, &QuickWindow::refreshData);
 
     QPushButton* btnToolbox = createToolBtn("toolbox", "#aaaaaa", "工具箱");
-    btnToolbox->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(btnToolbox, &QPushButton::clicked, this, &QuickWindow::toolboxRequested);
-    connect(btnToolbox, &QPushButton::customContextMenuRequested, this, &QuickWindow::showToolboxMenu);
 
     toolLayout->addWidget(btnPin, 0, Qt::AlignHCenter);
     toolLayout->addWidget(btnSidebar, 0, Qt::AlignHCenter);
@@ -528,7 +523,7 @@ void QuickWindow::initUI() {
         if (text.isEmpty()) return;
         m_searchEdit->addHistoryEntry(text);
         if (m_model->rowCount() == 0) {
-            DatabaseManager::instance().addNoteAsync("快速记录", text, QStringList());
+            DatabaseManager::instance().addNoteAsync("快速记录", text, {"Quick"});
             m_searchEdit->clear();
             hide();
         }
@@ -546,7 +541,6 @@ void QuickWindow::saveState() {
     settings.setValue("sidebarHidden", m_systemTree->parentWidget()->isHidden());
     // settings.setValue("stayOnTop", m_toolbar->isStayOnTop()); // Old
     settings.setValue("stayOnTop", (windowFlags() & Qt::WindowStaysOnTopHint) ? true : false);
-    settings.setValue("autoCategorizeClipboard", m_autoCategorizeClipboard);
 }
 
 void QuickWindow::restoreState() {
@@ -562,9 +556,6 @@ void QuickWindow::restoreState() {
     }
     if (settings.contains("stayOnTop")) {
         toggleStayOnTop(settings.value("stayOnTop").toBool());
-    }
-    if (settings.contains("autoCategorizeClipboard")) {
-        m_autoCategorizeClipboard = settings.value("autoCategorizeClipboard").toBool();
     }
 }
 
@@ -826,7 +817,13 @@ void QuickWindow::doDeleteSelected(bool physical) {
 }
 
 void QuickWindow::doRestoreTrash() {
-    if (DatabaseManager::instance().restoreAllFromTrash()) {
+    // 恢复所有回收站数据到未分类
+    QList<QVariantMap> trashNotes = DatabaseManager::instance().searchNotes("", "trash");
+    QList<int> ids;
+    for (const auto& note : trashNotes) ids << note["id"].toInt();
+
+    if (!ids.isEmpty()) {
+        DatabaseManager::instance().moveNotesToCategory(ids, -1); // moveNotesToCategory 会重置 is_deleted=0
         refreshData();
         refreshSidebar();
     }
@@ -1082,7 +1079,7 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
     QModelIndex index = tree->indexAt(pos);
     QMenu menu(this);
     menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                       "QMenu::item { padding: 6px 10px 6px 8px; border-radius: 3px; } "
+                       "QMenu::item { padding: 6px 10px 6px 28px; border-radius: 3px; } "
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
     if (!index.isValid() || index.data().toString() == "我的分区") {
@@ -1157,23 +1154,6 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
     }
 
     menu.exec(tree->mapToGlobal(pos));
-}
-
-void QuickWindow::showToolboxMenu(const QPoint& pos) {
-    QMenu menu(this);
-    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                       "QMenu::item { padding: 6px 10px 6px 28px; border-radius: 3px; } "
-                       "QMenu::item:selected { background-color: #4a90e2; color: white; }");
-
-    QAction* autoCatAction = menu.addAction("剪贴板自动归档到当前分类");
-    autoCatAction->setCheckable(true);
-    autoCatAction->setChecked(m_autoCategorizeClipboard);
-    connect(autoCatAction, &QAction::triggered, [this](bool checked){
-        m_autoCategorizeClipboard = checked;
-        QToolTip::showText(QCursor::pos(), m_autoCategorizeClipboard ? "✅ 剪贴板自动归档已开启" : "❌ 剪贴板自动归档已关闭", this);
-    });
-
-    menu.exec(QCursor::pos());
 }
 
 void QuickWindow::doMoveToCategory(int catId) {
@@ -1301,7 +1281,7 @@ void QuickWindow::dropEvent(QDropEvent* event) {
     QString title;
     QString content;
     QByteArray dataBlob;
-    QStringList tags;
+    QStringList tags = {"External"};
 
     if (mime->hasUrls()) {
         QList<QUrl> urls = mime->urls();
