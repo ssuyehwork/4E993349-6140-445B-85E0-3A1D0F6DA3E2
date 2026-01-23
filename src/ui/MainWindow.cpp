@@ -14,6 +14,8 @@
 #include <QKeyEvent>
 #include <QInputDialog>
 #include <QColorDialog>
+#include <QSet>
+#include <functional>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindowHint) {
     setWindowTitle("极速灵感 (RapidNotes) - 开发版");
@@ -200,6 +202,9 @@ void MainWindow::initUI() {
 
     // 3. 中间列表
     m_noteList = new QListView();
+    m_noteList->setMinimumWidth(240); // 设置最小宽度为240px
+    m_noteList->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // 隐藏垂直滚动条
+    m_noteList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // 隐藏水平滚动条
     m_noteModel = new NoteModel(this);
     m_noteList->setModel(m_noteModel);
     m_noteList->setItemDelegate(new NoteDelegate(m_noteList));
@@ -283,9 +288,59 @@ void MainWindow::onNoteAdded(const QVariantMap& note) {
 }
 
 void MainWindow::refreshData() {
+    // 保存当前展开状态
+    QSet<QString> expandedPaths;
+    std::function<void(const QModelIndex&)> checkChildren = [&](const QModelIndex& parent) {
+        for (int j = 0; j < m_sideModel->rowCount(parent); ++j) {
+            QModelIndex child = m_sideModel->index(j, 0, parent);
+            if (m_sideBar->isExpanded(child)) {
+                QString type = child.data(CategoryModel::TypeRole).toString();
+                if (type == "category") {
+                    expandedPaths.insert("cat_" + QString::number(child.data(CategoryModel::IdRole).toInt()));
+                } else {
+                    expandedPaths.insert(child.data(CategoryModel::NameRole).toString());
+                }
+            }
+            if (m_sideModel->rowCount(child) > 0) checkChildren(child);
+        }
+    };
+
+    for (int i = 0; i < m_sideModel->rowCount(); ++i) {
+        QModelIndex index = m_sideModel->index(i, 0);
+        if (m_sideBar->isExpanded(index)) {
+            expandedPaths.insert(index.data(CategoryModel::NameRole).toString());
+        }
+        checkChildren(index);
+    }
+
     auto allNotes = DatabaseManager::instance().getAllNotes();
     m_noteModel->setNotes(allNotes);
     m_sideModel->refresh();
+
+    // 恢复展开状态，并确保“我的分区”默认展开
+    for (int i = 0; i < m_sideModel->rowCount(); ++i) {
+        QModelIndex index = m_sideModel->index(i, 0);
+        QString name = index.data(CategoryModel::NameRole).toString();
+        if (name == "我的分区" || expandedPaths.contains(name)) {
+            m_sideBar->setExpanded(index, true);
+        }
+
+        std::function<void(const QModelIndex&)> restoreChildren = [&](const QModelIndex& parent) {
+            for (int j = 0; j < m_sideModel->rowCount(parent); ++j) {
+                QModelIndex child = m_sideModel->index(j, 0, parent);
+                QString type = child.data(CategoryModel::TypeRole).toString();
+                QString identifier = (type == "category") ?
+                    ("cat_" + QString::number(child.data(CategoryModel::IdRole).toInt())) :
+                    child.data(CategoryModel::NameRole).toString();
+
+                if (expandedPaths.contains(identifier) || (parent.data(CategoryModel::NameRole).toString() == "我的分区")) {
+                    m_sideBar->setExpanded(child, true);
+                }
+                if (m_sideModel->rowCount(child) > 0) restoreChildren(child);
+            }
+        };
+        restoreChildren(index);
+    }
 }
 
 void MainWindow::onNoteSelected(const QModelIndex& index) {

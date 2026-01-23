@@ -79,6 +79,7 @@ void MarkdownHighlighter::highlightBlock(const QString& text) {
 }
 
 #include <QVBoxLayout>
+#include <QFrame>
 #include <QMimeData>
 #include <QUrl>
 
@@ -130,21 +131,30 @@ void InternalEditor::insertFromMimeData(const QMimeData* source) {
 
 Editor::Editor(QWidget* parent) : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setContentsMargins(12, 12, 12, 12); // 为卡片形态留出外边距
 
-    m_stack = new QStackedWidget(this);
+    // 创建卡片容器
+    QFrame* cardFrame = new QFrame(this);
+    cardFrame->setStyleSheet("QFrame { background-color: #1E1E1E; border: 1px solid #333; border-radius: 8px; }");
+    auto* cardLayout = new QVBoxLayout(cardFrame);
+    cardLayout->setContentsMargins(0, 0, 0, 0);
+
+    m_stack = new QStackedWidget(cardFrame);
+    m_stack->setStyleSheet("background: transparent; border: none;");
     
     m_edit = new InternalEditor(this);
+    m_edit->setStyleSheet("background: transparent; color: #D4D4D4; font-family: 'Consolas', 'Courier New'; font-size: 13pt; border: none; outline: none; padding: 15px;");
     m_highlighter = new MarkdownHighlighter(m_edit->document());
 
     m_preview = new QTextEdit(this);
     m_preview->setReadOnly(true);
-    m_preview->setStyleSheet("background: #1E1E1E; color: #D4D4D4; padding: 10px; border: none; outline: none;");
+    m_preview->setStyleSheet("background: transparent; color: #D4D4D4; padding: 15px; border: none; outline: none;");
 
     m_stack->addWidget(m_edit);
     m_stack->addWidget(m_preview);
     
-    layout->addWidget(m_stack);
+    cardLayout->addWidget(m_stack);
+    layout->addWidget(cardFrame);
 }
 
 void Editor::setPlainText(const QString& text) {
