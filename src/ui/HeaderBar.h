@@ -19,6 +19,8 @@ signals:
     void pageChanged(int page);
     void toolboxRequested();
     void previewToggled(bool checked);
+    void refreshRequested();
+    void filterRequested();
     void windowClose();
     void windowMinimize();
     void windowMaximize();
@@ -28,9 +30,16 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
 
+public:
+    void updatePagination(int current, int total);
+    void setFilterActive(bool active);
+
 private:
     SearchLineEdit* m_searchEdit;
-    QLabel* m_pageLabel;
+    QLineEdit* m_pageInput;
+    QLabel* m_totalPageLabel;
+    QPushButton* m_btnFilter;
+
     int m_currentPage = 1;
     int m_totalPages = 1;
     QPoint m_dragPos;

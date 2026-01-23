@@ -469,7 +469,7 @@ void DatabaseManager::addNoteAsync(const QString& title, const QString& content,
     }, Qt::QueuedConnection);
 }
 
-QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QString& filterType, int filterValue, int page, int pageSize) {
+QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QString& filterType, const QVariant& filterValue, int page, int pageSize) {
     QMutexLocker locker(&m_mutex);
     QList<QVariantMap> results;
     if (!m_db.isOpen()) return results;
@@ -479,10 +479,10 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
     QVariantList params;
 
     if (filterType == "category") {
-        if (filterValue == -1) whereClause += "AND category_id IS NULL ";
+        if (filterValue.toInt() == -1) whereClause += "AND category_id IS NULL ";
         else {
             whereClause += "AND category_id = ? ";
-            params << filterValue;
+            params << filterValue.toInt();
         }
     } else if (filterType == "today") {
         whereClause += "AND date(updated_at) = date('now', 'localtime') ";
@@ -521,7 +521,7 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
     return results;
 }
 
-int DatabaseManager::getNotesCount(const QString& keyword, const QString& filterType, int filterValue) {
+int DatabaseManager::getNotesCount(const QString& keyword, const QString& filterType, const QVariant& filterValue) {
     QMutexLocker locker(&m_mutex);
     if (!m_db.isOpen()) return 0;
 
@@ -530,10 +530,10 @@ int DatabaseManager::getNotesCount(const QString& keyword, const QString& filter
     QVariantList params;
 
     if (filterType == "category") {
-        if (filterValue == -1) whereClause += "AND category_id IS NULL ";
+        if (filterValue.toInt() == -1) whereClause += "AND category_id IS NULL ";
         else {
             whereClause += "AND category_id = ? ";
-            params << filterValue;
+            params << filterValue.toInt();
         }
     } else if (filterType == "today") {
         whereClause += "AND date(updated_at) = date('now', 'localtime') ";
@@ -797,6 +797,106 @@ QVariantMap DatabaseManager::getCounts() {
     }
 
     return counts;
+}
+
+QVariantMap DatabaseManager::getFilterStats(const QString& keyword, const QString& filterType, const QVariant& filterValue) {
+    QMutexLocker locker(&m_mutex);
+    QVariantMap stats;
+    if (!m_db.isOpen()) return stats;
+
+    QString whereClause = "WHERE 1=1 ";
+    QVariantList params;
+
+    if (filterType == "trash") {
+        whereClause += "AND is_deleted = 1 ";
+    } else {
+        whereClause += "AND is_deleted = 0 ";
+        if (filterType == "category") {
+            if (filterValue.toInt() == -1) whereClause += "AND category_id IS NULL ";
+            else {
+                whereClause += "AND category_id = ? ";
+                params << filterValue.toInt();
+            }
+        } else if (filterType == "today") {
+            whereClause += "AND date(updated_at) = date('now', 'localtime') ";
+        } else if (filterType == "bookmark") {
+            whereClause += "AND is_favorite = 1 ";
+        } else if (filterType == "untagged") {
+            whereClause += "AND (tags IS NULL OR tags = '') ";
+        }
+    }
+
+    if (!keyword.isEmpty()) {
+        whereClause += "AND id IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?) ";
+        params << keyword;
+    }
+
+    QSqlQuery query(m_db);
+
+    // 1. 星级统计
+    QMap<int, int> stars;
+    query.prepare("SELECT rating, COUNT(*) FROM notes " + whereClause + " GROUP BY rating");
+    for (int i = 0; i < params.size(); ++i) query.bindValue(i, params[i]);
+    if (query.exec()) {
+        while (query.next()) stars[query.value(0).toInt()] = query.value(1).toInt();
+    }
+    QVariantMap starsMap;
+    for (auto it = stars.begin(); it != stars.end(); ++it) starsMap[QString::number(it.key())] = it.value();
+    stats["stars"] = starsMap;
+
+    // 2. 颜色统计
+    QMap<QString, int> colors;
+    query.prepare("SELECT color, COUNT(*) FROM notes " + whereClause + " GROUP BY color");
+    for (int i = 0; i < params.size(); ++i) query.bindValue(i, params[i]);
+    if (query.exec()) {
+        while (query.next()) colors[query.value(0).toString()] = query.value(1).toInt();
+    }
+    QVariantMap colorsMap;
+    for (auto it = colors.begin(); it != colors.end(); ++it) colorsMap[it.key()] = it.value();
+    stats["colors"] = colorsMap;
+
+    // 3. 类型统计
+    QMap<QString, int> types;
+    query.prepare("SELECT item_type, COUNT(*) FROM notes " + whereClause + " GROUP BY item_type");
+    for (int i = 0; i < params.size(); ++i) query.bindValue(i, params[i]);
+    if (query.exec()) {
+        while (query.next()) types[query.value(0).toString()] = query.value(1).toInt();
+    }
+    QVariantMap typesMap;
+    for (auto it = types.begin(); it != types.end(); ++it) typesMap[it.key()] = it.value();
+    stats["types"] = typesMap;
+
+    // 4. 标签统计
+    QMap<QString, int> tags;
+    query.prepare("SELECT tags FROM notes " + whereClause);
+    for (int i = 0; i < params.size(); ++i) query.bindValue(i, params[i]);
+    if (query.exec()) {
+        while (query.next()) {
+            QStringList parts = query.value(0).toString().split(",", Qt::SkipEmptyParts);
+            for (const QString& t : parts) tags[t.trimmed()]++;
+        }
+    }
+    QVariantMap tagsMap;
+    for (auto it = tags.begin(); it != tags.end(); ++it) tagsMap[it.key()] = it.value();
+    stats["tags"] = tagsMap;
+
+    // 5. 日期统计 (创建时间)
+    QVariantMap dateStats;
+    auto getCount = [&](const QString& dateCond) {
+        QSqlQuery q(m_db);
+        q.prepare("SELECT COUNT(*) FROM notes " + whereClause + " AND " + dateCond);
+        for (int i = 0; i < params.size(); ++i) q.bindValue(i, params[i]);
+        if (q.exec() && q.next()) return q.value(0).toInt();
+        return 0;
+    };
+
+    dateStats["today"] = getCount("date(created_at) = date('now', 'localtime')");
+    dateStats["yesterday"] = getCount("date(created_at) = date('now', '-1 day', 'localtime')");
+    dateStats["week"] = getCount("date(created_at) >= date('now', '-6 days', 'localtime')");
+    dateStats["month"] = getCount("strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')");
+    stats["date_create"] = dateStats;
+
+    return stats;
 }
 
 bool DatabaseManager::addTagsToNote(int noteId, const QStringList& tags) {
