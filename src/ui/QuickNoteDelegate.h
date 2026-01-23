@@ -27,10 +27,10 @@ public:
         bool isSelected = (option.state & QStyle::State_Selected);
         bool isHovered = (option.state & QStyle::State_MouseOver);
 
-        // 1. 绘制基础背景 (斑马纹)
-        QColor bgColor = (index.row() % 2 == 0) ? QColor("#1E1E1E") : QColor("#151515");
+        // 1. 绘制基础背景 (斑马纹对比度微调)
+        QColor bgColor = (index.row() % 2 == 0) ? QColor("#1E1E1E") : QColor("#181818");
         if (isHovered && !isSelected) {
-            bgColor = QColor(255, 255, 255, 25);
+            bgColor = QColor(255, 255, 255, 20);
         }
         painter->fillRect(rect, bgColor);
 
@@ -48,9 +48,9 @@ public:
             // 绘制左侧 5px 指示条
             painter->fillRect(QRect(rect.left(), rect.top(), 5, rect.height()), highlightColor);
             
-            // 选中背景增加极淡的叠加层 (10% 不透明度)，提高识别度且不遮挡内容
+            // 选中背景增加更克制的叠加层 (约 6% 不透明度)，避免遮挡内容
             QColor overlay = highlightColor;
-            overlay.setAlpha(30); 
+            overlay.setAlpha(15);
             painter->fillRect(rect, overlay);
         }
 

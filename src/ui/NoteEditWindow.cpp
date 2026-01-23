@@ -56,7 +56,7 @@ void NoteEditWindow::initUI() {
 
     // 左侧面板
     QWidget* leftPanel = new QWidget();
-    leftPanel->setStyleSheet("background-color: #1E1E1E; border-top-left-radius: 10px; border-bottom-left-radius: 10px; border-right: 1px solid #333;");
+    leftPanel->setStyleSheet("background-color: #1E1E1E; border-top-left-radius: 10px; border-bottom-left-radius: 10px;");
     leftPanel->setFixedWidth(280);
     auto* leftLayout = new QVBoxLayout(leftPanel);
     leftLayout->setContentsMargins(20, 20, 20, 20);

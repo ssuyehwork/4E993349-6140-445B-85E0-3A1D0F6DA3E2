@@ -82,7 +82,7 @@ void MarkdownHighlighter::highlightBlock(const QString& text) {
 #include <QUrl>
 
 InternalEditor::InternalEditor(QWidget* parent) : QTextEdit(parent) {
-    setStyleSheet("background: #1E1E1E; color: #D4D4D4; font-family: 'Consolas', 'Courier New'; font-size: 13pt; border: none; padding: 10px;");
+    setStyleSheet("background: #1E1E1E; color: #D4D4D4; font-family: 'Consolas', 'Courier New'; font-size: 13pt; border: none; outline: none; padding: 10px;");
     setAcceptRichText(false); // 强制纯文本编辑，除非是插入图片
 }
 
@@ -119,7 +119,7 @@ Editor::Editor(QWidget* parent) : QWidget(parent) {
 
     m_preview = new QTextEdit(this);
     m_preview->setReadOnly(true);
-    m_preview->setStyleSheet("background: #1E1E1E; color: #D4D4D4; padding: 10px; border: none;");
+    m_preview->setStyleSheet("background: #1E1E1E; color: #D4D4D4; padding: 10px; border: none; outline: none;");
 
     m_stack->addWidget(m_edit);
     m_stack->addWidget(m_preview);

@@ -49,17 +49,7 @@ public:
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
 
-            // 获取分类颜色
-            QString colorHex = index.data(CategoryModel::ColorRole).toString();
-            QColor baseColor = colorHex.isEmpty() ? QColor("#37373d") : QColor(colorHex);
-
-            QColor bg;
-            if (selected) {
-                bg = baseColor;
-                bg.setAlpha(120); // 选中态，透明度稍微调高以实现即时视觉反馈
-            } else {
-                bg = QColor(255, 255, 255, 25); // 悬停态
-            }
+            QColor bg = selected ? QColor("#37373d") : QColor("#2a2d2e");
 
             // 精准计算高亮区域：联合图标与文字区域，避开左侧缩进/箭头区域
             QStyle* style = option.widget ? option.widget->style() : QApplication::style();
@@ -242,8 +232,13 @@ void QuickWindow::initUI() {
             outline: none;
             color: #ccc;
         }
+        /* 针对我的分区标题进行加粗白色处理 */
+        QTreeView::item:!selectable {
+            color: #ffffff;
+            font-weight: bold;
+        }
         QTreeView::item {
-            height: 22px;
+            height: 30px;
             padding: 0px;
             border: none;
             background: transparent;
@@ -267,7 +262,7 @@ void QuickWindow::initUI() {
     m_systemTree->setHeaderHidden(true);
     m_systemTree->setMouseTracking(true);
     m_systemTree->setIndentation(12);
-    m_systemTree->setFixedHeight(132); // 6 items * 22px = 132px
+    m_systemTree->setFixedHeight(180); // 6 items * 30px = 180px
     m_systemTree->setEditTriggers(QAbstractItemView::NoEditTriggers); // 绝不可重命名
     m_systemTree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_systemTree->setContextMenuPolicy(Qt::CustomContextMenu);
