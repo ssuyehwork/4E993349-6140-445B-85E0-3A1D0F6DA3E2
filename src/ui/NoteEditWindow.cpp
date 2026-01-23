@@ -110,26 +110,29 @@ void NoteEditWindow::initUI() {
     tbLayout->addWidget(m_winTitleLabel);
     tbLayout->addStretch();
 
-    // 统一控制按钮样式：32x32px（对齐主窗口），图标 20px，减小高亮内边距
+    // 统一控制按钮样式：32x32px（对齐主窗口），图标 20px，锁定比例以消除离谱内边距
     QString ctrlBtnStyle = "QPushButton { background: transparent; border: none; border-radius: 0px; padding: 0px; } "
-                           "QPushButton:hover { background-color: rgba(255, 255, 255, 0.15); }";
+                           "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }";
     
     QPushButton* btnMin = new QPushButton();
     btnMin->setIcon(IconHelper::getIcon("minimize", "#aaaaaa", 20));
+    btnMin->setIconSize(QSize(20, 20));
     btnMin->setFixedSize(32, 32);
     btnMin->setStyleSheet(ctrlBtnStyle);
     connect(btnMin, &QPushButton::clicked, this, &QWidget::showMinimized);
     
     m_maxBtn = new QPushButton();
     m_maxBtn->setIcon(IconHelper::getIcon("maximize", "#aaaaaa", 20));
+    m_maxBtn->setIconSize(QSize(20, 20));
     m_maxBtn->setFixedSize(32, 32);
     m_maxBtn->setStyleSheet(ctrlBtnStyle);
     connect(m_maxBtn, &QPushButton::clicked, this, &NoteEditWindow::toggleMaximize);
     
     QPushButton* btnClose = new QPushButton();
     btnClose->setIcon(IconHelper::getIcon("close", "#aaaaaa", 20));
+    btnClose->setIconSize(QSize(20, 20));
     btnClose->setFixedSize(32, 32);
-    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 0px; } QPushButton:hover { background-color: #E81123; }");
+    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 0px; padding: 0px; } QPushButton:hover { background-color: #E81123; }");
     connect(btnClose, &QPushButton::clicked, this, &QWidget::close);
 
     // 为关闭按钮实现 Hover 图标变白逻辑
@@ -259,17 +262,19 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
 
     QHBoxLayout* toolBar = new QHBoxLayout();
     toolBar->setContentsMargins(0, 0, 0, 0);
-    toolBar->setSpacing(0); // 彻底消除按钮间距
+    toolBar->setSpacing(0); // 彻底消除按钮间距，实现紧凑布局
 
-    QString btnStyle = "QPushButton { background: transparent; border: none; border-radius: 2px; padding: 0px; } "
-                       "QPushButton:hover { background-color: rgba(255, 255, 255, 0.15); } "
-                       "QPushButton:checked { background-color: rgba(255, 255, 255, 0.25); }";
+    // 标准化工具栏样式：对齐 HeaderBar 参数
+    QString btnStyle = "QPushButton { background: transparent; border: none; border-radius: 4px; padding: 0px; } "
+                       "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
+                       "QPushButton:checked { background-color: rgba(255, 255, 255, 0.2); }";
     
     auto addTool = [&](const QString& iconName, const QString& tip, std::function<void()> callback) {
         QPushButton* btn = new QPushButton();
-        btn->setIcon(IconHelper::getIcon(iconName, "#aaaaaa", 16)); // 图标增大到 16px
+        btn->setIcon(IconHelper::getIcon(iconName, "#aaaaaa", 20)); // 图标增大到 20px
+        btn->setIconSize(QSize(20, 20));
         btn->setToolTip(tip);
-        btn->setFixedSize(22, 22);
+        btn->setFixedSize(32, 32); // 尺寸标准化为 32x32
         btn->setCursor(Qt::PointingHandCursor);
         btn->setStyleSheet(btnStyle);
         connect(btn, &QPushButton::clicked, callback);
@@ -282,16 +287,17 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
 
     QFrame* sep1 = new QFrame();
     sep1->setFixedWidth(1);
-    sep1->setFixedHeight(14);
-    sep1->setStyleSheet("background-color: #333; margin-left: 4px; margin-right: 4px;");
+    sep1->setFixedHeight(16);
+    sep1->setStyleSheet("background-color: #333; margin-left: 2px; margin-right: 2px;");
     toolBar->addWidget(sep1);
 
     addTool("list_ul", "无序列表", [this](){ m_contentEdit->toggleList(false); });
     addTool("list_ol", "有序列表", [this](){ m_contentEdit->toggleList(true); });
     
     QPushButton* btnTodo = new QPushButton();
-    btnTodo->setIcon(IconHelper::getIcon("todo", "#aaaaaa", 16));
-    btnTodo->setFixedSize(22, 22); // 统一尺寸
+    btnTodo->setIcon(IconHelper::getIcon("todo", "#aaaaaa", 20));
+    btnTodo->setIconSize(QSize(20, 20));
+    btnTodo->setFixedSize(32, 32);
     btnTodo->setToolTip("插入待办事项");
     btnTodo->setStyleSheet(btnStyle);
     btnTodo->setCursor(Qt::PointingHandCursor);
@@ -299,8 +305,9 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     toolBar->addWidget(btnTodo);
 
     QPushButton* btnPre = new QPushButton();
-    btnPre->setIcon(IconHelper::getIcon("eye", "#aaaaaa", 16));
-    btnPre->setFixedSize(22, 22); // 统一尺寸
+    btnPre->setIcon(IconHelper::getIcon("eye", "#aaaaaa", 20));
+    btnPre->setIconSize(QSize(20, 20));
+    btnPre->setFixedSize(32, 32);
     btnPre->setToolTip("切换 Markdown 预览/编辑");
     btnPre->setStyleSheet(btnStyle);
     btnPre->setCursor(Qt::PointingHandCursor);
@@ -312,8 +319,8 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     
     QFrame* sep2 = new QFrame();
     sep2->setFixedWidth(1);
-    sep2->setFixedHeight(14);
-    sep2->setStyleSheet("background-color: #333; margin-left: 4px; margin-right: 4px;");
+    sep2->setFixedHeight(16);
+    sep2->setStyleSheet("background-color: #333; margin-left: 2px; margin-right: 2px;");
     toolBar->addWidget(sep2);
 
     // 高亮颜色

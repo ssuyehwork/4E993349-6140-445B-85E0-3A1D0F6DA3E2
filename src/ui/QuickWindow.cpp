@@ -49,7 +49,10 @@ public:
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
 
-            QColor bg = selected ? QColor("#37373d") : QColor("#2a2d2e");
+            QString colorHex = index.data(CategoryModel::ColorRole).toString();
+            QColor baseColor = colorHex.isEmpty() ? QColor("#4a90e2") : QColor(colorHex);
+            QColor bg = selected ? baseColor : QColor("#2a2d2e");
+            if (selected) bg.setAlphaF(0.2); // 选中时应用 20% 透明度联动分类颜色
 
             // 精准计算高亮区域：联合图标与文字区域，避开左侧缩进/箭头区域
             QStyle* style = option.widget ? option.widget->style() : QApplication::style();
@@ -388,7 +391,7 @@ void QuickWindow::initUI() {
         } else {
             btn->setIcon(icon);
         }
-        btn->setIconSize(QSize(18, 18));
+        btn->setIconSize(QSize(20, 20)); // 统一标准化为 20px 图标
         btn->setFixedSize(32, 32);
         btn->setToolTip(tooltip);
         btn->setCursor(Qt::PointingHandCursor);

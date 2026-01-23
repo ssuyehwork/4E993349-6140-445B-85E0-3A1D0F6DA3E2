@@ -16,6 +16,7 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     
     QPushButton* btnSidebar = new QPushButton();
     btnSidebar->setIcon(IconHelper::getIcon("sidebar", "#aaaaaa", 20));
+    btnSidebar->setIconSize(QSize(20, 20));
     btnSidebar->setFixedSize(32, 32);
     btnSidebar->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } QPushButton:hover { background: rgba(255,255,255,0.1); }");
     connect(btnSidebar, &QPushButton::clicked, this, &HeaderBar::toggleSidebar);
@@ -58,6 +59,7 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
 
     QPushButton* btnTool = new QPushButton();
     btnTool->setIcon(IconHelper::getIcon("toolbox", "#aaaaaa", 20));
+    btnTool->setIconSize(QSize(20, 20));
     btnTool->setFixedSize(32, 32);
     btnTool->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } QPushButton:hover { background: rgba(255,255,255,0.1); }");
     connect(btnTool, &QPushButton::clicked, this, &HeaderBar::toolboxRequested);
@@ -65,6 +67,7 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
 
     QPushButton* btnPreview = new QPushButton();
     btnPreview->setIcon(IconHelper::getIcon("eye", "#aaaaaa", 20));
+    btnPreview->setIconSize(QSize(20, 20));
     btnPreview->setFixedSize(32, 32);
     btnPreview->setCheckable(true);
     btnPreview->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } QPushButton:hover { background: rgba(255,255,255,0.1); } QPushButton:checked { background: #0E639C; }");
@@ -81,7 +84,8 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
 
     auto addWinBtn = [&](const QString& icon, const QString& hoverColor, auto signal) {
         QPushButton* btn = new QPushButton();
-        btn->setIcon(IconHelper::getIcon(icon, "#aaaaaa", 20)); // 图标增大到 20px，减小高亮内边距
+        btn->setIcon(IconHelper::getIcon(icon, "#aaaaaa", 20)); // 图标增大到 20px，锁定比例
+        btn->setIconSize(QSize(20, 20));
         btn->setFixedSize(32, 32);
         btn->setStyleSheet(QString("QPushButton { background: transparent; border: none; border-radius: 0px; } QPushButton:hover { background: %1; }").arg(hoverColor));
         connect(btn, &QPushButton::clicked, this, signal);
