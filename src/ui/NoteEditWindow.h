@@ -8,40 +8,61 @@
 #include <QCheckBox>
 #include <QPushButton>
 #include <QButtonGroup>
-#include <QVBoxLayout> // 【修复点】必须包含这个，否则编译器不认识 QVBoxLayout
+#include <QVBoxLayout>
+#include <QSplitter>
+#include <QLabel>
 #include "Editor.h" 
 
 class NoteEditWindow : public QWidget {
     Q_OBJECT
 public:
-    // mode: 0=新建, >0=编辑(传入笔记ID)
     explicit NoteEditWindow(int noteId = 0, QWidget* parent = nullptr);
     void setDefaultCategory(int catId);
 
 signals:
-    void noteSaved(); // 保存成功后通知主界面刷新
+    void noteSaved();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
 
 private:
     void initUI();
+    void setupShortcuts();
     void loadNoteData(int id);
-    // 这里使用了 QVBoxLayout 指针，所以上面必须 include 它
     void setupLeftPanel(QVBoxLayout* layout);
     void setupRightPanel(QVBoxLayout* layout);
     QPushButton* createColorBtn(const QString& color, int id);
 
+    void toggleMaximize();
+    void saveNote();
+    void toggleSearchBar();
+
     int m_noteId;
     
+    // 窗口控制
+    bool m_isMaximized = false;
+    QRect m_normalGeometry;
+    QPoint m_dragPos;
+
     // UI 控件引用
+    QWidget* m_titleBar;
+    QLabel* m_winTitleLabel;
+    QPushButton* m_maxBtn;
+    QSplitter* m_splitter;
     QComboBox* m_categoryCombo;
     QLineEdit* m_titleEdit;
     QLineEdit* m_tagEdit;
     QButtonGroup* m_colorGroup;
     QCheckBox* m_defaultColorCheck;
     Editor* m_contentEdit;
+
+    // 搜索栏
+    QWidget* m_searchBar;
+    QLineEdit* m_searchEdit;
 };
 
 #endif // NOTEEDITWINDOW_H

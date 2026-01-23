@@ -25,6 +25,8 @@ class InternalEditor : public QTextEdit {
     Q_OBJECT
 public:
     explicit InternalEditor(QWidget* parent = nullptr);
+    void insertTodo();
+    void highlightSelection(const QColor& color);
 protected:
     void insertFromMimeData(const QMimeData* source) override;
 };
@@ -37,6 +39,17 @@ public:
     QString toPlainText() const;
     void setPlaceholderText(const QString& text);
     void togglePreview(bool preview);
+
+    // 代理 InternalEditor 的功能
+    void undo() { m_edit->undo(); }
+    void redo() { m_edit->redo(); }
+    void insertTodo() { m_edit->insertTodo(); }
+    void highlightSelection(const QColor& color) { m_edit->highlightSelection(color); }
+    void clearFormatting();
+    void toggleList(bool ordered);
+
+    // 搜索功能
+    bool findText(const QString& text, bool backward = false);
 
 private:
     QStackedWidget* m_stack;

@@ -83,7 +83,26 @@ void MarkdownHighlighter::highlightBlock(const QString& text) {
 
 InternalEditor::InternalEditor(QWidget* parent) : QTextEdit(parent) {
     setStyleSheet("background: #1E1E1E; color: #D4D4D4; font-family: 'Consolas', 'Courier New'; font-size: 13pt; border: none; outline: none; padding: 10px;");
-    setAcceptRichText(false); // 强制纯文本编辑，除非是插入图片
+    setAcceptRichText(true); // 允许富文本以支持高亮和图片
+}
+
+void InternalEditor::insertTodo() {
+    QTextCursor cursor = textCursor();
+    if (!cursor.atBlockStart()) {
+        cursor.insertText("\n");
+    }
+    cursor.insertText("- [ ] ");
+    setTextCursor(cursor);
+    setFocus();
+}
+
+void InternalEditor::highlightSelection(const QColor& color) {
+    QTextCursor cursor = textCursor();
+    if (!cursor.hasSelection()) return;
+    QTextCharFormat format;
+    format.setBackground(color);
+    cursor.mergeCharFormat(format);
+    setTextCursor(cursor);
 }
 
 void InternalEditor::insertFromMimeData(const QMimeData* source) {
@@ -137,6 +156,54 @@ QString Editor::toPlainText() const {
 
 void Editor::setPlaceholderText(const QString& text) {
     m_edit->setPlaceholderText(text);
+}
+
+void Editor::clearFormatting() {
+    QTextCursor cursor = m_edit->textCursor();
+    if (cursor.hasSelection()) {
+        QTextCharFormat format;
+        m_edit->setCurrentCharFormat(format);
+        cursor.setCharFormat(format);
+    } else {
+        m_edit->setCurrentCharFormat(QTextCharFormat());
+    }
+}
+
+void Editor::toggleList(bool ordered) {
+    QTextCursor cursor = m_edit->textCursor();
+    cursor.beginEditBlock();
+    QTextList* list = cursor.currentList();
+    QTextListFormat format;
+    format.setStyle(ordered ? QTextListFormat::ListDecimal : QTextListFormat::ListDisc);
+
+    if (list) {
+        if (list->format().style() == format.style()) {
+            QTextBlockFormat blockFmt;
+            blockFmt.setObjectIndex(-1);
+            cursor.setBlockFormat(blockFmt);
+        } else {
+            list->setFormat(format);
+        }
+    } else {
+        cursor.createList(format);
+    }
+    cursor.endEditBlock();
+}
+
+bool Editor::findText(const QString& text, bool backward) {
+    if (text.isEmpty()) return false;
+    QTextDocument::FindFlags flags;
+    if (backward) flags |= QTextDocument::FindBackward;
+
+    bool found = m_edit->find(text, flags);
+    if (!found) {
+        // 循环搜索
+        QTextCursor cursor = m_edit->textCursor();
+        cursor.movePosition(backward ? QTextCursor::End : QTextCursor::Start);
+        m_edit->setTextCursor(cursor);
+        found = m_edit->find(text, flags);
+    }
+    return found;
 }
 
 void Editor::togglePreview(bool preview) {
