@@ -147,14 +147,14 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     connect(btnAdd, &QPushButton::clicked, this, &HeaderBar::newNoteRequested);
     layout->addWidget(btnAdd);
 
-    QPushButton* btnMeta = new QPushButton();
-    btnMeta->setIcon(IconHelper::getIcon("sidebar_right", "#aaaaaa", 20));
-    btnMeta->setIconSize(QSize(20, 20));
-    btnMeta->setToolTip("元数据面板 (Ctrl+I)");
-    btnMeta->setCheckable(true);
-    btnMeta->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }");
-    connect(btnMeta, &QPushButton::toggled, this, &HeaderBar::previewToggled);
-    layout->addWidget(btnMeta);
+    m_btnMeta = new QPushButton();
+    m_btnMeta->setIcon(IconHelper::getIcon("sidebar_right", "#aaaaaa", 20));
+    m_btnMeta->setIconSize(QSize(20, 20));
+    m_btnMeta->setToolTip("元数据面板 (Ctrl+I)");
+    m_btnMeta->setCheckable(true);
+    m_btnMeta->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }");
+    connect(m_btnMeta, &QPushButton::toggled, this, &HeaderBar::metadataToggled);
+    layout->addWidget(m_btnMeta);
 
     QPushButton* btnTool = new QPushButton();
     btnTool->setIcon(IconHelper::getIcon("toolbox", "#aaaaaa", 20));
@@ -196,6 +196,10 @@ void HeaderBar::updatePagination(int current, int total) {
 
 void HeaderBar::setFilterActive(bool active) {
     m_btnFilter->setChecked(active);
+}
+
+void HeaderBar::setMetadataActive(bool active) {
+    m_btnMeta->setChecked(active);
 }
 
 void HeaderBar::mousePressEvent(QMouseEvent* event) {
