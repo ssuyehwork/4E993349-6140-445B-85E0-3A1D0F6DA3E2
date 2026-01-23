@@ -289,9 +289,9 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     // 清除高亮按钮
     QPushButton* btnClearHighlight = new QPushButton();
     btnClearHighlight->setIcon(IconHelper::getIcon("edit_clear", "#cccccc", 14));
-    btnClearHighlight->setFixedSize(24, 24);
+    btnClearHighlight->setFixedSize(32, 32);
     btnClearHighlight->setToolTip("清除高亮");
-    btnClearHighlight->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 12px; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }");
+    btnClearHighlight->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }");
     btnClearHighlight->setCursor(Qt::PointingHandCursor);
     connect(btnClearHighlight, &QPushButton::clicked, [this](){ m_contentEdit->highlightSelection(Qt::transparent); });
     toolBar->addWidget(btnClearHighlight);

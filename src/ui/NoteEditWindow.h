@@ -23,7 +23,6 @@ signals:
     void noteSaved();
 
 protected:
-    bool eventFilter(QObject* watched, QEvent* event) override;
     void paintEvent(QPaintEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
@@ -38,12 +37,10 @@ private:
     void setupRightPanel(QVBoxLayout* layout);
     QPushButton* createColorBtn(const QString& color, int id);
     
-private slots:
     void toggleMaximize();
     void saveNote();
     void toggleSearchBar();
 
-private:
     int m_noteId;
     int m_catId = -1;
     
