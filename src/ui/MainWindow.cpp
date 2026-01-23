@@ -82,6 +82,8 @@ void MainWindow::initUI() {
     auto* splitter = new QSplitter(Qt::Horizontal);
     splitter->setHandleWidth(1);
     splitter->setChildrenCollapsible(false);
+    // 明确设置 Splitter 手柄样式，确保其为实色而非虚线
+    splitter->setStyleSheet("QSplitter::handle { background-color: #333; }");
 
     // 2. 左侧侧边栏 (固定最小宽度)
     m_sideBar = new DropTreeView();

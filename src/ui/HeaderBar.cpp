@@ -122,62 +122,60 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
         "QPushButton {"
         "    background-color: transparent;"
         "    border: none;"
-        "    border-radius: 5px;"
-        "    width: 26px;"
-        "    height: 26px;"
+        "    border-radius: 0px;" // 紧凑布局通常不使用大圆角
+        "    width: 32px;"
+        "    height: 32px;"
+        "    padding: 0px;"
         "}"
         "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }"
         "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); }";
 
     m_btnFilter = new QPushButton();
     m_btnFilter->setIcon(IconHelper::getIcon("filter", "#ffffff", 20));
+    m_btnFilter->setIconSize(QSize(20, 20));
     m_btnFilter->setToolTip("高级筛选 (Ctrl+G)");
     m_btnFilter->setStyleSheet(funcBtnStyle);
     m_btnFilter->setCheckable(true);
     connect(m_btnFilter, &QPushButton::clicked, this, &HeaderBar::filterRequested);
     layout->addWidget(m_btnFilter);
-    layout->addSpacing(4);
 
     QPushButton* btnAdd = new QPushButton();
     btnAdd->setIcon(IconHelper::getIcon("add", "#ffffff", 20));
+    btnAdd->setIconSize(QSize(20, 20));
     btnAdd->setToolTip("新建笔记 (Ctrl+N)");
     btnAdd->setStyleSheet(funcBtnStyle);
     connect(btnAdd, &QPushButton::clicked, this, &HeaderBar::newNoteRequested);
     layout->addWidget(btnAdd);
-    layout->addSpacing(4);
 
     QPushButton* btnMeta = new QPushButton();
     btnMeta->setIcon(IconHelper::getIcon("sidebar_right", "#aaaaaa", 20));
+    btnMeta->setIconSize(QSize(20, 20));
     btnMeta->setToolTip("元数据面板 (Ctrl+I)");
     btnMeta->setCheckable(true);
     btnMeta->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }");
-    connect(btnMeta, &QPushButton::toggled, this, &HeaderBar::previewToggled); // Using previewToggled as a proxy for metadata toggle if needed, but MainWindow handles it
-    // Wait, in C++ MainWindow, previewToggled is used for Markdown preview.
-    // I should probably add a dedicated signal for metadata toggle if I want to match Python.
-    // But MainWindow.cpp currently connects HeaderBar::previewToggled to Editor::togglePreview.
+    connect(btnMeta, &QPushButton::toggled, this, &HeaderBar::previewToggled);
     layout->addWidget(btnMeta);
-    layout->addSpacing(4);
 
     QPushButton* btnTool = new QPushButton();
     btnTool->setIcon(IconHelper::getIcon("toolbox", "#aaaaaa", 20));
+    btnTool->setIconSize(QSize(20, 20));
     btnTool->setToolTip("工具箱 (右键快捷设置)");
     btnTool->setStyleSheet(funcBtnStyle);
     connect(btnTool, &QPushButton::clicked, this, &HeaderBar::toolboxRequested);
     layout->addWidget(btnTool);
-    layout->addSpacing(12);
 
     // 5. Window Controls
     QWidget* winCtrlWidget = new QWidget();
     winCtrlWidget->setStyleSheet("background: transparent;");
     QHBoxLayout* winCtrlLayout = new QHBoxLayout(winCtrlWidget);
     winCtrlLayout->setContentsMargins(0, 0, 0, 0);
-    winCtrlLayout->setSpacing(2);
+    winCtrlLayout->setSpacing(0); // 严格间距为0
 
     auto addWinBtn = [&](const QString& icon, const QString& hoverColor, auto signal) {
         QPushButton* btn = new QPushButton();
         btn->setIcon(IconHelper::getIcon(icon, "#aaaaaa", 20));
         btn->setIconSize(QSize(20, 20));
-        btn->setFixedSize(28, 28);
+        btn->setFixedSize(32, 32); // 统一 32x32
         btn->setStyleSheet(QString("QPushButton { background: transparent; border: none; border-radius: 5px; } QPushButton:hover { background: %1; }").arg(hoverColor));
         connect(btn, &QPushButton::clicked, this, signal);
         winCtrlLayout->addWidget(btn);

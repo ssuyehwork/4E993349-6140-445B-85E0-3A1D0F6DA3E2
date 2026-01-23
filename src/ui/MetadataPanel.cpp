@@ -9,7 +9,8 @@
 
 MetadataPanel::MetadataPanel(QWidget* parent) : QWidget(parent) {
     setFixedWidth(240);
-    setStyleSheet("background-color: #252526; border-left: 1px solid #333;");
+    // 移除 border-left 以消除可能的“虚线”感，改用 outline: none 防止焦点框
+    setStyleSheet("background-color: #252526; border: none; outline: none;");
     initUI();
 }
 
