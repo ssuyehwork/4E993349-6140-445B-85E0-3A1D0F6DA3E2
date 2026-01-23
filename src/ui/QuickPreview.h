@@ -116,6 +116,12 @@ public:
         escAction->setShortcutContext(Qt::WindowShortcut);
         connect(escAction, &QAction::triggered, this, &QuickPreview::hide);
         addAction(escAction);
+
+        QAction* spaceAction = new QAction(this);
+        spaceAction->setShortcut(QKeySequence(Qt::Key_Space));
+        spaceAction->setShortcutContext(Qt::WindowShortcut);
+        connect(spaceAction, &QAction::triggered, this, &QuickPreview::hide);
+        addAction(spaceAction);
     }
 
     void showPreview(int noteId, const QString& title, const QString& content, const QPoint& pos) {

@@ -95,21 +95,26 @@ void NoteEditWindow::initUI() {
     tbLayout->addWidget(m_winTitleLabel);
     tbLayout->addStretch();
 
+    // 优化控制按钮样式，使图标更精致
     QString ctrlBtnStyle = "QPushButton { background: transparent; border: none; width: 45px; height: 40px; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }";
 
     QPushButton* btnMin = new QPushButton();
-    btnMin->setIcon(IconHelper::getIcon("minimize", "#aaaaaa", 16));
+    btnMin->setIcon(IconHelper::getIcon("minimize", "#aaaaaa", 12));
     btnMin->setStyleSheet(ctrlBtnStyle);
     connect(btnMin, &QPushButton::clicked, this, &QWidget::showMinimized);
 
     m_maxBtn = new QPushButton();
-    m_maxBtn->setIcon(IconHelper::getIcon("maximize", "#aaaaaa", 16));
+    m_maxBtn->setIcon(IconHelper::getIcon("maximize", "#aaaaaa", 12));
     m_maxBtn->setStyleSheet(ctrlBtnStyle);
     connect(m_maxBtn, &QPushButton::clicked, this, &NoteEditWindow::toggleMaximize);
 
     QPushButton* btnClose = new QPushButton();
-    btnClose->setIcon(IconHelper::getIcon("close", "#aaaaaa", 16));
+    btnClose->setIcon(IconHelper::getIcon("close", "#aaaaaa", 12));
+    // 增加 Hover 时图标变白的反馈，提升质感
     btnClose->setStyleSheet("QPushButton { background: transparent; border: none; width: 45px; height: 40px; } QPushButton:hover { background-color: #E81123; }");
+    connect(btnClose, &QPushButton::clicked, this, &QWidget::close);
+    // 使用事件过滤器实现 Hover 时更换图标颜色 (更加精致)
+    btnClose->installEventFilter(this);
     connect(btnClose, &QPushButton::clicked, this, &QWidget::close);
 
     tbLayout->addWidget(btnMin);
@@ -159,6 +164,25 @@ void NoteEditWindow::setupLeftPanel(QVBoxLayout* layout) {
     m_titleEdit->setStyleSheet(inputStyle);
     layout->addWidget(lblTitle);
     layout->addWidget(m_titleEdit);
+
+    QLabel* lblCat = new QLabel("分类");
+    lblCat->setStyleSheet(labelStyle);
+    m_categoryCombo = new QComboBox();
+    m_categoryCombo->setStyleSheet(inputStyle);
+    m_categoryCombo->addItem("⚠️ 未分类", -1);
+    auto categories = DatabaseManager::instance().getAllCategories();
+    for (const auto& cat : categories) {
+        m_categoryCombo->addItem(cat["name"].toString(), cat["id"].toInt());
+    }
+    // 设置初始选中项
+    for (int i = 0; i < m_categoryCombo->count(); ++i) {
+        if (m_categoryCombo->itemData(i).toInt() == m_catId) {
+            m_categoryCombo->setCurrentIndex(i);
+            break;
+        }
+    }
+    layout->addWidget(lblCat);
+    layout->addWidget(m_categoryCombo);
 
     QLabel* lblTags = new QLabel("标签");
     lblTags->setStyleSheet(labelStyle);
@@ -271,12 +295,12 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
 
     toolBar->addStretch();
 
-    // 高亮颜色
+    // 高亮颜色 - 缩小尺寸以显得更加精致
     QStringList hColors = {"#c0392b", "#d35400", "#f1c40f", "#27ae60", "#2980b9", "#8e44ad"};
     for (const auto& color : hColors) {
         QPushButton* hBtn = new QPushButton();
-        hBtn->setFixedSize(24, 24);
-        hBtn->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #444; border-radius: 12px; margin-left: 2px; } QPushButton:hover { border-color: white; }").arg(color));
+        hBtn->setFixedSize(20, 20);
+        hBtn->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #444; border-radius: 10px; margin-left: 2px; } QPushButton:hover { border-color: white; }").arg(color));
         hBtn->setCursor(Qt::PointingHandCursor);
         connect(hBtn, &QPushButton::clicked, [this, color](){ m_contentEdit->highlightSelection(QColor(color)); });
         toolBar->addWidget(hBtn);
@@ -284,10 +308,10 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
 
     // 清除高亮按钮
     QPushButton* btnClearHighlight = new QPushButton();
-    btnClearHighlight->setIcon(IconHelper::getIcon("edit_clear", "#cccccc", 14));
-    btnClearHighlight->setFixedSize(24, 24);
+    btnClearHighlight->setIcon(IconHelper::getIcon("edit_clear", "#cccccc", 12));
+    btnClearHighlight->setFixedSize(20, 20);
     btnClearHighlight->setToolTip("清除高亮");
-    btnClearHighlight->setStyleSheet(btnStyle + " QPushButton { border-radius: 12px; }");
+    btnClearHighlight->setStyleSheet(btnStyle + " QPushButton { border-radius: 10px; }");
     btnClearHighlight->setCursor(Qt::PointingHandCursor);
     connect(btnClearHighlight, &QPushButton::clicked, [this](){ m_contentEdit->highlightSelection(Qt::transparent); });
     toolBar->addWidget(btnClearHighlight);
@@ -364,7 +388,7 @@ void NoteEditWindow::saveNote() {
     if(title.isEmpty()) title = "未命名灵感";
     QString content = m_contentEdit->toPlainText();
     QString tags = m_tagEdit->text();
-    int catId = m_catId;
+    int catId = m_categoryCombo->currentData().toInt();
     QString color = m_colorGroup->checkedButton() ? m_colorGroup->checkedButton()->property("color").toString() : "";
 
     if (m_noteId == 0) {
@@ -392,6 +416,13 @@ void NoteEditWindow::loadNoteData(int id) {
         m_tagEdit->setText(note["tags"].toString());
 
         m_catId = note["category_id"].toInt();
+        // 更新下拉框
+        for (int i = 0; i < m_categoryCombo->count(); ++i) {
+            if (m_categoryCombo->itemData(i).toInt() == m_catId) {
+                m_categoryCombo->setCurrentIndex(i);
+                break;
+            }
+        }
 
         QString color = note["color"].toString();
         for (int i = 0; i < m_colorGroup->buttons().size(); ++i) {
@@ -401,4 +432,20 @@ void NoteEditWindow::loadNoteData(int id) {
             }
         }
     }
+}
+bool NoteEditWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (QPushButton* btn = qobject_cast<QPushButton*>(watched)) {
+        if (btn->parent() == m_titleBar) {
+            if (event->type() == QEvent::Enter) {
+                if (btn->styleSheet().contains("#E81123")) {
+                    btn->setIcon(IconHelper::getIcon("close", "#ffffff", 12));
+                }
+            } else if (event->type() == QEvent::Leave) {
+                if (btn->styleSheet().contains("#E81123")) {
+                    btn->setIcon(IconHelper::getIcon("close", "#aaaaaa", 12));
+                }
+            }
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }

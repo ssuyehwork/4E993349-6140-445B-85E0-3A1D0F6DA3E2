@@ -1,5 +1,6 @@
 #include "QuickWindow.h"
 #include "NoteEditWindow.h"
+#include "ScreenshotTool.h"
 #include "IconHelper.h"
 #include "QuickNoteDelegate.h"
 #include "../core/DatabaseManager.h"
@@ -49,7 +50,17 @@ public:
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
 
-            QColor bg = selected ? QColor("#37373d") : QColor("#2a2d2e");
+            // 动态高亮色：联动分类固有颜色，而非硬编码
+            QString catColorHex = index.data(CategoryModel::ColorRole).toString();
+            QColor catColor = QColor::isValidColorName(catColorHex) ? QColor(catColorHex) : QColor("#4a90e2");
+
+            QColor bg;
+            if (selected) {
+                bg = catColor;
+                bg.setAlpha(80); // 选中时较深的高亮
+            } else {
+                bg = QColor(255, 255, 255, 20); // 悬停时淡淡的白色叠加
+            }
 
             // 精准计算高亮区域：联合图标与文字区域，避开左侧缩进/箭头区域
             QStyle* style = option.widget ? option.widget->style() : QApplication::style();
@@ -434,12 +445,16 @@ void QuickWindow::initUI() {
     QPushButton* btnRefresh = createToolBtn("refresh", "#aaaaaa", "刷新");
     connect(btnRefresh, &QPushButton::clicked, this, &QuickWindow::refreshData);
 
+    QPushButton* btnScreenshot = createToolBtn("image", "#aaaaaa", "截图 (Ctrl+Alt+A)");
+    connect(btnScreenshot, &QPushButton::clicked, this, &QuickWindow::doScreenshot);
+
     QPushButton* btnToolbox = createToolBtn("toolbox", "#aaaaaa", "工具箱");
     connect(btnToolbox, &QPushButton::clicked, this, &QuickWindow::toolboxRequested);
 
     toolLayout->addWidget(btnPin, 0, Qt::AlignHCenter);
     toolLayout->addWidget(btnSidebar, 0, Qt::AlignHCenter);
     toolLayout->addWidget(btnRefresh, 0, Qt::AlignHCenter);
+    toolLayout->addWidget(btnScreenshot, 0, Qt::AlignHCenter);
     toolLayout->addWidget(btnToolbox, 0, Qt::AlignHCenter);
 
     toolLayout->addStretch();
@@ -578,6 +593,7 @@ void QuickWindow::setupShortcuts() {
     
     new QShortcut(QKeySequence("Alt+W"), this, [this](){ emit toggleMainWindowRequested(); });
     new QShortcut(QKeySequence("Ctrl+Shift+T"), this, [this](){ emit toolboxRequested(); });
+    new QShortcut(QKeySequence("Ctrl+Alt+A"), this, [this](){ doScreenshot(); });
     new QShortcut(QKeySequence("Ctrl+B"), this, [this](){ doEditSelected(); });
     new QShortcut(QKeySequence("Ctrl+Q"), this, [this](){ toggleSidebar(); });
     new QShortcut(QKeySequence("Alt+S"), this, [this](){ if(m_currentPage > 1) { m_currentPage--; refreshData(); } });
@@ -714,9 +730,8 @@ void QuickWindow::activateNote(const QModelIndex& index) {
         }
 
         DWORD lastThread = m_lastThreadId;
-        QTimer::singleShot(300, [lastThread, attached]() {
-            // 1. 使用 SendInput 强制清理所有修饰键状态 (L/R Ctrl, Shift, Alt, Win)
-            // 替换旧的 keybd_event，确保清理逻辑更原子化
+        QTimer::singleShot(100, [lastThread, attached]() {
+            // 1. 显式释放修饰键，清理干扰
             INPUT releaseInputs[8];
             memset(releaseInputs, 0, sizeof(releaseInputs));
             BYTE keys[] = { VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN };
@@ -727,38 +742,42 @@ void QuickWindow::activateNote(const QModelIndex& index) {
             }
             SendInput(8, releaseInputs, sizeof(INPUT));
 
-            // 2. 使用 SendInput 发送 Ctrl+V 序列 (显式指定 VK_LCONTROL 提高兼容性)
-            INPUT inputs[4];
-            memset(inputs, 0, sizeof(inputs));
+            // 2. 再次延迟，给目标窗口充足的焦点切换和修饰键释放时间
+            QTimer::singleShot(250, [lastThread, attached]() {
+                INPUT inputs[4];
+                memset(inputs, 0, sizeof(inputs));
 
-            // Ctrl 按下
-            inputs[0].type = INPUT_KEYBOARD;
-            inputs[0].ki.wVk = VK_LCONTROL;
-            inputs[0].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
+                // 使用 SCANCODE 增加兼容性，防止输入法拦截
+                // Ctrl 按下
+                inputs[0].type = INPUT_KEYBOARD;
+                inputs[0].ki.wVk = VK_LCONTROL;
+                inputs[0].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
+                inputs[0].ki.dwFlags = KEYEVENTF_SCANCODE;
 
-            // V 按下
-            inputs[1].type = INPUT_KEYBOARD;
-            inputs[1].ki.wVk = 'V';
-            inputs[1].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
+                // V 按下
+                inputs[1].type = INPUT_KEYBOARD;
+                inputs[1].ki.wVk = 'V';
+                inputs[1].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
+                inputs[1].ki.dwFlags = KEYEVENTF_SCANCODE;
 
-            // V 抬起
-            inputs[2].type = INPUT_KEYBOARD;
-            inputs[2].ki.wVk = 'V';
-            inputs[2].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
-            inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+                // V 抬起
+                inputs[2].type = INPUT_KEYBOARD;
+                inputs[2].ki.wVk = 'V';
+                inputs[2].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
+                inputs[2].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
 
-            // Ctrl 抬起
-            inputs[3].type = INPUT_KEYBOARD;
-            inputs[3].ki.wVk = VK_LCONTROL;
-            inputs[3].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
-            inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+                // Ctrl 抬起
+                inputs[3].type = INPUT_KEYBOARD;
+                inputs[3].ki.wVk = VK_LCONTROL;
+                inputs[3].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
+                inputs[3].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
 
-            SendInput(4, inputs, sizeof(INPUT));
+                SendInput(4, inputs, sizeof(INPUT));
 
-            if (attached) {
-                // 确保按键消息推入后再分离线程
-                AttachThreadInput(GetCurrentThreadId(), lastThread, FALSE);
-            }
+                if (attached) {
+                    AttachThreadInput(GetCurrentThreadId(), lastThread, FALSE);
+                }
+            });
         });
     }
 #endif
@@ -930,6 +949,35 @@ void QuickWindow::doPreview() {
     m_quickPreview->activateWindow();
 }
 
+void QuickWindow::doScreenshot() {
+    hide();
+    // 延迟以确保 QuickWindow 已完全隐藏
+    QTimer::singleShot(300, this, [this]() {
+        ScreenshotTool* tool = new ScreenshotTool();
+        connect(tool, &ScreenshotTool::screenshotCaptured, this, [this](const QImage& img) {
+            QByteArray ba;
+            QBuffer buffer(&ba);
+            buffer.open(QIODevice::WriteOnly);
+            img.save(&buffer, "PNG");
+
+            DatabaseManager::instance().addNote(
+                "截图记录 " + QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"),
+                "[Image Data]",
+                {},
+                "",
+                -1,
+                "image",
+                ba
+            );
+            refreshData();
+            showCentered();
+        });
+        // 确保工具窗口关闭时自动释放内存
+        tool->setAttribute(Qt::WA_DeleteOnClose);
+        tool->show();
+    });
+}
+
 void QuickWindow::toggleStayOnTop(bool checked) {
 #ifdef Q_OS_WIN
     HWND hwnd = (HWND)winId();
@@ -1057,7 +1105,7 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
 
     menu.addSeparator();
     if (m_currentFilterType == "trash") {
-        menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "恢复 (还原到未分类)", [this, selected](){
+        menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "恢复 (到未分类)", [this, selected](){
             QList<int> ids;
             for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
             DatabaseManager::instance().moveNotesToCategory(ids, -1);
@@ -1142,7 +1190,7 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
             }
         });
     } else if (type == "trash") {
-        menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "全部恢复 (到未分类)", this, &QuickWindow::doRestoreTrash);
+        menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "恢复 (到未分类)", this, &QuickWindow::doRestoreTrash);
         menu.addSeparator();
         menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "清空回收站", [this]() {
             if (QMessageBox::question(this, "确认清空", "确定要永久删除回收站中的所有非保护内容吗？\n(受保护的项将继续保留)") == QMessageBox::Yes) {

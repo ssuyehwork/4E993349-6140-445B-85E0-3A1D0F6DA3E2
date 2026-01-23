@@ -83,8 +83,15 @@ void MarkdownHighlighter::highlightBlock(const QString& text) {
 #include <QUrl>
 
 InternalEditor::InternalEditor(QWidget* parent) : QTextEdit(parent) {
-    setStyleSheet("background: #1E1E1E; color: #D4D4D4; font-family: 'Consolas', 'Courier New'; font-size: 13pt; border: none; outline: none; padding: 10px;");
-    setAcceptRichText(true); // 允许富文本以支持高亮和图片
+    // 降低字体大小至 12pt，并增加行间距以减少拥挤感
+    setStyleSheet("background: #1E1E1E; color: #D4D4D4; font-family: 'Consolas', 'Courier New'; font-size: 12pt; border: none; outline: none; padding: 10px;");
+    setAcceptRichText(true);
+
+    // 设置默认行高 (Line Height) 约为 1.5，减少视觉压迫感
+    QTextBlockFormat format;
+    format.setLineHeight(150, QTextBlockFormat::ProportionalHeight);
+    QTextCursor cursor = textCursor();
+    cursor.setBlockFormat(format);
 }
 
 void InternalEditor::insertTodo() {
@@ -101,7 +108,18 @@ void InternalEditor::highlightSelection(const QColor& color) {
     QTextCursor cursor = textCursor();
     if (!cursor.hasSelection()) return;
     QTextCharFormat format;
-    format.setBackground(color);
+
+    if (color == Qt::transparent) {
+        format.setBackground(Qt::transparent);
+        format.setForeground(QColor("#D4D4D4")); // 恢复默认颜色
+    } else {
+        // 使用半透明背景以减少“突兀”感，并强制前景色为白色以确保清晰
+        QColor subtleColor = color;
+        subtleColor.setAlpha(180);
+        format.setBackground(subtleColor);
+        format.setForeground(Qt::white);
+    }
+
     cursor.mergeCharFormat(format);
     setTextCursor(cursor);
 }

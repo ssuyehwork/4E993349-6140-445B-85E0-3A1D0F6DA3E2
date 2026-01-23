@@ -84,6 +84,7 @@ public:
     void doMoveToCategory(int catId);
     void doRestoreTrash();
     void doPreview();
+    void doScreenshot();
     void toggleStayOnTop(bool checked);
     void toggleSidebar();
     void showListContextMenu(const QPoint& pos);

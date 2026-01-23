@@ -28,6 +28,7 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     void initUI();
@@ -55,6 +56,7 @@ private:
     QPushButton* m_maxBtn;
     QSplitter* m_splitter;
     QLineEdit* m_titleEdit;
+    QComboBox* m_categoryCombo;
     QLineEdit* m_tagEdit;
     QButtonGroup* m_colorGroup;
     QCheckBox* m_defaultColorCheck;
