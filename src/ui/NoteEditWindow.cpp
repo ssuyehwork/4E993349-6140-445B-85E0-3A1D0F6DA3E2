@@ -111,7 +111,7 @@ void NoteEditWindow::initUI() {
     tbLayout->addStretch();
 
     // 统一控制按钮样式：32x32px（对齐主窗口），图标 20px，锁定比例以消除离谱内边距
-    QString ctrlBtnStyle = "QPushButton { background: transparent; border: none; border-radius: 0px; padding: 0px; } "
+    QString ctrlBtnStyle = "QPushButton { background: transparent; border: none; border-radius: 5px; padding: 0px; } "
                            "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }";
     
     QPushButton* btnMin = new QPushButton();
@@ -132,7 +132,7 @@ void NoteEditWindow::initUI() {
     btnClose->setIcon(IconHelper::getIcon("close", "#aaaaaa", 20));
     btnClose->setIconSize(QSize(20, 20));
     btnClose->setFixedSize(32, 32);
-    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 0px; padding: 0px; } QPushButton:hover { background-color: #E81123; }");
+    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 5px; padding: 0px; } QPushButton:hover { background-color: #E81123; }");
     connect(btnClose, &QPushButton::clicked, this, &QWidget::close);
 
     // 为关闭按钮实现 Hover 图标变白逻辑
@@ -265,7 +265,7 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     toolBar->setSpacing(0); // 彻底消除按钮间距，实现紧凑布局
 
     // 标准化工具栏样式：对齐 HeaderBar 参数
-    QString btnStyle = "QPushButton { background: transparent; border: none; border-radius: 4px; padding: 0px; } "
+    QString btnStyle = "QPushButton { background: transparent; border: none; border-radius: 5px; padding: 0px; } "
                        "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
                        "QPushButton:checked { background-color: rgba(255, 255, 255, 0.2); }";
     

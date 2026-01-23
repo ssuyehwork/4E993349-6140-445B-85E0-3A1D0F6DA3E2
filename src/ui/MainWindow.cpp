@@ -68,8 +68,8 @@ void MainWindow::initUI() {
         m_sideBar->setVisible(!m_sideBar->isVisible());
     });
     connect(m_header, &HeaderBar::toolboxRequested, this, &MainWindow::toolboxRequested);
-    connect(m_header, &HeaderBar::previewToggled, this, [this](bool checked){
-        m_editor->togglePreview(checked);
+    connect(m_header, &HeaderBar::metadataToggled, this, [this](bool checked){
+        m_metaPanel->setVisible(checked);
     });
     connect(m_header, &HeaderBar::windowClose, this, &MainWindow::close);
     connect(m_header, &HeaderBar::windowMinimize, this, &MainWindow::showMinimized);
@@ -254,7 +254,17 @@ void MainWindow::initUI() {
 
     m_metaPanel = new MetadataPanel(this);
     m_metaPanel->setFixedWidth(240); // 元数据面板强制固定宽度
+    m_metaPanel->setVisible(true); // 默认显示
     connect(m_metaPanel, &MetadataPanel::noteUpdated, this, &MainWindow::refreshData);
+    connect(m_metaPanel, &MetadataPanel::tagAdded, this, [this](const QStringList& tags){
+        QModelIndexList indices = m_noteList->selectionModel()->selectedIndexes();
+        if (indices.isEmpty()) return;
+        for (const auto& index : indices) {
+            int id = index.data(NoteModel::IdRole).toInt();
+            DatabaseManager::instance().addTagsToNote(id, tags);
+        }
+        refreshData();
+    });
     rightLayout->addWidget(m_metaPanel, 1);
 
     splitter->addWidget(rightContainer);
@@ -270,7 +280,9 @@ void MainWindow::initUI() {
     auto* actionMeta = new QAction(this);
     actionMeta->setShortcut(QKeySequence("Ctrl+I"));
     connect(actionMeta, &QAction::triggered, this, [this](){
-        m_metaPanel->setVisible(!m_metaPanel->isVisible());
+        bool visible = !m_metaPanel->isVisible();
+        m_metaPanel->setVisible(visible);
+        m_header->setMetadataActive(visible);
     });
     addAction(actionMeta);
 
@@ -299,6 +311,9 @@ void MainWindow::initUI() {
     connect(m_filterPanel, &FilterPanel::criteriaChanged, this, &MainWindow::refreshData);
 
     m_noteList->installEventFilter(this);
+    
+    // 初始化同步状态
+    m_header->setMetadataActive(true);
 }
 
 // 【新增】增量更新逻辑

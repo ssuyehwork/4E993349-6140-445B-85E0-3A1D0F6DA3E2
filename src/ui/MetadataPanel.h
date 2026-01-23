@@ -6,6 +6,7 @@
 #include <QLineEdit>
 #include <QStackedWidget>
 #include <QMouseEvent>
+#include <QFrame>
 
 class ClickableLineEdit : public QLineEdit {
     Q_OBJECT
@@ -38,13 +39,17 @@ private:
     QWidget* createInfoWidget(const QString& icon, const QString& title, const QString& subtitle);
     QWidget* createMetadataDisplay();
     QWidget* createCapsule(const QString& label, const QString& key);
+    void openExpandedTitleEditor();
+    void handleTagInput();
+    void openTagSelector();
 
     QStackedWidget* m_stack;
+    QWidget* m_metadataDisplayWidget;
     
     // Metadata Display widgets
     ClickableLineEdit* m_titleEdit;
     ClickableLineEdit* m_tagEdit;
-    QLineEdit* m_linkEdit;
+    QFrame* m_separatorLine;
     QMap<QString, QLabel*> m_capsules;
 
     int m_currentNoteId = -1;
