@@ -122,7 +122,7 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
         "QPushButton {"
         "    background-color: transparent;"
         "    border: none;"
-        "    border-radius: 0px;" // 紧凑布局通常不使用大圆角
+        "    border-radius: 5px;"
         "    width: 32px;"
         "    height: 32px;"
         "    padding: 0px;"
