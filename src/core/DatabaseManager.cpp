@@ -740,7 +740,9 @@ bool DatabaseManager::setCategoryPresetTags(int catId, const QString& tags) {
     query.prepare("UPDATE categories SET preset_tags=:tags WHERE id=:id");
     query.bindValue(":tags", tags);
     query.bindValue(":id", catId);
-    return query.exec();
+    bool ok = query.exec();
+    if (ok) emit categoriesChanged();
+    return ok;
 }
 
 QString DatabaseManager::getCategoryPresetTags(int catId) {

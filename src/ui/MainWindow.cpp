@@ -77,7 +77,8 @@ void MainWindow::initUI() {
     m_sideBar->setStyleSheet(
         "QTreeView { background-color: #252526; border: none; color: #CCC; outline: none; }"
         "QTreeView::branch { image: none; border: none; }"
-        "QTreeView::branch:has-children:closed, QTreeView::branch:has-children:open { image: none; }"
+        "QTreeView::branch:has-children:closed, QTreeView::branch:has-children:open, "
+        "QTreeView::branch:has-siblings:has-children:closed, QTreeView::branch:has-siblings:has-children:open { image: none; }"
         "QTreeView::item { height: 30px; }"
     );
     m_sideBar->expandAll();
@@ -130,7 +131,7 @@ void MainWindow::initUI() {
                 }
             });
             menu.addSeparator();
-            menu.addAction("新建分组", [this]() {
+            menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分组", [this]() {
                 bool ok;
                 QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
                 if (ok && !text.isEmpty()) {
@@ -138,7 +139,7 @@ void MainWindow::initUI() {
                     refreshData();
                 }
             });
-            menu.addAction("新建子分区", [this, catId]() {
+            menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建子分区", [this, catId]() {
                 bool ok;
                 QString text = QInputDialog::getText(this, "新建区", "区名称:", QLineEdit::Normal, "", &ok);
                 if (ok && !text.isEmpty()) {
@@ -146,7 +147,7 @@ void MainWindow::initUI() {
                     refreshData();
                 }
             });
-            menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名", [this, catId, currentName]() {
+            menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名分类", [this, catId, currentName]() {
                 bool ok;
                 QString text = QInputDialog::getText(this, "重命名", "新名称:", QLineEdit::Normal, currentName, &ok);
                 if (ok && !text.isEmpty()) {
@@ -154,7 +155,7 @@ void MainWindow::initUI() {
                     refreshData();
                 }
             });
-            menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "删除", [this, catId]() {
+            menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "删除分类", [this, catId]() {
                 if (QMessageBox::question(this, "确认删除", "确定要删除此分类吗？内容将移至未分类。") == QMessageBox::Yes) {
                     DatabaseManager::instance().deleteCategory(catId);
                     refreshData();

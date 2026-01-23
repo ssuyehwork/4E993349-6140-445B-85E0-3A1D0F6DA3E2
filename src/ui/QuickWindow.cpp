@@ -525,7 +525,7 @@ void QuickWindow::initUI() {
         if (text.isEmpty()) return;
         m_searchEdit->addHistoryEntry(text);
         if (m_model->rowCount() == 0) {
-            DatabaseManager::instance().addNoteAsync("快速记录", text, {"Quick"});
+            DatabaseManager::instance().addNoteAsync("快速记录", text);
             m_searchEdit->clear();
             hide();
         }
@@ -1298,7 +1298,7 @@ void QuickWindow::dropEvent(QDropEvent* event) {
     QString title;
     QString content;
     QByteArray dataBlob;
-    QStringList tags = {"External"};
+    QStringList tags;
 
     if (mime->hasUrls()) {
         QList<QUrl> urls = mime->urls();
