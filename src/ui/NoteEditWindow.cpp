@@ -111,7 +111,7 @@ void NoteEditWindow::initUI() {
     tbLayout->addStretch();
 
     // 统一控制按钮样式：28x28px，图标 14px，更紧凑的高亮
-    QString ctrlBtnStyle = "QPushButton { background: transparent; border: none; border-radius: 4px; padding: 2px; } "
+    QString ctrlBtnStyle = "QPushButton { background: transparent; border: none; border-radius: 4px; padding: 0px; } "
                            "QPushButton:hover { background-color: rgba(255, 255, 255, 0.15); }";
     
     QPushButton* btnMin = new QPushButton();
@@ -261,7 +261,7 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     toolBar->setContentsMargins(0, 0, 0, 0);
     toolBar->setSpacing(1);
 
-    QString btnStyle = "QPushButton { background: transparent; border: none; border-radius: 3px; padding: 2px; } "
+    QString btnStyle = "QPushButton { background: transparent; border: none; border-radius: 3px; padding: 0px; } "
                        "QPushButton:hover { background-color: rgba(255, 255, 255, 0.15); } "
                        "QPushButton:checked { background-color: rgba(255, 255, 255, 0.25); }";
     

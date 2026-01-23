@@ -87,7 +87,7 @@ void MainWindow::initUI() {
         QModelIndex index = m_sideBar->indexAt(pos);
         QMenu menu(this);
         menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                           "QMenu::item { padding: 6px 10px 6px 28px; border-radius: 3px; } "
+                           "QMenu::item { padding: 6px 10px 6px 8px; border-radius: 3px; } "
                            "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
         if (!index.isValid() || index.data().toString() == "我的分区") {
