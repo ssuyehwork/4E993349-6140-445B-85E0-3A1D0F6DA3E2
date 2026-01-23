@@ -18,7 +18,7 @@ signals:
     void toggleSidebar();
     void pageChanged(int page);
     void toolboxRequested();
-    void previewToggled(bool checked);
+    void metadataToggled(bool checked);
     void refreshRequested();
     void filterRequested();
     void windowClose();
@@ -33,12 +33,14 @@ protected:
 public:
     void updatePagination(int current, int total);
     void setFilterActive(bool active);
+    void setMetadataActive(bool active);
 
 private:
     SearchLineEdit* m_searchEdit;
     QLineEdit* m_pageInput;
     QLabel* m_totalPageLabel;
     QPushButton* m_btnFilter;
+    QPushButton* m_btnMeta;
 
     int m_currentPage = 1;
     int m_totalPages = 1;
