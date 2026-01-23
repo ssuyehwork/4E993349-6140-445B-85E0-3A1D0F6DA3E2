@@ -25,7 +25,8 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     m_searchEdit = new SearchLineEdit();
     m_searchEdit->setPlaceholderText("搜索灵感 (双击查看历史)...");
     m_searchEdit->setFixedWidth(300);
-    // 移除硬编码样式，改用 SearchLineEdit 类的统一规范样式 (背景 #252526)
+    // 恢复深色背景、15px圆角和紧凑高度 (5px内边距)，确保在标题栏中的精致感和对比度
+    m_searchEdit->setStyleSheet("background: #1e1e1e; border-radius: 15px; padding: 5px 15px; border: 1px solid #444; color: white;");
     connect(m_searchEdit, &QLineEdit::textChanged, this, &HeaderBar::searchChanged);
     connect(m_searchEdit, &QLineEdit::returnPressed, [this](){
         m_searchEdit->addHistoryEntry(m_searchEdit->text().trimmed());
