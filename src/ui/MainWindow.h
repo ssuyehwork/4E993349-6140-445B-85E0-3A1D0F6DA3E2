@@ -14,6 +14,7 @@
 #include "MetadataPanel.h"
 #include "QuickPreview.h"
 #include "DropTreeView.h"
+#include "FilterPanel.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -25,6 +26,7 @@ signals:
 
 private slots:
     void onNoteSelected(const QModelIndex& index);
+    void onSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected);
     void onTagSelected(const QModelIndex& index);
     void showContextMenu(const QPoint& pos);
     
@@ -46,8 +48,15 @@ private:
     HeaderBar* m_header;
     MetadataPanel* m_metaPanel;
     QuickPreview* m_quickPreview;
+    FilterPanel* m_filterPanel;
     
     Editor* m_editor;
+
+    QString m_currentKeyword;
+    QString m_currentFilterType = "all";
+    int m_currentFilterValue = -1;
+    int m_currentPage = 1;
+    int m_pageSize = 50;
 };
 
 #endif // MAINWINDOW_H

@@ -32,6 +32,12 @@ set(SOURCES
     src/ui/Toolbox.cpp
     src/ui/SystemTray.cpp
     src/ui/Editor.cpp
+    src/ui/FlowLayout.cpp
+    src/ui/FlowLayout.h
+    src/ui/AdvancedTagSelector.cpp
+    src/ui/AdvancedTagSelector.h
+    src/ui/FilterPanel.cpp
+    src/ui/FilterPanel.h
     src/ui/NoteDelegate.h
     src/ui/QuickNoteDelegate.h
     src/ui/NoteEditWindow.h    # <--- 必须有

@@ -4,26 +4,50 @@
 #include <QWidget>
 #include <QLabel>
 #include <QLineEdit>
-#include <QTextEdit>
+#include <QStackedWidget>
+#include <QMouseEvent>
+
+class ClickableLineEdit : public QLineEdit {
+    Q_OBJECT
+public:
+    using QLineEdit::QLineEdit;
+signals:
+    void doubleClicked();
+protected:
+    void mouseDoubleClickEvent(QMouseEvent* event) override {
+        if (event->button() == Qt::LeftButton) emit doubleClicked();
+        QLineEdit::mouseDoubleClickEvent(event);
+    }
+};
+#include <QMap>
 
 class MetadataPanel : public QWidget {
     Q_OBJECT
 public:
     explicit MetadataPanel(QWidget* parent = nullptr);
     void setNote(const QVariantMap& note);
+    void setMultipleNotes(int count);
+    void clearSelection();
 
 signals:
     void noteUpdated();
+    void tagAdded(const QStringList& tags);
 
 private:
-    void updateCapsule(const QString& key, const QString& value);
+    void initUI();
+    QWidget* createInfoWidget(const QString& icon, const QString& title, const QString& subtitle);
+    QWidget* createMetadataDisplay();
     QWidget* createCapsule(const QString& label, const QString& key);
 
-    int m_currentNoteId = -1;
-    QLineEdit* m_titleEdit;
-    QLineEdit* m_tagEdit;
+    QStackedWidget* m_stack;
     
+    // Metadata Display widgets
+    ClickableLineEdit* m_titleEdit;
+    ClickableLineEdit* m_tagEdit;
+    QLineEdit* m_linkEdit;
     QMap<QString, QLabel*> m_capsules;
+
+    int m_currentNoteId = -1;
 };
 
 #endif // METADATAPANEL_H

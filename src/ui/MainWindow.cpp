@@ -41,7 +41,23 @@ void MainWindow::initUI() {
     // 1. HeaderBar
     m_header = new HeaderBar(this);
     connect(m_header, &HeaderBar::searchChanged, this, [this](const QString& text){
-        m_noteModel->setNotes(DatabaseManager::instance().searchNotes(text));
+        m_currentKeyword = text;
+        m_currentPage = 1;
+        refreshData();
+    });
+    connect(m_header, &HeaderBar::pageChanged, this, [this](int page){
+        m_currentPage = page;
+        refreshData();
+    });
+    connect(m_header, &HeaderBar::refreshRequested, this, &MainWindow::refreshData);
+    connect(m_header, &HeaderBar::filterRequested, this, [this](){
+        if (m_filterPanel->isVisible()) m_filterPanel->hide();
+        else {
+            m_filterPanel->updateStats(m_currentKeyword, m_currentFilterType, m_currentFilterValue);
+            QPoint pos = m_header->mapToGlobal(QPoint(m_header->width() - 320, m_header->height() + 5));
+            m_filterPanel->move(pos);
+            m_filterPanel->show();
+        }
     });
     connect(m_header, &HeaderBar::newNoteRequested, this, [this](){
         NoteEditWindow* win = new NoteEditWindow();
@@ -209,10 +225,11 @@ void MainWindow::initUI() {
     m_noteList->setModel(m_noteModel);
     m_noteList->setItemDelegate(new NoteDelegate(m_noteList));
     m_noteList->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_noteList->setSelectionMode(QAbstractItemView::ExtendedSelection);
     connect(m_noteList, &QListView::customContextMenuRequested, this, &MainWindow::showContextMenu);
     m_noteList->setSpacing(2);
     m_noteList->setStyleSheet("background: #1E1E1E; border: none;");
-    connect(m_noteList, &QListView::clicked, this, &MainWindow::onNoteSelected);
+    connect(m_noteList->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::onSelectionChanged);
     connect(m_noteList, &QListView::doubleClicked, this, [this](const QModelIndex& index){
         if (!index.isValid()) return;
         int id = index.data(NoteModel::IdRole).toInt();
@@ -275,6 +292,10 @@ void MainWindow::initUI() {
         connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
         win->show();
     });
+
+    m_filterPanel = new FilterPanel(this);
+    connect(m_filterPanel, &FilterPanel::criteriaChanged, this, &MainWindow::refreshData);
+
     m_noteList->installEventFilter(this);
 }
 
@@ -313,9 +334,45 @@ void MainWindow::refreshData() {
         checkChildren(index);
     }
 
-    auto allNotes = DatabaseManager::instance().getAllNotes();
-    m_noteModel->setNotes(allNotes);
+    auto notes = DatabaseManager::instance().searchNotes(m_currentKeyword, m_currentFilterType, m_currentFilterValue, m_currentPage, m_pageSize);
+    int totalCount = DatabaseManager::instance().getNotesCount(m_currentKeyword, m_currentFilterType, m_currentFilterValue);
+
+    // 应用高级筛选器的筛选 (前端过滤)
+    QVariantMap criteria = m_filterPanel->getCheckedCriteria();
+    if (!criteria.isEmpty()) {
+        QList<QVariantMap> filtered;
+        for (const auto& note : notes) {
+            bool match = true;
+            if (criteria.contains("stars")) {
+                if (!criteria["stars"].toStringList().contains(QString::number(note["rating"].toInt()))) match = false;
+            }
+            if (match && criteria.contains("types")) {
+                if (!criteria["types"].toStringList().contains(note["item_type"].toString())) match = false;
+            }
+            if (match && criteria.contains("colors")) {
+                if (!criteria["colors"].toStringList().contains(note["color"].toString())) match = false;
+            }
+            if (match && criteria.contains("tags")) {
+                QStringList noteTags = note["tags"].toString().split(",", Qt::SkipEmptyParts);
+                bool tagMatch = false;
+                for (const QString& t : criteria["tags"].toStringList()) {
+                    if (noteTags.contains(t.trimmed())) { tagMatch = true; break; }
+                }
+                if (!tagMatch) match = false;
+            }
+            // 可以继续添加日期过滤
+            if (match) filtered.append(note);
+        }
+        notes = filtered;
+        totalCount = notes.size(); // 简化处理，分页在有高级筛选时表现可能不一
+    }
+
+    m_noteModel->setNotes(notes);
     m_sideModel->refresh();
+
+    int totalPages = (totalCount + m_pageSize - 1) / m_pageSize;
+    if (totalPages < 1) totalPages = 1;
+    m_header->updatePagination(m_currentPage, totalPages);
 
     // 恢复展开状态，并确保“我的分区”默认展开
     for (int i = 0; i < m_sideModel->rowCount(); ++i) {
@@ -344,11 +401,21 @@ void MainWindow::refreshData() {
 }
 
 void MainWindow::onNoteSelected(const QModelIndex& index) {
-    if (!index.isValid()) return;
-    int id = index.data(NoteModel::IdRole).toInt();
-    QVariantMap note = DatabaseManager::instance().getNoteById(id);
-    m_editor->setPlainText(QString("# %1\n\n%2").arg(note["title"].toString(), note["content"].toString()));
-    m_metaPanel->setNote(note);
+    // 转发给 selectionChanged 处理
+}
+
+void MainWindow::onSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected) {
+    QModelIndexList indices = m_noteList->selectionModel()->selectedIndexes();
+    if (indices.isEmpty()) {
+        m_metaPanel->clearSelection();
+    } else if (indices.size() == 1) {
+        int id = indices.first().data(NoteModel::IdRole).toInt();
+        QVariantMap note = DatabaseManager::instance().getNoteById(id);
+        m_editor->setPlainText(QString("# %1\n\n%2").arg(note["title"].toString(), note["content"].toString()));
+        m_metaPanel->setNote(note);
+    } else {
+        m_metaPanel->setMultipleNotes(indices.size());
+    }
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
@@ -376,13 +443,14 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
 }
 
 void MainWindow::onTagSelected(const QModelIndex& index) {
-    QString type = index.data(Qt::UserRole).toString();
-    if (type == "category") {
-        int catId = index.data(Qt::UserRole + 1).toInt();
-        m_noteModel->setNotes(DatabaseManager::instance().searchNotes("", "category", catId));
+    m_currentFilterType = index.data(CategoryModel::TypeRole).toString();
+    if (m_currentFilterType == "category") {
+        m_currentFilterValue = index.data(CategoryModel::IdRole).toInt();
     } else {
-        m_noteModel->setNotes(DatabaseManager::instance().searchNotes("", type));
+        m_currentFilterValue = -1;
     }
+    m_currentPage = 1;
+    refreshData();
 }
 
 void MainWindow::showContextMenu(const QPoint& pos) {
