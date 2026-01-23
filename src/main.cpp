@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
 
     // 8. 监听剪贴板 (智能标题与自动分类)
     QObject::connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, 
-        [&](const QString& content, const QString& type, const QByteArray& data,
+        [=](const QString& content, const QString& type, const QByteArray& data,
             const QString& sourceApp, const QString& sourceTitle){
         qDebug() << "[Main] 接收到剪贴板信号:" << type << "来自:" << sourceApp;
         
@@ -163,7 +163,9 @@ int main(int argc, char *argv[]) {
                 QString firstFileName = QFileInfo(files.first()).fileName();
                 if (files.size() > 1) title = QString("[多文件] %1 等%2个文件").arg(firstFileName).arg(files.size());
                 else title = "[文件] " + firstFileName;
-            } else title = "[未知文件]";
+            } else {
+                title = "[未知文件]";
+            }
         } else {
             // 文本：取第一行
             QString firstLine = content.section('\n', 0, 0).trimmed();
@@ -173,8 +175,14 @@ int main(int argc, char *argv[]) {
                 if (firstLine.length() > 40) title += "...";
             }
         }
+
+        // 自动归档逻辑
+        int catId = -1;
+        if (quickWin && quickWin->isAutoCategorizeEnabled()) {
+            catId = quickWin->getCurrentCategoryId();
+        }
         
-        DatabaseManager::instance().addNoteAsync(title, content, {"剪贴板"}, "", -1, type, data, sourceApp, sourceTitle);
+        DatabaseManager::instance().addNoteAsync(title, content, {"剪贴板"}, "", catId, type, data, sourceApp, sourceTitle);
     });
 
     return a.exec();

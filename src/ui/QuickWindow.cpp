@@ -435,7 +435,9 @@ void QuickWindow::initUI() {
     connect(btnRefresh, &QPushButton::clicked, this, &QuickWindow::refreshData);
 
     QPushButton* btnToolbox = createToolBtn("toolbox", "#aaaaaa", "工具箱");
+    btnToolbox->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(btnToolbox, &QPushButton::clicked, this, &QuickWindow::toolboxRequested);
+    connect(btnToolbox, &QPushButton::customContextMenuRequested, this, &QuickWindow::showToolboxMenu);
 
     toolLayout->addWidget(btnPin, 0, Qt::AlignHCenter);
     toolLayout->addWidget(btnSidebar, 0, Qt::AlignHCenter);
@@ -541,6 +543,7 @@ void QuickWindow::saveState() {
     settings.setValue("sidebarHidden", m_systemTree->parentWidget()->isHidden());
     // settings.setValue("stayOnTop", m_toolbar->isStayOnTop()); // Old
     settings.setValue("stayOnTop", (windowFlags() & Qt::WindowStaysOnTopHint) ? true : false);
+    settings.setValue("autoCategorizeClipboard", m_autoCategorizeClipboard);
 }
 
 void QuickWindow::restoreState() {
@@ -556,6 +559,9 @@ void QuickWindow::restoreState() {
     }
     if (settings.contains("stayOnTop")) {
         toggleStayOnTop(settings.value("stayOnTop").toBool());
+    }
+    if (settings.contains("autoCategorizeClipboard")) {
+        m_autoCategorizeClipboard = settings.value("autoCategorizeClipboard").toBool();
     }
 }
 
@@ -1154,6 +1160,23 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
     }
 
     menu.exec(tree->mapToGlobal(pos));
+}
+
+void QuickWindow::showToolboxMenu(const QPoint& pos) {
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                       "QMenu::item { padding: 6px 10px 6px 28px; border-radius: 3px; } "
+                       "QMenu::item:selected { background-color: #4a90e2; color: white; }");
+
+    QAction* autoCatAction = menu.addAction("剪贴板自动归档到当前分类");
+    autoCatAction->setCheckable(true);
+    autoCatAction->setChecked(m_autoCategorizeClipboard);
+    connect(autoCatAction, &QAction::triggered, [this](bool checked){
+        m_autoCategorizeClipboard = checked;
+        QToolTip::showText(QCursor::pos(), m_autoCategorizeClipboard ? "✅ 剪贴板自动归档已开启" : "❌ 剪贴板自动归档已关闭", this);
+    });
+
+    menu.exec(QCursor::pos());
 }
 
 void QuickWindow::doMoveToCategory(int catId) {
