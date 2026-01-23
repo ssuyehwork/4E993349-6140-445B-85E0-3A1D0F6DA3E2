@@ -19,6 +19,7 @@ signals:
     void pageChanged(int page);
     void toolboxRequested();
     void previewToggled(bool checked);
+    void metadataToggled(bool checked);
     void refreshRequested();
     void filterRequested();
     void windowClose();

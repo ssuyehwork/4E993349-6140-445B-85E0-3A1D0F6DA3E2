@@ -152,8 +152,9 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     btnMeta->setIconSize(QSize(20, 20));
     btnMeta->setToolTip("元数据面板 (Ctrl+I)");
     btnMeta->setCheckable(true);
+    btnMeta->setChecked(true); // 默认开启
     btnMeta->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }");
-    connect(btnMeta, &QPushButton::toggled, this, &HeaderBar::previewToggled);
+    connect(btnMeta, &QPushButton::toggled, this, &HeaderBar::metadataToggled);
     layout->addWidget(btnMeta);
 
     QPushButton* btnTool = new QPushButton();

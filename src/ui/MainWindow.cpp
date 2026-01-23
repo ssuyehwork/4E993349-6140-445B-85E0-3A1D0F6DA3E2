@@ -71,6 +71,9 @@ void MainWindow::initUI() {
     connect(m_header, &HeaderBar::previewToggled, this, [this](bool checked){
         m_editor->togglePreview(checked);
     });
+    connect(m_header, &HeaderBar::metadataToggled, this, [this](bool checked){
+        m_metaPanel->setVisible(checked);
+    });
     connect(m_header, &HeaderBar::windowClose, this, &MainWindow::close);
     connect(m_header, &HeaderBar::windowMinimize, this, &MainWindow::showMinimized);
     connect(m_header, &HeaderBar::windowMaximize, this, [this](){
@@ -270,7 +273,10 @@ void MainWindow::initUI() {
     auto* actionMeta = new QAction(this);
     actionMeta->setShortcut(QKeySequence("Ctrl+I"));
     connect(actionMeta, &QAction::triggered, this, [this](){
-        m_metaPanel->setVisible(!m_metaPanel->isVisible());
+        bool visible = !m_metaPanel->isVisible();
+        m_metaPanel->setVisible(visible);
+        // 同步同步标题栏按钮状态 (如果 HeaderBar 提供了接口，或者通过信号)
+        // 简单起见，HeaderBar 目前没直接暴露按钮，但我们可以通过信号反向同步或直接操作
     });
     addAction(actionMeta);
 
