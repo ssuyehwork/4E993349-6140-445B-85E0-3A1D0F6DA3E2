@@ -32,10 +32,7 @@ NoteEditWindow::NoteEditWindow(int noteId, QWidget* parent)
 }
 
 void NoteEditWindow::setDefaultCategory(int catId) {
-    int index = m_categoryCombo->findData(catId);
-    if (index != -1) {
-        m_categoryCombo->setCurrentIndex(index);
-    }
+    m_catId = catId;
 }
 
 void NoteEditWindow::paintEvent(QPaintEvent* event) {
@@ -98,21 +95,21 @@ void NoteEditWindow::initUI() {
     tbLayout->addWidget(m_winTitleLabel);
     tbLayout->addStretch();
 
-    QString ctrlBtnStyle = "QPushButton { background: transparent; border: none; border-radius: 4px; width: 30px; height: 30px; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }";
+    QString ctrlBtnStyle = "QPushButton { background: transparent; border: none; width: 45px; height: 40px; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }";
 
     QPushButton* btnMin = new QPushButton();
-    btnMin->setIcon(IconHelper::getIcon("minimize", "#aaaaaa"));
+    btnMin->setIcon(IconHelper::getIcon("minimize", "#aaaaaa", 16));
     btnMin->setStyleSheet(ctrlBtnStyle);
     connect(btnMin, &QPushButton::clicked, this, &QWidget::showMinimized);
 
     m_maxBtn = new QPushButton();
-    m_maxBtn->setIcon(IconHelper::getIcon("maximize", "#aaaaaa"));
+    m_maxBtn->setIcon(IconHelper::getIcon("maximize", "#aaaaaa", 16));
     m_maxBtn->setStyleSheet(ctrlBtnStyle);
     connect(m_maxBtn, &QPushButton::clicked, this, &NoteEditWindow::toggleMaximize);
 
     QPushButton* btnClose = new QPushButton();
-    btnClose->setIcon(IconHelper::getIcon("close", "#aaaaaa"));
-    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; width: 30px; height: 30px; } QPushButton:hover { background-color: #e74c3c; }");
+    btnClose->setIcon(IconHelper::getIcon("close", "#aaaaaa", 16));
+    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; width: 45px; height: 40px; } QPushButton:hover { background-color: #E81123; }");
     connect(btnClose, &QPushButton::clicked, this, &QWidget::close);
 
     tbLayout->addWidget(btnMin);
@@ -154,18 +151,6 @@ void NoteEditWindow::initUI() {
 void NoteEditWindow::setupLeftPanel(QVBoxLayout* layout) {
     QString labelStyle = "color: #888; font-size: 12px; font-weight: bold; margin-bottom: 4px;";
     QString inputStyle = "QLineEdit, QComboBox { background: #252526; border: 1px solid #333; border-radius: 4px; padding: 8px; color: #eee; font-size: 13px; } QLineEdit:focus, QComboBox:focus { border: 1px solid #4FACFE; }";
-
-    QLabel* lblCat = new QLabel("分区");
-    lblCat->setStyleSheet(labelStyle);
-    m_categoryCombo = new QComboBox();
-    m_categoryCombo->addItem("未分类", -1);
-    auto categories = DatabaseManager::instance().getAllCategories();
-    for (const auto& cat : categories) {
-        m_categoryCombo->addItem(cat["name"].toString(), cat["id"]);
-    }
-    m_categoryCombo->setStyleSheet(inputStyle);
-    layout->addWidget(lblCat);
-    layout->addWidget(m_categoryCombo);
 
     QLabel* lblTitle = new QLabel("标题");
     lblTitle->setStyleSheet(labelStyle);
@@ -263,7 +248,8 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     addTool("list_ol", "有序列表", [this](){ m_contentEdit->toggleList(true); });
     toolBar->addSpacing(5);
 
-    QPushButton* btnTodo = new QPushButton("Todo");
+    QPushButton* btnTodo = new QPushButton();
+    btnTodo->setIcon(IconHelper::getIcon("todo", "#cccccc", 18));
     btnTodo->setFixedSize(28, 28);
     btnTodo->setToolTip("插入待办事项");
     btnTodo->setStyleSheet(btnStyle);
@@ -271,7 +257,8 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     connect(btnTodo, &QPushButton::clicked, [this](){ m_contentEdit->insertTodo(); });
     toolBar->addWidget(btnTodo);
 
-    QPushButton* btnPre = new QPushButton("Pre");
+    QPushButton* btnPre = new QPushButton();
+    btnPre->setIcon(IconHelper::getIcon("eye", "#cccccc", 18));
     btnPre->setFixedSize(28, 28);
     btnPre->setToolTip("切换 Markdown 预览/编辑");
     btnPre->setStyleSheet(btnStyle);
@@ -280,7 +267,7 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     connect(btnPre, &QPushButton::toggled, [this](bool checked){ m_contentEdit->togglePreview(checked); });
     toolBar->addWidget(btnPre);
 
-    addTool("trash", "清除格式", [this](){ m_contentEdit->clearFormatting(); });
+    addTool("edit_clear", "清除格式", [this](){ m_contentEdit->clearFormatting(); });
 
     toolBar->addStretch();
 
@@ -294,6 +281,16 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
         connect(hBtn, &QPushButton::clicked, [this, color](){ m_contentEdit->highlightSelection(QColor(color)); });
         toolBar->addWidget(hBtn);
     }
+
+    // 清除高亮按钮
+    QPushButton* btnClearHighlight = new QPushButton();
+    btnClearHighlight->setIcon(IconHelper::getIcon("edit_clear", "#cccccc", 14));
+    btnClearHighlight->setFixedSize(24, 24);
+    btnClearHighlight->setToolTip("清除高亮");
+    btnClearHighlight->setStyleSheet(btnStyle + " QPushButton { border-radius: 12px; }");
+    btnClearHighlight->setCursor(Qt::PointingHandCursor);
+    connect(btnClearHighlight, &QPushButton::clicked, [this](){ m_contentEdit->highlightSelection(Qt::transparent); });
+    toolBar->addWidget(btnClearHighlight);
 
     layout->addLayout(toolBar);
 
@@ -367,7 +364,7 @@ void NoteEditWindow::saveNote() {
     if(title.isEmpty()) title = "未命名灵感";
     QString content = m_contentEdit->toPlainText();
     QString tags = m_tagEdit->text();
-    int catId = m_categoryCombo->currentData().toInt();
+    int catId = m_catId;
     QString color = m_colorGroup->checkedButton() ? m_colorGroup->checkedButton()->property("color").toString() : "";
 
     if (m_noteId == 0) {
@@ -394,11 +391,7 @@ void NoteEditWindow::loadNoteData(int id) {
         m_contentEdit->setPlainText(note["content"].toString());
         m_tagEdit->setText(note["tags"].toString());
 
-        int catId = note["category_id"].toInt();
-        int idx = m_categoryCombo->findData(catId);
-        if (idx != -1) {
-            m_categoryCombo->setCurrentIndex(idx);
-        }
+        m_catId = note["category_id"].toInt();
 
         QString color = note["color"].toString();
         for (int i = 0; i < m_colorGroup->buttons().size(); ++i) {

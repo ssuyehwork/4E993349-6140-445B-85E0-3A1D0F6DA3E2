@@ -42,7 +42,8 @@ private:
     void toggleSearchBar();
 
     int m_noteId;
-    
+    int m_catId = -1;
+
     // 窗口控制
     bool m_isMaximized = false;
     QRect m_normalGeometry;
@@ -53,7 +54,6 @@ private:
     QLabel* m_winTitleLabel;
     QPushButton* m_maxBtn;
     QSplitter* m_splitter;
-    QComboBox* m_categoryCombo;
     QLineEdit* m_titleEdit;
     QLineEdit* m_tagEdit;
     QButtonGroup* m_colorGroup;
