@@ -593,17 +593,12 @@ void QuickWindow::setupShortcuts() {
     }
     
     // 使用 QAction 绑定快捷键，确保在列表/侧边栏焦点下依然能全局触发
+    // 注意：这里使用 WindowShortcut 处理 Space，它会同时负责开启和关闭预览
     QAction* spaceAction = new QAction(this);
     spaceAction->setShortcut(QKeySequence(Qt::Key_Space));
     spaceAction->setShortcutContext(Qt::WindowShortcut);
     connect(spaceAction, &QAction::triggered, this, &QuickWindow::doPreview);
     addAction(spaceAction);
-
-    QAction* escAction = new QAction(this);
-    escAction->setShortcut(QKeySequence(Qt::Key_Escape));
-    escAction->setShortcutContext(Qt::WindowShortcut);
-    connect(escAction, &QAction::triggered, this, &QuickWindow::hide);
-    addAction(escAction);
 }
 
 void QuickWindow::refreshData() {
@@ -1376,10 +1371,16 @@ bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
         }
     }
 
-    if (watched == m_listView && event->type() == QEvent::KeyPress) {
+    if ((watched == m_listView || watched == m_searchEdit) && event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
         if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
-            activateNote(m_listView->currentIndex());
+            if (watched == m_listView) {
+                activateNote(m_listView->currentIndex());
+                return true;
+            }
+        }
+        if (keyEvent->key() == Qt::Key_Escape) {
+            hide();
             return true;
         }
     }

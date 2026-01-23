@@ -24,6 +24,7 @@ signals:
 public:
     explicit QuickPreview(QWidget* parent = nullptr) : QWidget(parent, Qt::Tool | Qt::FramelessWindowHint) {
         setAttribute(Qt::WA_TranslucentBackground);
+        setFocusPolicy(Qt::StrongFocus);
         
         auto* mainLayout = new QVBoxLayout(this);
         mainLayout->setContentsMargins(10, 10, 10, 10);
@@ -109,12 +110,7 @@ public:
         resize(900, 700);
 
         // 使用 QAction 绑定快捷键，比 QShortcut 在复杂焦点环境下更稳定
-        QAction* spaceAction = new QAction(this);
-        spaceAction->setShortcut(QKeySequence(Qt::Key_Space));
-        spaceAction->setShortcutContext(Qt::WindowShortcut);
-        connect(spaceAction, &QAction::triggered, this, &QuickPreview::hide);
-        addAction(spaceAction);
-
+        // 注意：Space 由父窗口的 WindowShortcut 统一管理 toggle 逻辑
         QAction* escAction = new QAction(this);
         escAction->setShortcut(QKeySequence(Qt::Key_Escape));
         escAction->setShortcutContext(Qt::WindowShortcut);
