@@ -238,7 +238,7 @@ void QuickWindow::initUI() {
             font-weight: bold;
         }
         QTreeView::item {
-            height: 30px;
+            height: 22px;
             padding: 0px;
             border: none;
             background: transparent;
@@ -262,7 +262,7 @@ void QuickWindow::initUI() {
     m_systemTree->setHeaderHidden(true);
     m_systemTree->setMouseTracking(true);
     m_systemTree->setIndentation(12);
-    m_systemTree->setFixedHeight(180); // 6 items * 30px = 180px
+    m_systemTree->setFixedHeight(132); // 6 items * 22px = 132px
     m_systemTree->setEditTriggers(QAbstractItemView::NoEditTriggers); // 绝不可重命名
     m_systemTree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_systemTree->setContextMenuPolicy(Qt::CustomContextMenu);

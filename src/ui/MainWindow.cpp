@@ -79,7 +79,7 @@ void MainWindow::initUI() {
         "QTreeView::branch { image: none; border: none; width: 0px; }"
         "QTreeView::branch:has-children:closed, QTreeView::branch:has-children:open, "
         "QTreeView::branch:has-siblings:has-children:closed, QTreeView::branch:has-siblings:has-children:open { image: none; width: 0px; }"
-        "QTreeView::item { height: 30px; }"
+        "QTreeView::item { height: 22px; }"
     );
     m_sideBar->expandAll();
     m_sideBar->setContextMenuPolicy(Qt::CustomContextMenu);
