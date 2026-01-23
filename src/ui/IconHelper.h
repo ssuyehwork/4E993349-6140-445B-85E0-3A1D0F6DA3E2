@@ -26,7 +26,14 @@ public:
         QPainter painter(&pixmap);
         renderer.render(&painter);
         
-        return QIcon(pixmap);
+        QIcon icon;
+        icon.addPixmap(pixmap, QIcon::Normal, QIcon::On);
+        icon.addPixmap(pixmap, QIcon::Normal, QIcon::Off);
+        icon.addPixmap(pixmap, QIcon::Active, QIcon::On);
+        icon.addPixmap(pixmap, QIcon::Active, QIcon::Off);
+        icon.addPixmap(pixmap, QIcon::Selected, QIcon::On);
+        icon.addPixmap(pixmap, QIcon::Selected, QIcon::Off);
+        return icon;
     }
 };
 

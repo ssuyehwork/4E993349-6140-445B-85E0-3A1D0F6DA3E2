@@ -30,6 +30,60 @@
 #include <QColorDialog>
 #include <QMessageBox>
 #include <QRandomGenerator>
+#include <QStyledItemDelegate>
+#include <QPainter>
+
+// 侧边栏分类项自定义代理：实现动态高亮色
+class CategoryDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    
+    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+        if (!index.isValid()) return;
+
+        bool selected = option.state & QStyle::State_Selected;
+        bool hover = option.state & QStyle::State_MouseOver;
+        bool isSelectable = index.flags() & Qt::ItemIsSelectable;
+
+        if (isSelectable && (selected || hover)) {
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing);
+
+            QColor bg = selected ? QColor("#37373d") : QColor("#2a2d2e");
+
+            // 精准计算高亮区域：联合图标与文字区域，避开左侧缩进/箭头区域
+            QStyle* style = option.widget ? option.widget->style() : QApplication::style();
+            QRect decoRect = style->subElementRect(QStyle::SE_ItemViewItemDecoration, &option, option.widget);
+            QRect textRect = style->subElementRect(QStyle::SE_ItemViewItemText, &option, option.widget);
+            
+            // 联合区域并与当前行 rect 取交集，防止溢出
+            QRect contentRect = decoRect.united(textRect);
+            contentRect = contentRect.intersected(option.rect);
+            
+            // 向左右微调 (padding)，并保持上下略有间隙以体现圆角效果
+            contentRect.adjust(-6, 1, 6, -1);
+            
+            painter->setBrush(bg);
+            painter->setPen(Qt::NoPen);
+            painter->drawRoundedRect(contentRect, 5, 5);
+            painter->restore();
+        }
+
+        // 绘制原内容 (图标、文字)
+        QStyleOptionViewItem opt = option;
+        // 关键：移除 Selected 状态，由我们自己控制背景，防止 QStyle 绘制默认的蓝色/灰色整行高亮
+        opt.state &= ~QStyle::State_Selected;
+        opt.state &= ~QStyle::State_MouseOver;
+        
+        // 选中时文字强制设为白色以确保清晰度
+        if (selected) {
+            opt.palette.setColor(QPalette::Text, Qt::white);
+            opt.palette.setColor(QPalette::HighlightedText, Qt::white);
+        }
+        
+        QStyledItemDelegate::paint(painter, opt, index);
+    }
+};
 
 // 定义调整大小的边缘触发区域宽度 (与边距一致)
 #define RESIZE_MARGIN 10 
@@ -117,7 +171,7 @@ void QuickWindow::initUI() {
         "QListView, QTreeView { background: transparent; border: none; color: #BBB; outline: none; }"
         "QTreeView::item { height: 22px; padding: 0px 4px; border-radius: 4px; }"
         "QTreeView::item:hover { background-color: #2a2d2e; }"
-        "QTreeView::item:selected { background-color: #37373d; color: white; }"
+        "QTreeView::item:selected { background-color: transparent; color: white; }"
         "QListView::item { padding: 6px; border-bottom: 1px solid #2A2A2A; }"
     );
     
@@ -171,19 +225,52 @@ void QuickWindow::initUI() {
     sidebarLayout->setContentsMargins(0, 0, 0, 0);
     sidebarLayout->setSpacing(0);
 
+    QString treeStyle = R"(
+        QTreeView {
+            background-color: transparent;
+            border: none;
+            outline: none;
+            color: #ccc;
+        }
+        /* 针对我的分区标题进行加粗白色处理 */
+        QTreeView::item:!selectable {
+            color: #ffffff;
+            font-weight: bold;
+        }
+        QTreeView::item {
+            height: 30px;
+            padding: 0px;
+            border: none;
+            background: transparent;
+        }
+        QTreeView::item:hover, QTreeView::item:selected {
+            background: transparent;
+        }
+        QTreeView::branch:hover, QTreeView::branch:selected {
+            background: transparent;
+        }
+        QTreeView::branch {
+            image: none;
+        }
+    )";
+
     m_systemTree = new DropTreeView();
+    m_systemTree->setStyleSheet(treeStyle);
+    m_systemTree->setItemDelegate(new CategoryDelegate(this));
     m_systemModel = new CategoryModel(CategoryModel::System, this);
     m_systemTree->setModel(m_systemModel);
     m_systemTree->setHeaderHidden(true);
     m_systemTree->setMouseTracking(true);
     m_systemTree->setIndentation(12);
-    m_systemTree->setFixedHeight(132); // 6 items * 22px = 132px
+    m_systemTree->setFixedHeight(180); // 6 items * 30px = 180px
     m_systemTree->setEditTriggers(QAbstractItemView::NoEditTriggers); // 绝不可重命名
     m_systemTree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_systemTree->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_systemTree, &QTreeView::customContextMenuRequested, this, &QuickWindow::showSidebarMenu);
 
     m_partitionTree = new DropTreeView();
+    m_partitionTree->setStyleSheet(treeStyle);
+    m_partitionTree->setItemDelegate(new CategoryDelegate(this));
     m_partitionModel = new CategoryModel(CategoryModel::User, this);
     m_partitionTree->setModel(m_partitionModel);
     m_partitionTree->setHeaderHidden(true);
@@ -417,6 +504,7 @@ void QuickWindow::initUI() {
     setMinimumSize(400, 300);
 
     m_quickPreview = new QuickPreview(this);
+    connect(m_quickPreview, &QuickPreview::editRequested, this, &QuickWindow::doEditNote);
     m_listView->installEventFilter(this);
     m_systemTree->installEventFilter(this);
     m_partitionTree->installEventFilter(this);
@@ -499,7 +587,13 @@ void QuickWindow::setupShortcuts() {
         new QShortcut(QKeySequence(QString("Ctrl+%1").arg(i)), this, [this, i](){ doSetRating(i); });
     }
     
-    new QShortcut(QKeySequence(Qt::Key_Space), this, [this](){ doPreview(); });
+    // 使用 QAction 绑定快捷键，确保在列表/侧边栏焦点下依然能全局触发
+    // 注意：这里使用 WindowShortcut 处理 Space，它会同时负责开启和关闭预览
+    QAction* spaceAction = new QAction(this);
+    spaceAction->setShortcut(QKeySequence(Qt::Key_Space));
+    spaceAction->setShortcutContext(Qt::WindowShortcut);
+    connect(spaceAction, &QAction::triggered, this, &QuickWindow::doPreview);
+    addAction(spaceAction);
 }
 
 void QuickWindow::refreshData() {
@@ -794,7 +888,11 @@ void QuickWindow::doExtractContent() {
 void QuickWindow::doEditSelected() {
     QModelIndex index = m_listView->currentIndex();
     if (!index.isValid()) return;
-    int id = index.data(NoteModel::IdRole).toInt();
+    doEditNote(index.data(NoteModel::IdRole).toInt());
+}
+
+void QuickWindow::doEditNote(int id) {
+    if (id <= 0) return;
     NoteEditWindow* win = new NoteEditWindow(id);
     connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
     win->show();
@@ -821,12 +919,15 @@ void QuickWindow::doPreview() {
     QVariantMap note = DatabaseManager::instance().getNoteById(id);
     QPoint globalPos = m_listView->mapToGlobal(m_listView->rect().center()) - QPoint(250, 300);
     m_quickPreview->showPreview(
+        id,
         note["title"].toString(), 
         note["content"].toString(), 
         note["item_type"].toString(),
         note["data_blob"].toByteArray(),
         globalPos
     );
+    m_quickPreview->raise();
+    m_quickPreview->activateWindow();
 }
 
 void QuickWindow::toggleStayOnTop(bool checked) {
@@ -1265,18 +1366,16 @@ bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
         }
     }
 
-    if (watched == m_listView && event->type() == QEvent::KeyPress) {
+    if ((watched == m_listView || watched == m_searchEdit) && event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
         if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
-            activateNote(m_listView->currentIndex());
-            return true;
+            if (watched == m_listView) {
+                activateNote(m_listView->currentIndex());
+                return true;
+            }
         }
         if (keyEvent->key() == Qt::Key_Escape) {
             hide();
-            return true;
-        }
-        if (keyEvent->key() == Qt::Key_Space && !keyEvent->isAutoRepeat()) {
-            doPreview();
             return true;
         }
     }

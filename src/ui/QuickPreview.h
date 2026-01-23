@@ -12,13 +12,19 @@
 #include <QMouseEvent>
 #include <QApplication>
 #include <QFrame>
+#include <QShortcut>
+#include <QAction>
 #include "IconHelper.h"
 
 class QuickPreview : public QWidget {
     Q_OBJECT
+signals:
+    void editRequested(int noteId);
+
 public:
     explicit QuickPreview(QWidget* parent = nullptr) : QWidget(parent, Qt::Tool | Qt::FramelessWindowHint) {
         setAttribute(Qt::WA_TranslucentBackground);
+        setFocusPolicy(Qt::StrongFocus);
         
         auto* mainLayout = new QVBoxLayout(this);
         mainLayout->setContentsMargins(10, 10, 10, 10);
@@ -62,10 +68,18 @@ public:
             return btn;
         };
 
+        QPushButton* btnEdit = createBtn("edit", "编辑 (Ctrl+B)");
+        btnEdit->setFocusPolicy(Qt::NoFocus);
         QPushButton* btnMin = createBtn("minimize", "最小化");
+        btnMin->setFocusPolicy(Qt::NoFocus);
         QPushButton* btnMax = createBtn("maximize", "最大化");
+        btnMax->setFocusPolicy(Qt::NoFocus);
         QPushButton* btnClose = createBtn("close", "关闭", "btnClose");
+        btnClose->setFocusPolicy(Qt::NoFocus);
 
+        connect(btnEdit, &QPushButton::clicked, [this]() {
+            emit editRequested(m_currentNoteId);
+        });
         connect(btnMin, &QPushButton::clicked, this, &QuickPreview::showMinimized);
         connect(btnMax, &QPushButton::clicked, [this]() {
             if (isMaximized()) showNormal();
@@ -73,6 +87,7 @@ public:
         });
         connect(btnClose, &QPushButton::clicked, this, &QuickPreview::hide);
 
+        titleLayout->addWidget(btnEdit);
         titleLayout->addWidget(btnMin);
         titleLayout->addWidget(btnMax);
         titleLayout->addWidget(btnClose);
@@ -93,13 +108,22 @@ public:
         m_container->setGraphicsEffect(shadow);
         
         resize(900, 700);
+
+        // 使用 QAction 绑定快捷键，比 QShortcut 在复杂焦点环境下更稳定
+        // 注意：Space 由父窗口的 WindowShortcut 统一管理 toggle 逻辑
+        QAction* escAction = new QAction(this);
+        escAction->setShortcut(QKeySequence(Qt::Key_Escape));
+        escAction->setShortcutContext(Qt::WindowShortcut);
+        connect(escAction, &QAction::triggered, this, &QuickPreview::hide);
+        addAction(escAction);
     }
 
-    void showPreview(const QString& title, const QString& content, const QPoint& pos) {
-        showPreview(title, content, "text", QByteArray(), pos);
+    void showPreview(int noteId, const QString& title, const QString& content, const QPoint& pos) {
+        showPreview(noteId, title, content, "text", QByteArray(), pos);
     }
 
-    void showPreview(const QString& title, const QString& content, const QString& type, const QByteArray& data, const QPoint& pos) {
+    void showPreview(int noteId, const QString& title, const QString& content, const QString& type, const QByteArray& data, const QPoint& pos) {
+        m_currentNoteId = noteId;
         QString html;
         QString titleHtml = QString("<h3 style='color: #eee; margin-bottom: 5px;'>%1</h3>").arg(title.toHtmlEscaped());
         QString hrHtml = "<hr style='border: 0; border-top: 1px solid #444; margin: 10px 0;'>";
@@ -119,15 +143,6 @@ public:
     }
 
 protected:
-    void keyPressEvent(QKeyEvent* event) override {
-        if (event->key() == Qt::Key_Space || event->key() == Qt::Key_Escape) {
-            hide();
-            event->accept();
-            return;
-        }
-        QWidget::keyPressEvent(event);
-    }
-
     void mousePressEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton && m_titleBar->rect().contains(m_titleBar->mapFrom(this, event->pos()))) {
             m_dragging = true;
@@ -160,6 +175,7 @@ private:
     QFrame* m_container;
     QWidget* m_titleBar;
     QTextEdit* m_textEdit;
+    int m_currentNoteId = -1;
     bool m_dragging = false;
     QPoint m_dragPos;
 };

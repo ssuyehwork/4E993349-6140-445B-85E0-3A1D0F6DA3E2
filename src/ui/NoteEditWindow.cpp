@@ -10,13 +10,21 @@
 #include <QGraphicsDropShadowEffect>
 #include <QWindow>
 #include <QMouseEvent>
+#include <QShortcut>
+#include <QKeySequence>
+#include <QApplication>
+#include <QScreen>
+#include <QTextListFormat>
+#include <QCompleter>
+#include <QStringListModel>
 
 NoteEditWindow::NoteEditWindow(int noteId, QWidget* parent) 
     : QWidget(parent, Qt::Window | Qt::FramelessWindowHint), m_noteId(noteId) 
 {
     setAttribute(Qt::WA_TranslucentBackground); 
-    resize(900, 600); 
+    resize(950, 650); 
     initUI();
+    setupShortcuts();
     
     if (m_noteId > 0) {
         loadNoteData(m_noteId);
@@ -24,10 +32,7 @@ NoteEditWindow::NoteEditWindow(int noteId, QWidget* parent)
 }
 
 void NoteEditWindow::setDefaultCategory(int catId) {
-    int index = m_categoryCombo->findData(catId);
-    if (index != -1) {
-        m_categoryCombo->setCurrentIndex(index);
-    }
+    m_catId = catId;
 }
 
 void NoteEditWindow::paintEvent(QPaintEvent* event) {
@@ -35,85 +40,117 @@ void NoteEditWindow::paintEvent(QPaintEvent* event) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     
-    painter.setBrush(QColor("#252526")); 
+    painter.setBrush(QColor("#1E1E1E")); 
     painter.setPen(Qt::NoPen);
-    painter.drawRoundedRect(rect(), 10, 10);
+    int radius = m_isMaximized ? 0 : 12;
+    painter.drawRoundedRect(rect(), radius, radius);
 }
 
 void NoteEditWindow::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        if (auto* handle = windowHandle()) {
-            handle->startSystemMove();
+        if (event->pos().y() < 40) {
+            m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
+            event->accept();
         }
-        event->accept();
+    }
+}
+
+void NoteEditWindow::mouseMoveEvent(QMouseEvent* event) {
+    if (event->buttons() & Qt::LeftButton) {
+        if (!m_dragPos.isNull()) {
+            move(event->globalPosition().toPoint() - m_dragPos);
+            event->accept();
+        }
+    }
+}
+
+void NoteEditWindow::mouseReleaseEvent(QMouseEvent* event) {
+    m_dragPos = QPoint();
+}
+
+void NoteEditWindow::mouseDoubleClickEvent(QMouseEvent* event) {
+    if (event->pos().y() < 40) {
+        toggleMaximize();
     }
 }
 
 void NoteEditWindow::initUI() {
-    auto* mainLayout = new QHBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->setSpacing(0);
+    auto* outerLayout = new QVBoxLayout(this);
+    outerLayout->setContentsMargins(0, 0, 0, 0);
+    outerLayout->setSpacing(0);
+
+    // 自定义标题栏
+    m_titleBar = new QWidget();
+    m_titleBar->setFixedHeight(40);
+    m_titleBar->setStyleSheet("background-color: #252526; border-top-left-radius: 12px; border-top-right-radius: 12px; border-bottom: 1px solid #333;");
+    auto* tbLayout = new QHBoxLayout(m_titleBar);
+    tbLayout->setContentsMargins(15, 0, 10, 0);
+
+    QLabel* titleIcon = new QLabel();
+    titleIcon->setPixmap(IconHelper::getIcon("edit", "#4FACFE", 18).pixmap(18, 18));
+    tbLayout->addWidget(titleIcon);
+
+    m_winTitleLabel = new QLabel(m_noteId > 0 ? "编辑笔记" : "记录灵感");
+    m_winTitleLabel->setStyleSheet("font-weight: bold; color: #ddd; font-size: 13px;");
+    tbLayout->addWidget(m_winTitleLabel);
+    tbLayout->addStretch();
+
+    QString ctrlBtnStyle = "QPushButton { background: transparent; border: none; width: 45px; height: 40px; } QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }";
+    
+    QPushButton* btnMin = new QPushButton();
+    btnMin->setIcon(IconHelper::getIcon("minimize", "#aaaaaa", 16));
+    btnMin->setStyleSheet(ctrlBtnStyle);
+    connect(btnMin, &QPushButton::clicked, this, &QWidget::showMinimized);
+    
+    m_maxBtn = new QPushButton();
+    m_maxBtn->setIcon(IconHelper::getIcon("maximize", "#aaaaaa", 16));
+    m_maxBtn->setStyleSheet(ctrlBtnStyle);
+    connect(m_maxBtn, &QPushButton::clicked, this, &NoteEditWindow::toggleMaximize);
+    
+    QPushButton* btnClose = new QPushButton();
+    btnClose->setIcon(IconHelper::getIcon("close", "#aaaaaa", 16));
+    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; width: 45px; height: 40px; } QPushButton:hover { background-color: #E81123; }");
+    connect(btnClose, &QPushButton::clicked, this, &QWidget::close);
+
+    tbLayout->addWidget(btnMin);
+    tbLayout->addWidget(m_maxBtn);
+    tbLayout->addWidget(btnClose);
+    outerLayout->addWidget(m_titleBar);
+
+    // 主内容区使用 Splitter
+    m_splitter = new QSplitter(Qt::Horizontal);
+    m_splitter->setStyleSheet("QSplitter::handle { background-color: #252526; width: 2px; } QSplitter::handle:hover { background-color: #4FACFE; }");
 
     // 左侧面板
-    QWidget* leftPanel = new QWidget();
-    leftPanel->setStyleSheet("background-color: #1E1E1E; border-top-left-radius: 10px; border-bottom-left-radius: 10px; border-right: 1px solid #333;");
-    leftPanel->setFixedWidth(280);
-    auto* leftLayout = new QVBoxLayout(leftPanel);
-    leftLayout->setContentsMargins(20, 20, 20, 20);
+    QWidget* leftContainer = new QWidget();
+    auto* leftLayout = new QVBoxLayout(leftContainer);
+    leftLayout->setContentsMargins(15, 15, 15, 15);
     setupLeftPanel(leftLayout);
 
     // 右侧面板
-    QWidget* rightPanel = new QWidget();
-    rightPanel->setStyleSheet("background-color: #252526; border-top-right-radius: 10px; border-bottom-right-radius: 10px;");
-    auto* rightLayout = new QVBoxLayout(rightPanel);
-    rightLayout->setContentsMargins(20, 10, 20, 20); 
+    QWidget* rightContainer = new QWidget();
+    auto* rightLayout = new QVBoxLayout(rightContainer);
+    rightLayout->setContentsMargins(10, 15, 15, 15);
     setupRightPanel(rightLayout);
+
+    m_splitter->addWidget(leftContainer);
+    m_splitter->addWidget(rightContainer);
+    m_splitter->setStretchFactor(0, 0);
+    m_splitter->setStretchFactor(1, 1);
+    m_splitter->setSizes({300, 650});
+
+    outerLayout->addWidget(m_splitter);
 
     auto* shadow = new QGraphicsDropShadowEffect(this);
     shadow->setBlurRadius(20);
     shadow->setColor(QColor(0, 0, 0, 150));
     shadow->setOffset(0, 5);
     setGraphicsEffect(shadow);
-
-    mainLayout->addWidget(leftPanel);
-    mainLayout->addWidget(rightPanel);
-    
-    // 关闭按钮
-    QPushButton* closeBtn = new QPushButton(this);
-    closeBtn->setIcon(IconHelper::getIcon("close", "#aaaaaa"));
-    closeBtn->setGeometry(width() - 40, 10, 30, 30);
-    closeBtn->setStyleSheet("QPushButton { background: transparent; border: none; } QPushButton:hover { background: #c42b1c; border-radius: 5px; }");
-    connect(closeBtn, &QPushButton::clicked, this, &QWidget::close);
 }
 
 void NoteEditWindow::setupLeftPanel(QVBoxLayout* layout) {
-    QString labelStyle = "color: #888; font-size: 12px; margin-bottom: 5px; margin-top: 10px;";
-    QString inputStyle = "QLineEdit, QComboBox { background: #2D2D2D; border: 1px solid #3E3E42; border-radius: 4px; padding: 8px; color: #EEE; font-size: 13px; }";
-
-    QWidget* titleArea = new QWidget();
-    QHBoxLayout* titleLayout = new QHBoxLayout(titleArea);
-    titleLayout->setContentsMargins(0,0,0,0);
-    QLabel* titleIcon = new QLabel();
-    titleIcon->setPixmap(IconHelper::getIcon("edit", "#4FACFE", 24).pixmap(24, 24));
-    titleLayout->addWidget(titleIcon);
-    QLabel* winTitle = new QLabel("记录灵感");
-    winTitle->setStyleSheet("color: #EEE; font-size: 16px; font-weight: bold;");
-    titleLayout->addWidget(winTitle);
-    titleLayout->addStretch();
-    layout->addWidget(titleArea);
-    layout->addSpacing(10);
-
-    QLabel* lblCat = new QLabel("分区");
-    lblCat->setStyleSheet(labelStyle);
-    m_categoryCombo = new QComboBox();
-    m_categoryCombo->addItem("未分类", -1);
-    auto categories = DatabaseManager::instance().getAllCategories();
-    for (const auto& cat : categories) {
-        m_categoryCombo->addItem(cat["name"].toString(), cat["id"]);
-    }
-    m_categoryCombo->setStyleSheet(inputStyle);
-    layout->addWidget(lblCat);
-    layout->addWidget(m_categoryCombo);
+    QString labelStyle = "color: #888; font-size: 12px; font-weight: bold; margin-bottom: 4px;";
+    QString inputStyle = "QLineEdit, QComboBox { background: #252526; border: 1px solid #333; border-radius: 4px; padding: 8px; color: #eee; font-size: 13px; } QLineEdit:focus, QComboBox:focus { border: 1px solid #4FACFE; }";
 
     QLabel* lblTitle = new QLabel("标题");
     lblTitle->setStyleSheet(labelStyle);
@@ -126,8 +163,16 @@ void NoteEditWindow::setupLeftPanel(QVBoxLayout* layout) {
     QLabel* lblTags = new QLabel("标签");
     lblTags->setStyleSheet(labelStyle);
     m_tagEdit = new QLineEdit();
-    m_tagEdit->setPlaceholderText("使用逗号分隔");
+    m_tagEdit->setPlaceholderText("使用逗号分隔，如: 工作, 待办");
     m_tagEdit->setStyleSheet(inputStyle);
+    
+    // 智能补全标签
+    QStringList allTags = DatabaseManager::instance().getAllTags();
+    QCompleter* completer = new QCompleter(allTags, this);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchContains);
+    m_tagEdit->setCompleter(completer);
+
     layout->addWidget(lblTags);
     layout->addWidget(m_tagEdit);
 
@@ -149,35 +194,20 @@ void NoteEditWindow::setupLeftPanel(QVBoxLayout* layout) {
     if(m_colorGroup->button(0)) m_colorGroup->button(0)->setChecked(true);
     
     layout->addWidget(colorGrid);
+    
+    m_defaultColorCheck = new QCheckBox("设为默认颜色");
+    m_defaultColorCheck->setStyleSheet("QCheckBox { color: #858585; font-size: 12px; margin-top: 5px; }");
+    layout->addWidget(m_defaultColorCheck);
 
     layout->addStretch(); 
 
     QPushButton* saveBtn = new QPushButton();
     saveBtn->setIcon(IconHelper::getIcon("save", "#ffffff"));
-    saveBtn->setText(" 保存 (Ctrl+S)");
-    saveBtn->setShortcut(QKeySequence("Ctrl+S"));
+    saveBtn->setText("  保存 (Ctrl+S)");
     saveBtn->setCursor(Qt::PointingHandCursor);
-    saveBtn->setFixedHeight(45);
-    saveBtn->setStyleSheet(
-        "QPushButton { background-color: #409EFF; color: white; border-radius: 4px; font-size: 14px; font-weight: bold; }"
-        "QPushButton:hover { background-color: #66B1FF; }"
-    );
-    connect(saveBtn, &QPushButton::clicked, [this](){
-        QString title = m_titleEdit->text();
-        if(title.isEmpty()) title = "未命名灵感";
-        QString content = m_contentEdit->toPlainText();
-        QString tags = m_tagEdit->text();
-        int catId = m_categoryCombo->currentData().toInt();
-        QString color = m_colorGroup->checkedButton() ? m_colorGroup->checkedButton()->property("color").toString() : "";
-        
-        if (m_noteId == 0) {
-            DatabaseManager::instance().addNoteAsync(title, content, tags.split(","), color, catId);
-        } else {
-            DatabaseManager::instance().updateNote(m_noteId, title, content, tags.split(","), color, catId);
-        }
-        emit noteSaved();
-        close();
-    });
+    saveBtn->setFixedHeight(50);
+    saveBtn->setStyleSheet("QPushButton { background-color: #4FACFE; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 13px; } QPushButton:hover { background-color: #357abd; }");
+    connect(saveBtn, &QPushButton::clicked, this, &NoteEditWindow::saveNote);
     layout->addWidget(saveBtn);
 }
 
@@ -195,42 +225,180 @@ QPushButton* NoteEditWindow::createColorBtn(const QString& color, int id) {
 
 void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     QHBoxLayout* toolBar = new QHBoxLayout();
+    QString btnStyle = "QPushButton { background: transparent; border: 1px solid #444; border-radius: 4px; margin-left: 2px; } QPushButton:hover { background-color: #444; }";
     
-    auto addTool = [&](const QString& iconName, const QString& tip) {
+    auto addTool = [&](const QString& iconName, const QString& tip, std::function<void()> callback) {
         QPushButton* btn = new QPushButton();
-        btn->setIcon(IconHelper::getIcon(iconName, "#aaaaaa"));
+        btn->setIcon(IconHelper::getIcon(iconName, "#cccccc"));
         btn->setToolTip(tip);
-        btn->setFixedSize(35, 35);
+        btn->setFixedSize(28, 28);
         btn->setCursor(Qt::PointingHandCursor);
-        btn->setStyleSheet("QPushButton { background: transparent; border: 1px solid #333; border-radius: 4px; } QPushButton:hover { background: #333; }");
+        btn->setStyleSheet(btnStyle);
+        connect(btn, &QPushButton::clicked, callback);
         toolBar->addWidget(btn);
         return btn;
     };
 
-    addTool("undo", "撤销");
-    addTool("redo", "重做");
-    addTool("list_ul", "无序列表");
-    addTool("list_ol", "有序列表");
-    addTool("todo", "待办事项");
-    addTool("trash", "删除内容");
+    layout->addWidget(new QLabel("详细内容"));
+    
+    addTool("undo", "撤销 (Ctrl+Z)", [this](){ m_contentEdit->undo(); });
+    addTool("redo", "重做 (Ctrl+Y)", [this](){ m_contentEdit->redo(); });
+    toolBar->addSpacing(5);
+    addTool("list_ul", "无序列表", [this](){ m_contentEdit->toggleList(false); });
+    addTool("list_ol", "有序列表", [this](){ m_contentEdit->toggleList(true); });
+    toolBar->addSpacing(5);
+    
+    QPushButton* btnTodo = new QPushButton();
+    btnTodo->setIcon(IconHelper::getIcon("todo", "#cccccc", 18));
+    btnTodo->setFixedSize(28, 28);
+    btnTodo->setToolTip("插入待办事项");
+    btnTodo->setStyleSheet(btnStyle);
+    btnTodo->setCursor(Qt::PointingHandCursor);
+    connect(btnTodo, &QPushButton::clicked, [this](){ m_contentEdit->insertTodo(); });
+    toolBar->addWidget(btnTodo);
 
+    QPushButton* btnPre = new QPushButton();
+    btnPre->setIcon(IconHelper::getIcon("eye", "#cccccc", 18));
+    btnPre->setFixedSize(28, 28);
+    btnPre->setToolTip("切换 Markdown 预览/编辑");
+    btnPre->setStyleSheet(btnStyle);
+    btnPre->setCursor(Qt::PointingHandCursor);
+    btnPre->setCheckable(true);
+    connect(btnPre, &QPushButton::toggled, [this](bool checked){ m_contentEdit->togglePreview(checked); });
+    toolBar->addWidget(btnPre);
+
+    addTool("edit_clear", "清除格式", [this](){ m_contentEdit->clearFormatting(); });
+    
     toolBar->addStretch();
+    
+    // 高亮颜色
+    QStringList hColors = {"#c0392b", "#d35400", "#f1c40f", "#27ae60", "#2980b9", "#8e44ad"};
+    for (const auto& color : hColors) {
+        QPushButton* hBtn = new QPushButton();
+        hBtn->setFixedSize(24, 24);
+        hBtn->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid #444; border-radius: 12px; margin-left: 2px; } QPushButton:hover { border-color: white; }").arg(color));
+        hBtn->setCursor(Qt::PointingHandCursor);
+        connect(hBtn, &QPushButton::clicked, [this, color](){ m_contentEdit->highlightSelection(QColor(color)); });
+        toolBar->addWidget(hBtn);
+    }
+
+    // 清除高亮按钮
+    QPushButton* btnClearHighlight = new QPushButton();
+    btnClearHighlight->setIcon(IconHelper::getIcon("edit_clear", "#cccccc", 14));
+    btnClearHighlight->setFixedSize(24, 24);
+    btnClearHighlight->setToolTip("清除高亮");
+    btnClearHighlight->setStyleSheet(btnStyle + " QPushButton { border-radius: 12px; }");
+    btnClearHighlight->setCursor(Qt::PointingHandCursor);
+    connect(btnClearHighlight, &QPushButton::clicked, [this](){ m_contentEdit->highlightSelection(Qt::transparent); });
+    toolBar->addWidget(btnClearHighlight);
+    
     layout->addLayout(toolBar);
 
-    layout->addSpacing(10);
+    // 搜索栏 (默认隐藏)
+    m_searchBar = new QWidget();
+    m_searchBar->setVisible(false);
+    m_searchBar->setStyleSheet("background-color: #252526; border-radius: 6px; padding: 2px;");
+    auto* sbLayout = new QHBoxLayout(m_searchBar);
+    sbLayout->setContentsMargins(5, 2, 5, 2);
+    m_searchEdit = new QLineEdit();
+    m_searchEdit->setPlaceholderText("查找内容...");
+    m_searchEdit->setStyleSheet("border: none; background: transparent; color: #fff;");
+    connect(m_searchEdit, &QLineEdit::returnPressed, [this](){ m_contentEdit->findText(m_searchEdit->text()); });
+    
+    QPushButton* btnPrev = new QPushButton();
+    btnPrev->setIcon(IconHelper::getIcon("nav_prev", "#ccc"));
+    btnPrev->setFixedSize(24, 24);
+    btnPrev->setStyleSheet("background: transparent; border: none;");
+    connect(btnPrev, &QPushButton::clicked, [this](){ m_contentEdit->findText(m_searchEdit->text(), true); });
+    
+    QPushButton* btnNext = new QPushButton();
+    btnNext->setIcon(IconHelper::getIcon("nav_next", "#ccc"));
+    btnNext->setFixedSize(24, 24);
+    btnNext->setStyleSheet("background: transparent; border: none;");
+    connect(btnNext, &QPushButton::clicked, [this](){ m_contentEdit->findText(m_searchEdit->text(), false); });
+    
+    QPushButton* btnCls = new QPushButton();
+    btnCls->setIcon(IconHelper::getIcon("close", "#ccc"));
+    btnCls->setFixedSize(24, 24);
+    btnCls->setStyleSheet("background: transparent; border: none;");
+    connect(btnCls, &QPushButton::clicked, [this](){ m_searchBar->hide(); });
+
+    sbLayout->addWidget(m_searchEdit);
+    sbLayout->addWidget(btnPrev);
+    sbLayout->addWidget(btnNext);
+    sbLayout->addWidget(btnCls);
+    layout->addWidget(m_searchBar);
+
+    layout->addSpacing(5);
     m_contentEdit = new Editor(); 
-    m_contentEdit->setPlaceholderText("在这里记录详细内容...");
+    m_contentEdit->setPlaceholderText("在这里记录详细内容（支持 Markdown 和粘贴图片）...");
     layout->addWidget(m_contentEdit);
 }
 
+void NoteEditWindow::setupShortcuts() {
+    new QShortcut(QKeySequence("Ctrl+S"), this, SLOT(saveNote()));
+    new QShortcut(QKeySequence("Escape"), this, SLOT(close()));
+    new QShortcut(QKeySequence("Ctrl+W"), this, SLOT(close()));
+    
+    QShortcut* scSearch = new QShortcut(QKeySequence("Ctrl+F"), this);
+    connect(scSearch, &QShortcut::activated, this, &NoteEditWindow::toggleSearchBar);
+}
+
+void NoteEditWindow::toggleMaximize() {
+    if (m_isMaximized) {
+        showNormal();
+        m_maxBtn->setIcon(IconHelper::getIcon("maximize", "#aaaaaa"));
+        m_titleBar->setStyleSheet("background-color: #252526; border-top-left-radius: 12px; border-top-right-radius: 12px; border-bottom: 1px solid #333;");
+    } else {
+        m_normalGeometry = geometry();
+        showMaximized();
+        m_maxBtn->setIcon(IconHelper::getIcon("restore", "#aaaaaa"));
+        m_titleBar->setStyleSheet("background-color: #252526; border-radius: 0px; border-bottom: 1px solid #333;");
+    }
+    m_isMaximized = !m_isMaximized;
+    update();
+}
+
+void NoteEditWindow::saveNote() {
+    QString title = m_titleEdit->text();
+    if(title.isEmpty()) title = "未命名灵感";
+    QString content = m_contentEdit->toPlainText();
+    QString tags = m_tagEdit->text();
+    int catId = m_catId;
+    QString color = m_colorGroup->checkedButton() ? m_colorGroup->checkedButton()->property("color").toString() : "";
+    
+    if (m_noteId == 0) {
+        DatabaseManager::instance().addNoteAsync(title, content, tags.split(","), color, catId);
+    } else {
+        DatabaseManager::instance().updateNote(m_noteId, title, content, tags.split(","), color, catId);
+    }
+    emit noteSaved();
+    close();
+}
+
+void NoteEditWindow::toggleSearchBar() {
+    m_searchBar->setVisible(!m_searchBar->isVisible());
+    if (m_searchBar->isVisible()) {
+        m_searchEdit->setFocus();
+        m_searchEdit->selectAll();
+    }
+}
+
 void NoteEditWindow::loadNoteData(int id) {
-    auto notes = DatabaseManager::instance().getAllNotes();
-    for(const auto& note : notes) {
-        if (note["id"].toInt() == id) {
-            m_titleEdit->setText(note["title"].toString());
-            m_contentEdit->setPlainText(note["content"].toString());
-            m_tagEdit->setText(note["tags"].toString());
-            break;
+    QVariantMap note = DatabaseManager::instance().getNoteById(id);
+    if (!note.isEmpty()) {
+        m_titleEdit->setText(note["title"].toString());
+        m_contentEdit->setPlainText(note["content"].toString());
+        m_tagEdit->setText(note["tags"].toString());
+        
+        m_catId = note["category_id"].toInt();
+        
+        QString color = note["color"].toString();
+        for (int i = 0; i < m_colorGroup->buttons().size(); ++i) {
+            if (m_colorGroup->button(i)->property("color").toString() == color) {
+                m_colorGroup->button(i)->setChecked(true);
+                break;
+            }
         }
     }
 }
