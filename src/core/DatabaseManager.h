@@ -8,12 +8,11 @@
 #include <QDateTime>
 #include <QVariant>
 #include <QVariantList>
+#include <QVariantMap>
 #include <QMap>
 #include <QList>
 #include <QRecursiveMutex>
 #include <QStringList>
-
-typedef QMap<QString, QVariant> QVariantMap;
 
 class DatabaseManager : public QObject {
     Q_OBJECT
