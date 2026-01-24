@@ -647,6 +647,60 @@ QStringList DatabaseManager::getAllTags() {
     allTags.sort();
     return allTags;
 }
+
+QList<QVariantMap> DatabaseManager::getRecentTagsWithCounts(int limit) {
+    QMutexLocker locker(&m_mutex);
+    QList<QVariantMap> results;
+    if (!m_db.isOpen()) return results;
+
+    struct TagData {
+        QString name;
+        int count = 0;
+        QDateTime lastUsed;
+    };
+    QMap<QString, TagData> tagMap;
+
+    QSqlQuery query(m_db);
+    // 获取所有非删除笔记的标签和更新时间
+    if (query.exec("SELECT tags, updated_at FROM notes WHERE tags != '' AND is_deleted = 0")) {
+        while (query.next()) {
+            QString tagsStr = query.value(0).toString();
+            QDateTime updatedAt = query.value(1).toDateTime();
+            QStringList parts = tagsStr.split(",", Qt::SkipEmptyParts);
+            for (const QString& part : parts) {
+                QString name = part.trimmed();
+                if (name.isEmpty()) continue;
+
+                if (!tagMap.contains(name)) {
+                    tagMap[name] = {name, 1, updatedAt};
+                } else {
+                    tagMap[name].count++;
+                    if (updatedAt > tagMap[name].lastUsed) {
+                        tagMap[name].lastUsed = updatedAt;
+                    }
+                }
+            }
+        }
+    }
+
+    // 转换为列表并排序
+    QList<TagData> sortedList = tagMap.values();
+    std::sort(sortedList.begin(), sortedList.end(), [](const TagData& a, const TagData& b) {
+        if (a.lastUsed != b.lastUsed) return a.lastUsed > b.lastUsed; // 最近使用优先
+        return a.count > b.count; // 其次按计数
+    });
+
+    // 取前 N 个
+    int actualLimit = qMin(limit, (int)sortedList.size());
+    for (int i = 0; i < actualLimit; ++i) {
+        QVariantMap m;
+        m["name"] = sortedList[i].name;
+        m["count"] = sortedList[i].count;
+        results.append(m);
+    }
+
+    return results;
+}
 int DatabaseManager::addCategory(const QString& name, int parentId, const QString& color) {
     QMutexLocker locker(&m_mutex);
     if (!m_db.isOpen()) return -1;
