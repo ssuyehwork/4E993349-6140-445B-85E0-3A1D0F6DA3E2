@@ -1,4 +1,7 @@
 #include "MainWindow.h"
+#include "HeaderBar.h"
+#include "MetadataPanel.h"
+#include "FilterPanel.h"
 #include "../core/DatabaseManager.h"
 #include "NoteDelegate.h"
 #include "Toolbox.h"

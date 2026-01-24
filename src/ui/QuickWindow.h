@@ -11,6 +11,7 @@
 #include <QLabel>
 #include <QTimer>
 #include <QKeyEvent>
+#include <QVariant>
 #include "../models/NoteModel.h"
 #include "../models/CategoryModel.h"
 #include "QuickPreview.h"

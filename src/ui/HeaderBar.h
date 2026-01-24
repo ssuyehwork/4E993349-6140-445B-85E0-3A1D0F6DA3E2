@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QMenu>
+#include <QLineEdit>
 #include "SearchLineEdit.h"
 
 class HeaderBar : public QWidget {

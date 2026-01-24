@@ -7,6 +7,8 @@
 #include <QStackedWidget>
 #include <QMouseEvent>
 #include <QFrame>
+#include <QVariantMap>
+#include <QMap>
 
 class ClickableLineEdit : public QLineEdit {
     Q_OBJECT
@@ -20,7 +22,6 @@ protected:
         QLineEdit::mouseDoubleClickEvent(event);
     }
 };
-#include <QMap>
 
 class MetadataPanel : public QWidget {
     Q_OBJECT
