@@ -3,10 +3,13 @@
 
 #include <QWidget>
 #include <QStringList>
+#include <QList>
+#include <QVariant>
 #include <QVBoxLayout>
 #include <QLineEdit>
 #include <QLabel>
 #include <QScrollArea>
+#include <QPushButton>
 #include "FlowLayout.h"
 
 class AdvancedTagSelector : public QWidget {

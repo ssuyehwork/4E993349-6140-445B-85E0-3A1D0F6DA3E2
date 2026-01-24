@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QLineEdit>
+#include <QVariant>
 #include <QStackedWidget>
 #include <QMouseEvent>
 #include <QFrame>
