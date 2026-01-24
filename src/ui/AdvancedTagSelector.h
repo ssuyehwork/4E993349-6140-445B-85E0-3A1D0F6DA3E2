@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QStringList>
 #include <QList>
+#include <QMap>
 #include <QVariant>
 #include <QVBoxLayout>
 #include <QLineEdit>
@@ -11,6 +12,8 @@
 #include <QScrollArea>
 #include <QPushButton>
 #include "FlowLayout.h"
+
+class QPushButton;
 
 class AdvancedTagSelector : public QWidget {
     Q_OBJECT

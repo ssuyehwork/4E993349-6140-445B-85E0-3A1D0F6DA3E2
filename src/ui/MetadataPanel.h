@@ -5,6 +5,8 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QVariant>
+#include <QStringList>
+#include <QMap>
 #include <QStackedWidget>
 #include <QMouseEvent>
 #include <QFrame>
@@ -21,7 +23,6 @@ protected:
         QLineEdit::mouseDoubleClickEvent(event);
     }
 };
-#include <QMap>
 
 class MetadataPanel : public QWidget {
     Q_OBJECT
