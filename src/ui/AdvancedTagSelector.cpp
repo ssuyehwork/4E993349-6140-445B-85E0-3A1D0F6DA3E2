@@ -1,4 +1,5 @@
 #include "AdvancedTagSelector.h"
+#include "IconHelper.h"
 #include <QPushButton>
 #include <QLabel>
 #include <QKeyEvent>
@@ -95,15 +96,15 @@ AdvancedTagSelector::AdvancedTagSelector(QWidget* parent) : QWidget(parent, Qt::
     layout->addWidget(scroll);
 }
 
-void AdvancedTagSelector::setup(const QList<QVariantMap>& recentTags, const QStringList& selectedTags) {
+void AdvancedTagSelector::setup(const QList<QVariantMap>& recentTags, const QStringList& allTags, const QStringList& selectedTags) {
     m_recentTags = recentTags;
+    m_allTags = allTags;
     m_selected = selectedTags;
-    m_tipsLabel->setText(QString("最近使用 (%1)").arg(recentTags.count()));
     updateList();
 }
 
 void AdvancedTagSelector::setTags(const QStringList& allTags, const QStringList& selectedTags) {
-    // 兼容旧接口，将其转化为 QVariantMap 格式
+    m_allTags = allTags;
     m_recentTags.clear();
     for (const QString& t : allTags) {
         QVariantMap m;
@@ -119,34 +120,56 @@ void AdvancedTagSelector::updateList() {
     // 清空现有项
     QLayoutItem* child;
     while ((child = m_flow->takeAt(0)) != nullptr) {
-        if (child->widget()) delete child->widget();
+        if (child->widget()) {
+            child->widget()->deleteLater();
+        }
         delete child;
     }
 
-    QString filter = m_search->text().toLower();
+    QString filter = m_search->text().trimmed();
+    QString filterLower = filter.toLower();
     
-    // 1. 整理显示列表：确保已选中的如果不在最近列表中，也要显示出来
-    QList<QVariantMap> displayList = m_recentTags;
-    QStringList recentNames;
-    for(const auto& m : m_recentTags) recentNames << m["name"].toString();
-    
-    for(const auto& t : m_selected) {
-        if (!recentNames.contains(t)) {
-            QVariantMap m;
-            m["name"] = t;
-            m["count"] = 0; // 或者从某处获取实际计数
-            displayList.append(m);
+    QList<QVariantMap> displayList;
+
+    if (filter.isEmpty()) {
+        m_tipsLabel->setText(QString("最近使用 (%1)").arg(m_recentTags.count()));
+        // 1. 整理显示列表：确保已选中的如果不在最近列表中，也要显示出来
+        displayList = m_recentTags;
+        QStringList recentNames;
+        for(const auto& m : m_recentTags) recentNames << m["name"].toString();
+
+        for(const auto& t : m_selected) {
+            if (!recentNames.contains(t)) {
+                QVariantMap m;
+                m["name"] = t;
+                m["count"] = 0;
+                displayList.append(m);
+            }
         }
+    } else {
+        // 搜索模式：从 m_allTags 中筛选
+        for (const QString& tag : m_allTags) {
+            if (tag.toLower().contains(filterLower)) {
+                QVariantMap m;
+                m["name"] = tag;
+                // 尝试从 m_recentTags 找匹配的 count
+                int count = 0;
+                for (const auto& rm : m_recentTags) {
+                    if (rm["name"].toString() == tag) {
+                        count = rm["count"].toInt();
+                        break;
+                    }
+                }
+                m["count"] = count;
+                displayList.append(m);
+            }
+        }
+        m_tipsLabel->setText(QString("搜索结果 (%1)").arg(displayList.count()));
     }
 
     for (const auto& tagData : displayList) {
         QString tag = tagData["name"].toString();
         int count = tagData["count"].toInt();
-
-        // 过滤逻辑
-        if (!filter.isEmpty() && !tag.toLower().contains(filter)) {
-            continue; 
-        }
 
         bool isSelected = m_selected.contains(tag);
         
@@ -170,10 +193,14 @@ void AdvancedTagSelector::updateChipState(QPushButton* btn, bool checked) {
     QString name = btn->property("tag_name").toString();
     int count = btn->property("tag_count").toInt();
 
-    QString icon = checked ? "✓" : "🕒";
-    QString text = QString("%1 %2").arg(icon, name);
+    QString text = name;
     if (count > 0) text += QString(" (%1)").arg(count);
     btn->setText(text);
+
+    QIcon icon = checked ? IconHelper::getIcon("select", "#ffffff", 14)
+                         : IconHelper::getIcon("clock", "#bbbbbb", 14);
+    btn->setIcon(icon);
+    btn->setIconSize(QSize(14, 14));
 
     if (checked) {
         btn->setStyleSheet(

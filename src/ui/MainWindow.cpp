@@ -197,7 +197,7 @@ void MainWindow::initUI() {
                            "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
         if (!index.isValid() || index.data().toString() == "我的分区") {
-            menu.addAction("➕ 新建分组", [this]() {
+            menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分组", [this]() {
                 bool ok;
                 QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
                 if (ok && !text.isEmpty()) {

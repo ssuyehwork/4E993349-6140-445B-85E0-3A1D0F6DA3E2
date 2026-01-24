@@ -1064,7 +1064,7 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
     if (!index.isValid() || index.data().toString() == "我的分区") {
-        menu.addAction("➕ 新建分组", [this]() {
+        menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分组", [this]() {
             bool ok;
             QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
             if (ok && !text.isEmpty()) {
@@ -1093,6 +1093,15 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                 DatabaseManager::instance().setCategoryColor(catId, color.name());
             }
         });
+        menu.addAction(IconHelper::getIcon("random_color", "#FF6B9D"), "随机颜色", [this, catId]() {
+            static const QStringList palette = {
+                "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD",
+                "#D4A5A5", "#9B59B6", "#3498DB", "#E67E22", "#2ECC71",
+                "#E74C3C", "#F1C40F", "#1ABC9C", "#34495E", "#95A5A6"
+            };
+            QString chosenColor = palette.at(QRandomGenerator::global()->bounded(palette.size()));
+            DatabaseManager::instance().setCategoryColor(catId, chosenColor);
+        });
         menu.addAction(IconHelper::getIcon("tag", "#FFAB91"), "设置预设标签", [this, catId]() {
             QString currentTags = DatabaseManager::instance().getCategoryPresetTags(catId);
             bool ok;
@@ -1102,12 +1111,12 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
             }
         });
         menu.addSeparator();
-        menu.addAction("新建分组", [this]() {
+        menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分组", [this]() {
             bool ok;
             QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
             if (ok && !text.isEmpty()) DatabaseManager::instance().addCategory(text);
         });
-        menu.addAction("新建子分区", [this, catId]() {
+        menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建子分区", [this, catId]() {
             bool ok;
             QString text = QInputDialog::getText(this, "新建区", "区名称:", QLineEdit::Normal, "", &ok);
             if (ok && !text.isEmpty()) DatabaseManager::instance().addCategory(text, catId);
