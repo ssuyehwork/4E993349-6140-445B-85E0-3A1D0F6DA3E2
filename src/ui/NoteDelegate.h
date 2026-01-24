@@ -41,7 +41,7 @@ public:
         QColor noteColor = colorHex.isEmpty() ? QColor("#1a1a1b") : QColor(colorHex);
         
         QColor bgColor = isSelected ? noteColor.lighter(115) : noteColor; 
-        QColor borderColor = isSelected ? QColor("#4a90e2") : QColor("#333333");
+        QColor borderColor = isSelected ? QColor("#ffffff") : QColor("#333333");
         
         // 绘制卡片背景
         QPainterPath path;
