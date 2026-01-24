@@ -36,7 +36,11 @@ public:
         QRect rect = option.rect.adjusted(0, 0, 0, -4); // 仅保留底部间隔视觉
         bool isSelected = (option.state & QStyle::State_Selected);
         
-        QColor bgColor = isSelected ? QColor("#323233") : QColor("#1a1a1b"); // 修正非选中状态下的深灰色调
+        // 获取笔记自身的颜色标记作为背景
+        QString colorHex = index.data(NoteModel::ColorRole).toString();
+        QColor noteColor = colorHex.isEmpty() ? QColor("#1a1a1b") : QColor(colorHex);
+        
+        QColor bgColor = isSelected ? noteColor.lighter(115) : noteColor; 
         QColor borderColor = isSelected ? QColor("#4a90e2") : QColor("#333333");
         
         // 绘制卡片背景
@@ -54,8 +58,8 @@ public:
         painter->setBrush(bgColor);
         painter->drawPath(path);
 
-        // 3. 绘制标题 (加粗，主文本色)
-        painter->setPen(QColor("#cccccc"));
+        // 3. 绘制标题 (加粗，主文本色: 统一设为白色以应对多样背景卡片)
+        painter->setPen(Qt::white);
         QFont titleFont("Microsoft YaHei", 10, QFont::Bold);
         painter->setFont(titleFont);
         QRect titleRect = rect.adjusted(12, 10, -35, -70);
@@ -67,8 +71,8 @@ public:
             painter->drawPixmap(rect.right() - 25, rect.top() + 12, pin);
         }
 
-        // 5. 绘制内容预览 (副文本色，最多2行)
-        painter->setPen(QColor("#858585"));
+        // 5. 绘制内容预览 (强制纯白：确保在任何背景下都有最高清晰度)
+        painter->setPen(Qt::white);
         painter->setFont(QFont("Microsoft YaHei", 9));
         QRect contentRect = rect.adjusted(12, 34, -12, -32);
         QString cleanContent = content.simplified();
@@ -78,10 +82,10 @@ public:
         // 6. 绘制底部元数据栏 (时间图标 + 时间 + 类型标签)
         QRect bottomRect = rect.adjusted(12, 78, -12, -8);
         
-        // 时间
-        painter->setPen(QColor("#666666"));
+        // 时间 (强制纯白)
+        painter->setPen(Qt::white);
         painter->setFont(QFont("Segoe UI", 8));
-        QPixmap clock = IconHelper::getIcon("clock", "#666666", 12).pixmap(12, 12);
+        QPixmap clock = IconHelper::getIcon("clock", "#ffffff", 12).pixmap(12, 12);
         painter->drawPixmap(bottomRect.left(), bottomRect.top() + (bottomRect.height() - 12) / 2, clock);
         painter->drawText(bottomRect.adjusted(16, 0, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, timeStr);
 
@@ -100,7 +104,7 @@ public:
         painter->setPen(QPen(QColor("#444"), 1));
         painter->drawRoundedRect(tagRect, 4, 4);
         
-        painter->setPen(QColor("#888888"));
+        painter->setPen(Qt::white); // 类型标签文字也改为纯白
         painter->setFont(QFont("Microsoft YaHei", 7, QFont::Bold));
         painter->drawText(tagRect, Qt::AlignCenter, tagText);
 

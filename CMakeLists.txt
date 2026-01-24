@@ -38,6 +38,8 @@ set(SOURCES
     src/ui/FlowLayout.h
     src/ui/AdvancedTagSelector.cpp
     src/ui/AdvancedTagSelector.h
+    src/ui/FramelessDialog.h
+    src/ui/FramelessDialog.cpp
     src/ui/FilterPanel.cpp
     src/ui/FilterPanel.h
     src/ui/NoteDelegate.h

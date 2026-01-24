@@ -2,6 +2,7 @@
 #include "NoteEditWindow.h"
 #include "IconHelper.h"
 #include "QuickNoteDelegate.h"
+#include "CategoryDelegate.h"
 #include "../core/DatabaseManager.h"
 #include "../core/ClipboardMonitor.h"
 #include <QGuiApplication>
@@ -29,64 +30,11 @@
 #include <QInputDialog>
 #include <QColorDialog>
 #include <QMessageBox>
+#include "FramelessDialog.h"
 #include <QRandomGenerator>
 #include <QStyledItemDelegate>
 #include <QPainter>
 
-// 侧边栏分类项自定义代理：实现动态高亮色
-class CategoryDelegate : public QStyledItemDelegate {
-public:
-    using QStyledItemDelegate::QStyledItemDelegate;
-    
-    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-        if (!index.isValid()) return;
-
-        bool selected = option.state & QStyle::State_Selected;
-        bool hover = option.state & QStyle::State_MouseOver;
-        bool isSelectable = index.flags() & Qt::ItemIsSelectable;
-
-        if (isSelectable && (selected || hover)) {
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-
-            QString colorHex = index.data(CategoryModel::ColorRole).toString();
-            QColor baseColor = colorHex.isEmpty() ? QColor("#4a90e2") : QColor(colorHex);
-            QColor bg = selected ? baseColor : QColor("#2a2d2e");
-            if (selected) bg.setAlphaF(0.2); // 选中时应用 20% 透明度联动分类颜色
-
-            // 精准计算高亮区域：联合图标与文字区域，避开左侧缩进/箭头区域
-            QStyle* style = option.widget ? option.widget->style() : QApplication::style();
-            QRect decoRect = style->subElementRect(QStyle::SE_ItemViewItemDecoration, &option, option.widget);
-            QRect textRect = style->subElementRect(QStyle::SE_ItemViewItemText, &option, option.widget);
-            
-            // 联合区域并与当前行 rect 取交集，防止溢出
-            QRect contentRect = decoRect.united(textRect);
-            contentRect = contentRect.intersected(option.rect);
-            
-            // 向左右微调 (padding)，并保持上下略有间隙以体现圆角效果
-            contentRect.adjust(-6, 1, 6, -1);
-            
-            painter->setBrush(bg);
-            painter->setPen(Qt::NoPen);
-            painter->drawRoundedRect(contentRect, 5, 5);
-            painter->restore();
-        }
-
-        // 绘制原内容 (图标、文字)
-        QStyleOptionViewItem opt = option;
-        // 关键：移除 Selected 状态，由我们自己控制背景，防止 QStyle 绘制默认的蓝色/灰色整行高亮
-        opt.state &= ~QStyle::State_Selected;
-        opt.state &= ~QStyle::State_MouseOver;
-        
-        // 选中时文字强制设为白色以确保清晰度
-        if (selected) {
-            opt.palette.setColor(QPalette::Text, Qt::white);
-            opt.palette.setColor(QPalette::HighlightedText, Qt::white);
-        }
-        
-        QStyledItemDelegate::paint(painter, opt, index);
-    }
-};
 
 // 定义调整大小的边缘触发区域宽度 (与边距一致)
 #define RESIZE_MARGIN 10 
@@ -631,9 +579,49 @@ void QuickWindow::updatePartitionStatus(const QString& name) {
 }
 
 void QuickWindow::refreshSidebar() {
+    // 保存选中状态
+    QString selectedType;
+    QVariant selectedValue;
+    QModelIndex sysIdx = m_systemTree->currentIndex();
+    QModelIndex partIdx = m_partitionTree->currentIndex();
+    
+    if (sysIdx.isValid()) {
+        selectedType = sysIdx.data(CategoryModel::TypeRole).toString();
+        selectedValue = sysIdx.data(CategoryModel::NameRole);
+    } else if (partIdx.isValid()) {
+        selectedType = partIdx.data(CategoryModel::TypeRole).toString();
+        selectedValue = partIdx.data(CategoryModel::IdRole);
+    }
+
     m_systemModel->refresh();
     m_partitionModel->refresh();
     m_partitionTree->expandAll();
+
+    // 恢复选中
+    if (!selectedType.isEmpty()) {
+        if (selectedType != "category") {
+            for (int i = 0; i < m_systemModel->rowCount(); ++i) {
+                QModelIndex idx = m_systemModel->index(i, 0);
+                if (idx.data(CategoryModel::TypeRole).toString() == selectedType &&
+                    idx.data(CategoryModel::NameRole) == selectedValue) {
+                    m_systemTree->setCurrentIndex(idx);
+                    break;
+                }
+            }
+        } else {
+            std::function<void(const QModelIndex&)> findAndSelect = [&](const QModelIndex& parent) {
+                for (int i = 0; i < m_partitionModel->rowCount(parent); ++i) {
+                    QModelIndex idx = m_partitionModel->index(i, 0, parent);
+                    if (idx.data(CategoryModel::IdRole) == selectedValue) {
+                        m_partitionTree->setCurrentIndex(idx);
+                        return;
+                    }
+                    if (m_partitionModel->rowCount(idx) > 0) findAndSelect(idx);
+                }
+            };
+            findAndSelect(QModelIndex());
+        }
+    }
 }
 
 void QuickWindow::applyListTheme(const QString& colorHex) {
@@ -1064,7 +1052,7 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
     if (!index.isValid() || index.data().toString() == "我的分区") {
-        menu.addAction("➕ 新建分组", [this]() {
+        menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建分组", [this]() {
             bool ok;
             QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
             if (ok && !text.isEmpty()) {
@@ -1088,49 +1076,90 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
         });
         menu.addSeparator();
         menu.addAction(IconHelper::getIcon("palette", "#e67e22"), "设置颜色", [this, catId]() {
-            QColor color = QColorDialog::getColor(Qt::gray, this, "选择分类颜色");
-            if (color.isValid()) {
-                DatabaseManager::instance().setCategoryColor(catId, color.name());
-            }
+            auto* dlg = new QColorDialog(Qt::gray, this);
+            dlg->setWindowTitle("选择分类颜色");
+            dlg->setWindowFlags(dlg->windowFlags() | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+            connect(dlg, &QColorDialog::colorSelected, [this, catId](const QColor& color){
+                if (color.isValid()) {
+                    DatabaseManager::instance().setCategoryColor(catId, color.name());
+                    refreshSidebar();
+                }
+            });
+            connect(dlg, &QColorDialog::finished, dlg, &QObject::deleteLater);
+            dlg->show();
+        });
+        menu.addAction(IconHelper::getIcon("random_color", "#FF6B9D"), "随机颜色", [this, catId]() {
+            static const QStringList palette = {
+                "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD",
+                "#D4A5A5", "#9B59B6", "#3498DB", "#E67E22", "#2ECC71",
+                "#E74C3C", "#F1C40F", "#1ABC9C", "#34495E", "#95A5A6"
+            };
+            QString chosenColor = palette.at(QRandomGenerator::global()->bounded(palette.size()));
+            DatabaseManager::instance().setCategoryColor(catId, chosenColor);
+            refreshData();
+            refreshSidebar();
         });
         menu.addAction(IconHelper::getIcon("tag", "#FFAB91"), "设置预设标签", [this, catId]() {
             QString currentTags = DatabaseManager::instance().getCategoryPresetTags(catId);
-            bool ok;
-            QString text = QInputDialog::getText(this, "预设标签", "标签 (逗号分隔):", QLineEdit::Normal, currentTags, &ok);
-            if (ok) {
-                DatabaseManager::instance().setCategoryPresetTags(catId, text);
-            }
+            auto* dlg = new FramelessInputDialog("设置预设标签", "标签 (逗号分隔):", currentTags, this);
+            connect(dlg, &FramelessInputDialog::accepted, [this, catId, dlg](){
+                DatabaseManager::instance().setCategoryPresetTags(catId, dlg->text());
+            });
+            dlg->show();
         });
         menu.addSeparator();
-        menu.addAction("新建分组", [this]() {
-            bool ok;
-            QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
-            if (ok && !text.isEmpty()) DatabaseManager::instance().addCategory(text);
+        menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建分组", [this]() {
+            auto* dlg = new FramelessInputDialog("新建分组", "组名称:", "", this);
+            connect(dlg, &FramelessInputDialog::accepted, [this, dlg](){
+                QString text = dlg->text();
+                if (!text.isEmpty()) {
+                    DatabaseManager::instance().addCategory(text);
+                    refreshSidebar();
+                }
+            });
+            dlg->show();
         });
-        menu.addAction("新建子分区", [this, catId]() {
-            bool ok;
-            QString text = QInputDialog::getText(this, "新建区", "区名称:", QLineEdit::Normal, "", &ok);
-            if (ok && !text.isEmpty()) DatabaseManager::instance().addCategory(text, catId);
+        menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建子分区", [this, catId]() {
+            auto* dlg = new FramelessInputDialog("新建子分区", "区名称:", "", this);
+            connect(dlg, &FramelessInputDialog::accepted, [this, catId, dlg](){
+                QString text = dlg->text();
+                if (!text.isEmpty()) {
+                    DatabaseManager::instance().addCategory(text, catId);
+                    refreshSidebar();
+                }
+            });
+            dlg->show();
         });
         menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名", [this, catId, currentName]() {
-            bool ok;
-            QString text = QInputDialog::getText(this, "重命名", "新名称:", QLineEdit::Normal, currentName, &ok);
-            if (ok && !text.isEmpty()) DatabaseManager::instance().renameCategory(catId, text);
+            auto* dlg = new FramelessInputDialog("重命名", "新名称:", currentName, this);
+            connect(dlg, &FramelessInputDialog::accepted, [this, catId, dlg](){
+                QString text = dlg->text();
+                if (!text.isEmpty()) {
+                    DatabaseManager::instance().renameCategory(catId, text);
+                    refreshSidebar();
+                }
+            });
+            dlg->show();
         });
         menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "删除", [this, catId]() {
-            if (QMessageBox::question(this, "确认删除", "确定要删除此分类吗？内容将移至未分类。") == QMessageBox::Yes) {
+            auto* dlg = new FramelessMessageBox("确认删除", "确定要删除此分类吗？内容将移至未分类。", this);
+            connect(dlg, &FramelessMessageBox::confirmed, [this, catId](){
                 DatabaseManager::instance().deleteCategory(catId);
-            }
+                refreshSidebar();
+            });
+            dlg->show();
         });
     } else if (type == "trash") {
         menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "全部恢复 (到未分类)", this, &QuickWindow::doRestoreTrash);
         menu.addSeparator();
         menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "清空回收站", [this]() {
-            if (QMessageBox::question(this, "确认清空", "确定要永久删除回收站中的所有非保护内容吗？\n(受保护的项将继续保留)") == QMessageBox::Yes) {
+            auto* dlg = new FramelessMessageBox("确认清空", "确定要永久删除回收站中的所有内容吗？\n(此操作不可逆)", this);
+            connect(dlg, &FramelessMessageBox::confirmed, [this](){
                 DatabaseManager::instance().emptyTrash();
                 refreshData();
                 refreshSidebar();
-            }
+            });
+            dlg->show();
         });
     }
 

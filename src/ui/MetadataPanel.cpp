@@ -398,7 +398,10 @@ void MetadataPanel::openTagSelector() {
     if (m_capsules["tags"]->text() == "无") currentTags.clear();
 
     auto* selector = new AdvancedTagSelector(this);
-    selector->setup(DatabaseManager::instance().getAllTags(), currentTags);
+    // 获取最近使用的标签 (20个) 和全量标签
+    auto recentTags = DatabaseManager::instance().getRecentTagsWithCounts(20);
+    auto allTags = DatabaseManager::instance().getAllTags();
+    selector->setup(recentTags, allTags, currentTags);
     connect(selector, &AdvancedTagSelector::tagsConfirmed, [this](const QStringList& tags){
         if (m_currentNoteId != -1) {
             DatabaseManager::instance().updateNoteState(m_currentNoteId, "tags", tags.join(", "));

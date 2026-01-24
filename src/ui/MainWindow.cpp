@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "../core/DatabaseManager.h"
 #include "NoteDelegate.h"
+#include "CategoryDelegate.h"
 #include <QHBoxLayout>
 #include <utility>
 #include <QVBoxLayout>
@@ -16,8 +17,9 @@
 #include <QColorDialog>
 #include <QSet>
 #include <QSettings>
-#include "FilterPanel.h"
+#include <QRandomGenerator>
 #include "CleanListView.h"
+#include "FramelessDialog.h"
 #include <functional>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindowHint) {
@@ -55,6 +57,15 @@ void MainWindow::initUI() {
         refreshData();
     });
     connect(m_header, &HeaderBar::refreshRequested, this, &MainWindow::refreshData);
+    connect(m_header, &HeaderBar::stayOnTopRequested, this, [this](bool checked){
+        if (auto* win = window()) {
+            Qt::WindowFlags flags = win->windowFlags();
+            if (checked) flags |= Qt::WindowStaysOnTopHint;
+            else flags &= ~Qt::WindowStaysOnTopHint;
+            win->setWindowFlags(flags);
+            win->show(); // 修改 Flags 后需要 show 才会生效
+        }
+    });
     connect(m_header, &HeaderBar::filterRequested, this, [this](){
         bool visible = !m_filterWrapper->isVisible();
         m_filterWrapper->setVisible(visible);
@@ -170,6 +181,7 @@ void MainWindow::initUI() {
     m_sideBar->setMinimumWidth(200); 
     m_sideModel = new CategoryModel(CategoryModel::Both, this);
     m_sideBar->setModel(m_sideModel);
+    m_sideBar->setItemDelegate(new CategoryDelegate(this));
     m_sideBar->setHeaderHidden(true);
     m_sideBar->setRootIsDecorated(false);
     m_sideBar->setIndentation(12);
@@ -196,13 +208,16 @@ void MainWindow::initUI() {
                            "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
         if (!index.isValid() || index.data().toString() == "我的分区") {
-            menu.addAction("➕ 新建分组", [this]() {
-                bool ok;
-                QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
-                if (ok && !text.isEmpty()) {
-                    DatabaseManager::instance().addCategory(text);
-                    refreshData();
-                }
+            menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建分组", [this]() {
+                auto* dlg = new FramelessInputDialog("新建分组", "组名称:", "", this);
+                connect(dlg, &FramelessInputDialog::accepted, [this, dlg](){
+                    QString text = dlg->text();
+                    if (!text.isEmpty()) {
+                        DatabaseManager::instance().addCategory(text);
+                        refreshData();
+                    }
+                });
+                dlg->show();
             });
             menu.exec(m_sideBar->mapToGlobal(pos));
             return;
@@ -221,50 +236,77 @@ void MainWindow::initUI() {
             });
             menu.addSeparator();
             menu.addAction(IconHelper::getIcon("palette", "#e67e22"), "设置颜色", [this, catId]() {
-                QColor color = QColorDialog::getColor(Qt::gray, this, "选择分类颜色");
-                if (color.isValid()) {
-                    DatabaseManager::instance().setCategoryColor(catId, color.name());
-                    refreshData();
-                }
+                auto* dlg = new QColorDialog(Qt::gray, this);
+                dlg->setWindowTitle("选择分类颜色");
+                dlg->setWindowFlags(dlg->windowFlags() | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+                connect(dlg, &QColorDialog::colorSelected, [this, catId](const QColor& color){
+                    if (color.isValid()) {
+                        DatabaseManager::instance().setCategoryColor(catId, color.name());
+                        refreshData();
+                    }
+                });
+                connect(dlg, &QColorDialog::finished, dlg, &QObject::deleteLater);
+                dlg->show();
+            });
+            menu.addAction(IconHelper::getIcon("random_color", "#FF6B9D"), "随机颜色", [this, catId]() {
+                static const QStringList palette = {
+                    "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD",
+                    "#D4A5A5", "#9B59B6", "#3498DB", "#E67E22", "#2ECC71",
+                    "#E74C3C", "#F1C40F", "#1ABC9C", "#34495E", "#95A5A6"
+                };
+                QString chosenColor = palette.at(QRandomGenerator::global()->bounded(palette.size()));
+                DatabaseManager::instance().setCategoryColor(catId, chosenColor);
+                refreshData();
             });
             menu.addAction(IconHelper::getIcon("tag", "#FFAB91"), "设置预设标签", [this, catId]() {
                 QString currentTags = DatabaseManager::instance().getCategoryPresetTags(catId);
-                bool ok;
-                QString text = QInputDialog::getText(this, "预设标签", "标签 (逗号分隔):", QLineEdit::Normal, currentTags, &ok);
-                if (ok) {
-                    DatabaseManager::instance().setCategoryPresetTags(catId, text);
-                }
+                auto* dlg = new FramelessInputDialog("设置预设标签", "标签 (逗号分隔):", currentTags, this);
+                connect(dlg, &FramelessInputDialog::accepted, [this, catId, dlg](){
+                    DatabaseManager::instance().setCategoryPresetTags(catId, dlg->text());
+                });
+                dlg->show();
             });
             menu.addSeparator();
             menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分组", [this]() {
-                bool ok;
-                QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
-                if (ok && !text.isEmpty()) {
-                    DatabaseManager::instance().addCategory(text);
-                    refreshData();
-                }
+                auto* dlg = new FramelessInputDialog("新建分组", "组名称:", "", this);
+                connect(dlg, &FramelessInputDialog::accepted, [this, dlg](){
+                    QString text = dlg->text();
+                    if (!text.isEmpty()) {
+                        DatabaseManager::instance().addCategory(text);
+                        refreshData();
+                    }
+                });
+                dlg->show();
             });
-            menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建子分区", [this, catId]() {
-                bool ok;
-                QString text = QInputDialog::getText(this, "新建区", "区名称:", QLineEdit::Normal, "", &ok);
-                if (ok && !text.isEmpty()) {
-                    DatabaseManager::instance().addCategory(text, catId);
-                    refreshData();
-                }
+            menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建子分区", [this, catId]() {
+                auto* dlg = new FramelessInputDialog("新建子分区", "区名称:", "", this);
+                connect(dlg, &FramelessInputDialog::accepted, [this, catId, dlg](){
+                    QString text = dlg->text();
+                    if (!text.isEmpty()) {
+                        DatabaseManager::instance().addCategory(text, catId);
+                        refreshData();
+                    }
+                });
+                dlg->show();
             });
             menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名分类", [this, catId, currentName]() {
-                bool ok;
-                QString text = QInputDialog::getText(this, "重命名", "新名称:", QLineEdit::Normal, currentName, &ok);
-                if (ok && !text.isEmpty()) {
-                    DatabaseManager::instance().renameCategory(catId, text);
-                    refreshData();
-                }
+                auto* dlg = new FramelessInputDialog("重命名分类", "新名称:", currentName, this);
+                connect(dlg, &FramelessInputDialog::accepted, [this, catId, dlg](){
+                    QString text = dlg->text();
+                    if (!text.isEmpty()) {
+                        DatabaseManager::instance().renameCategory(catId, text);
+                        refreshData();
+                    }
+                });
+                dlg->show();
             });
             menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "删除分类", [this, catId]() {
-                if (QMessageBox::question(this, "确认删除", "确定要删除此分类吗？内容将移至未分类。") == QMessageBox::Yes) {
+                auto* dlg = new FramelessMessageBox("确认删除", "确定要删除此分类吗？内容将移至未分类。", this);
+                connect(dlg, &FramelessMessageBox::confirmed, [this, catId](){
                     DatabaseManager::instance().deleteCategory(catId);
                     refreshData();
-                }
+                });
+                dlg->show();
             });
         } else if (type == "trash") {
             menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "全部恢复 (到未分类)", [this](){
@@ -273,10 +315,12 @@ void MainWindow::initUI() {
             });
             menu.addSeparator();
             menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "清空回收站", [this]() {
-                if (QMessageBox::question(this, "确认清空", "确定要永久删除回收站中的所有非保护内容吗？\n(受保护的项将继续保留)") == QMessageBox::Yes) {
+                auto* dlg = new FramelessMessageBox("确认清空", "确定要永久删除回收站中的所有内容吗？\n(此操作不可逆)", this);
+                connect(dlg, &FramelessMessageBox::confirmed, [this](){
                     DatabaseManager::instance().emptyTrash();
                     refreshData();
-                }
+                });
+                dlg->show();
             });
         }
         menu.exec(m_sideBar->mapToGlobal(pos));
@@ -625,6 +669,19 @@ void MainWindow::onNoteAdded(const QVariantMap& note) {
 }
 
 void MainWindow::refreshData() {
+    // 保存当前选中项状态以供恢复
+    QString selectedType;
+    QVariant selectedValue;
+    QModelIndex currentIdx = m_sideBar->currentIndex();
+    if (currentIdx.isValid()) {
+        selectedType = currentIdx.data(CategoryModel::TypeRole).toString();
+        if (selectedType == "category") {
+            selectedValue = currentIdx.data(CategoryModel::IdRole);
+        } else {
+            selectedValue = currentIdx.data(CategoryModel::NameRole);
+        }
+    }
+
     QSet<QString> expandedPaths;
     std::function<void(const QModelIndex&)> checkChildren = [&](const QModelIndex& parent) {
         for (int j = 0; j < m_sideModel->rowCount(parent); ++j) {
@@ -723,6 +780,13 @@ void MainWindow::refreshData() {
     for (int i = 0; i < m_sideModel->rowCount(); ++i) {
         QModelIndex index = m_sideModel->index(i, 0);
         QString name = index.data(CategoryModel::NameRole).toString();
+        QString type = index.data(CategoryModel::TypeRole).toString();
+
+        // 恢复选中
+        if (!selectedType.isEmpty() && type == selectedType && index.data(CategoryModel::NameRole) == selectedValue) {
+            m_sideBar->setCurrentIndex(index);
+        }
+
         if (name == "我的分区" || expandedPaths.contains(name)) {
             m_sideBar->setExpanded(index, true);
         }
@@ -730,10 +794,20 @@ void MainWindow::refreshData() {
         std::function<void(const QModelIndex&)> restoreChildren = [&](const QModelIndex& parent) {
             for (int j = 0; j < m_sideModel->rowCount(parent); ++j) {
                 QModelIndex child = m_sideModel->index(j, 0, parent);
-                QString type = child.data(CategoryModel::TypeRole).toString();
-                QString identifier = (type == "category") ? 
-                    ("cat_" + QString::number(child.data(CategoryModel::IdRole).toInt())) : 
-                    child.data(CategoryModel::NameRole).toString();
+                QString cType = child.data(CategoryModel::TypeRole).toString();
+                QString cName = child.data(CategoryModel::NameRole).toString();
+                
+                // 恢复选中
+                if (!selectedType.isEmpty() && cType == selectedType) {
+                    if (cType == "category" && child.data(CategoryModel::IdRole) == selectedValue) {
+                        m_sideBar->setCurrentIndex(child);
+                    } else if (cType != "category" && cName == selectedValue) {
+                        m_sideBar->setCurrentIndex(child);
+                    }
+                }
+
+                QString identifier = (cType == "category") ? 
+                    ("cat_" + QString::number(child.data(CategoryModel::IdRole).toInt())) : cName;
 
                 if (expandedPaths.contains(identifier) || (parent.data(CategoryModel::NameRole).toString() == "我的分区")) {
                     m_sideBar->setExpanded(child, true);

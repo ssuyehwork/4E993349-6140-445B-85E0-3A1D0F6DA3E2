@@ -21,6 +21,7 @@ signals:
     void metadataToggled(bool checked);
     void refreshRequested();
     void filterRequested();
+    void stayOnTopRequested(bool checked);
     void windowClose();
     void windowMinimize();
     void windowMaximize();
@@ -41,6 +42,7 @@ private:
     QLabel* m_totalPageLabel;
     QPushButton* m_btnFilter;
     QPushButton* m_btnMeta;
+    QPushButton* m_btnStayOnTop;
 
     int m_currentPage = 1;
     int m_totalPages = 1;

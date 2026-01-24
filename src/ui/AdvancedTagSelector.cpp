@@ -1,4 +1,5 @@
 #include "AdvancedTagSelector.h"
+#include "IconHelper.h"
 #include <QPushButton>
 #include <QLabel>
 #include <QKeyEvent>
@@ -95,13 +96,22 @@ AdvancedTagSelector::AdvancedTagSelector(QWidget* parent) : QWidget(parent, Qt::
     layout->addWidget(scroll);
 }
 
-void AdvancedTagSelector::setup(const QStringList& allTags, const QStringList& selectedTags) {
-    setTags(allTags, selectedTags);
-    m_tipsLabel->setText(QString("所有标签 (%1)").arg(allTags.count()));
+void AdvancedTagSelector::setup(const QList<QVariantMap>& recentTags, const QStringList& allTags, const QStringList& selectedTags) {
+    m_recentTags = recentTags;
+    m_allTags = allTags;
+    m_selected = selectedTags;
+    updateList();
 }
 
 void AdvancedTagSelector::setTags(const QStringList& allTags, const QStringList& selectedTags) {
-    m_all = allTags;
+    m_allTags = allTags;
+    m_recentTags.clear();
+    for (const QString& t : allTags) {
+        QVariantMap m;
+        m["name"] = t;
+        m["count"] = 0;
+        m_recentTags.append(m);
+    }
     m_selected = selectedTags;
     updateList();
 }
@@ -110,36 +120,56 @@ void AdvancedTagSelector::updateList() {
     // 清空现有项
     QLayoutItem* child;
     while ((child = m_flow->takeAt(0)) != nullptr) {
-        if (child->widget()) delete child->widget();
+        if (child->widget()) {
+            child->widget()->deleteLater();
+        }
         delete child;
     }
 
-    QString filter = m_search->text().toLower();
+    QString filter = m_search->text().trimmed();
+    QString filterLower = filter.toLower();
     
-    // 合并列表逻辑：为了更好的视觉效果，我们将“已选”置顶，
-    // 但样式上保持统一的 Chip 风格，而不是像之前那样分两块区域。
-    // 如果想要完全还原 Python 的混排逻辑，这里应该不分离。
-    // 但 C++ 版目前 AllTags 包含了 SelectedTags 吗？通常是的。
-    // 我们先去重合并，保证顺序体验。
-    
-    QStringList displayList;
-    // 1. 先加入已选的 (避免被过滤掉)
-    for(const auto& t : m_selected) {
-        if (!displayList.contains(t)) displayList.append(t);
-    }
-    // 2. 再加入其他的
-    for(const auto& t : m_all) {
-        if (!displayList.contains(t)) displayList.append(t);
+    QList<QVariantMap> displayList;
+
+    if (filter.isEmpty()) {
+        m_tipsLabel->setText(QString("最近使用 (%1)").arg(m_recentTags.count()));
+        // 1. 整理显示列表：确保已选中的如果不在最近列表中，也要显示出来
+        displayList = m_recentTags;
+        QStringList recentNames;
+        for(const auto& m : m_recentTags) recentNames << m["name"].toString();
+        
+        for(const auto& t : m_selected) {
+            if (!recentNames.contains(t)) {
+                QVariantMap m;
+                m["name"] = t;
+                m["count"] = 0;
+                displayList.append(m);
+            }
+        }
+    } else {
+        // 搜索模式：从 m_allTags 中筛选
+        for (const QString& tag : m_allTags) {
+            if (tag.toLower().contains(filterLower)) {
+                QVariantMap m;
+                m["name"] = tag;
+                // 尝试从 m_recentTags 找匹配的 count
+                int count = 0;
+                for (const auto& rm : m_recentTags) {
+                    if (rm["name"].toString() == tag) {
+                        count = rm["count"].toInt();
+                        break;
+                    }
+                }
+                m["count"] = count;
+                displayList.append(m);
+            }
+        }
+        m_tipsLabel->setText(QString("搜索结果 (%1)").arg(displayList.count()));
     }
 
-    for (const QString& tag : displayList) {
-        // 过滤逻辑
-        if (!filter.isEmpty() && !tag.toLower().contains(filter)) {
-            // 如果是已选中的，即使不匹配也显示？通常是都过滤。
-            // 但用户可能想取消勾选。这里为了简单，遵循过滤。
-            // 除非是完全匹配。
-            continue; 
-        }
+    for (const auto& tagData : displayList) {
+        QString tag = tagData["name"].toString();
+        int count = tagData["count"].toInt();
 
         bool isSelected = m_selected.contains(tag);
         
@@ -147,46 +177,60 @@ void AdvancedTagSelector::updateList() {
         btn->setCheckable(true);
         btn->setChecked(isSelected);
         btn->setCursor(Qt::PointingHandCursor);
+        btn->setProperty("tag_name", tag);
+        btn->setProperty("tag_count", count);
         
-        // 文本：选中时添加 "✓ " 前缀
-        QString text = tag;
-        if (isSelected) text = "✓ " + text;
-        btn->setText(text);
-
-        // 样式：完全复刻 Python _update_chip_state 逻辑
-        if (isSelected) {
-            btn->setStyleSheet(
-                "QPushButton {"
-                "  background-color: #4a90e2;" // Primary Blue
-                "  color: white;"
-                "  border: 1px solid #4a90e2;"
-                "  border-radius: 14px;" // Python 用的 14px
-                "  padding: 6px 14px;"    // 增加 padding
-                "  font-size: 12px;"
-                "  font-family: 'Microsoft YaHei';"
-                "}"
-            );
-        } else {
-            btn->setStyleSheet(
-                "QPushButton {"
-                "  background-color: #2D2D2D;"
-                "  color: #BBB;"
-                "  border: 1px solid #444;"
-                "  border-radius: 14px;"
-                "  padding: 6px 14px;"
-                "  font-size: 12px;"
-                "  font-family: 'Microsoft YaHei';"
-                "}"
-                "QPushButton:hover {"
-                "  background-color: #383838;"
-                "  border-color: #666;"
-                "  color: white;"
-                "}"
-            );
-        }
+        updateChipState(btn, isSelected);
         
-        connect(btn, &QPushButton::clicked, this, [this, tag](){ toggleTag(tag); });
+        connect(btn, &QPushButton::clicked, this, [this, btn, tag](){ 
+            toggleTag(tag); 
+        });
         m_flow->addWidget(btn);
+    }
+}
+
+void AdvancedTagSelector::updateChipState(QPushButton* btn, bool checked) {
+    QString name = btn->property("tag_name").toString();
+    int count = btn->property("tag_count").toInt();
+    
+    QString text = name;
+    if (count > 0) text += QString(" (%1)").arg(count);
+    btn->setText(text);
+    
+    QIcon icon = checked ? IconHelper::getIcon("select", "#ffffff", 14) 
+                         : IconHelper::getIcon("clock", "#bbbbbb", 14);
+    btn->setIcon(icon);
+    btn->setIconSize(QSize(14, 14));
+
+    if (checked) {
+        btn->setStyleSheet(
+            "QPushButton {"
+            "  background-color: #4a90e2;"
+            "  color: white;"
+            "  border: 1px solid #4a90e2;"
+            "  border-radius: 14px;"
+            "  padding: 6px 12px;"
+            "  font-size: 12px;"
+            "  font-family: 'Segoe UI', 'Microsoft YaHei';"
+            "}"
+        );
+    } else {
+        btn->setStyleSheet(
+            "QPushButton {"
+            "  background-color: #2D2D2D;"
+            "  color: #BBB;"
+            "  border: 1px solid #444;"
+            "  border-radius: 14px;"
+            "  padding: 6px 12px;"
+            "  font-size: 12px;"
+            "  font-family: 'Segoe UI', 'Microsoft YaHei';"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: #383838;"
+            "  border-color: #666;"
+            "  color: white;"
+            "}"
+        );
     }
 }
 
