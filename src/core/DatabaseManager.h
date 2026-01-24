@@ -29,6 +29,8 @@ public:
     bool deleteNotesBatch(const QList<int>& ids);
     bool updateNoteState(int id, const QString& column, const QVariant& value);
     bool updateNoteStateBatch(const QList<int>& ids, const QString& column, const QVariant& value);
+    // 批量软删除 (放入回收站)
+    bool softDeleteNotes(const QList<int>& ids);
     bool toggleNoteState(int id, const QString& column);
     bool moveNoteToCategory(int noteId, int catId);
     bool moveNotesToCategory(const QList<int>& noteIds, int catId);

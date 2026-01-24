@@ -139,11 +139,11 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     m_btnFilter->setIcon(IconHelper::getIcon("filter", "#ffffff", 20));
     m_btnFilter->setIconSize(QSize(20, 20));
     m_btnFilter->setToolTip("高级筛选 (Ctrl+G)");
-    m_btnFilter->setStyleSheet(funcBtnStyle);
+    m_btnFilter->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }"); // Support active state
     m_btnFilter->setCheckable(true);
     connect(m_btnFilter, &QPushButton::clicked, this, &HeaderBar::filterRequested);
-    layout->addWidget(m_btnFilter);
-
+    
+    // Swap order: First Add, then Filter
     QPushButton* btnAdd = new QPushButton();
     btnAdd->setIcon(IconHelper::getIcon("add", "#ffffff", 20));
     btnAdd->setIconSize(QSize(20, 20));
@@ -151,6 +151,11 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     btnAdd->setStyleSheet(funcBtnStyle);
     connect(btnAdd, &QPushButton::clicked, this, &HeaderBar::newNoteRequested);
     layout->addWidget(btnAdd);
+    layout->addSpacing(4); // Add spacing
+    
+    // Filter button added after Add button
+    layout->addWidget(m_btnFilter);
+    layout->addSpacing(4); // Add spacing
 
     m_btnMeta = new QPushButton();
     m_btnMeta->setIcon(IconHelper::getIcon("sidebar_right", "#aaaaaa", 20));
@@ -160,6 +165,7 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     m_btnMeta->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }");
     connect(m_btnMeta, &QPushButton::toggled, this, &HeaderBar::metadataToggled);
     layout->addWidget(m_btnMeta);
+    layout->addSpacing(4); // Add spacing
 
     QPushButton* btnTool = new QPushButton();
     btnTool->setIcon(IconHelper::getIcon("toolbox", "#aaaaaa", 20));

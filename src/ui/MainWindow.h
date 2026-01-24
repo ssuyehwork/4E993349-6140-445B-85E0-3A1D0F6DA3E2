@@ -30,11 +30,18 @@ private slots:
     void onTagSelected(const QModelIndex& index);
     void showContextMenu(const QPoint& pos);
     
+    // Layout persistence
+    void saveLayout();
+    void restoreLayout();
+
     // 【新增】处理单条笔记添加，不刷新全表
     void onNoteAdded(const QVariantMap& note);
     
     void refreshData();
+
+protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
 
 private:
     void initUI();

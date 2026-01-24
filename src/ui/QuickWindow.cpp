@@ -780,49 +780,27 @@ void QuickWindow::doDeleteSelected(bool physical) {
     bool inTrash = (m_currentFilterType == "trash");
     
     if (physical || inTrash) {
-        // 物理删除前检查保护
+        // 物理删除：直接无视任何保护 (锁定、收藏、标签)，全部删除
         QList<int> idsToDelete;
-        int protectedCount = 0;
         for (const auto& index : selected) {
-            bool locked = index.data(NoteModel::LockedRole).toBool();
-            bool favorite = index.data(NoteModel::FavoriteRole).toBool();
-            QString tags = index.data(NoteModel::TagsRole).toString();
-            
-            if (locked || favorite || !tags.isEmpty()) {
-                protectedCount++;
-            } else {
-                idsToDelete << index.data(NoteModel::IdRole).toInt();
-            }
+            idsToDelete << index.data(NoteModel::IdRole).toInt();
         }
 
-        if (idsToDelete.isEmpty()) {
-            if (protectedCount > 0) {
-                QMessageBox::warning(this, "删除失败", "选中的数据处于保护状态（已锁定、已收藏或带有标签），无法物理删除。");
-            }
-            return;
-        }
+        if (idsToDelete.isEmpty()) return;
 
-        QString msg = QString("确定要从数据库中永久删除选中的 %1 条数据吗？此操作不可逆。").arg(idsToDelete.size());
-        if (protectedCount > 0) {
-            msg += QString("\n\n(注意：另有 %1 条受保护的数据将被跳过)").arg(protectedCount);
-        }
-
-        if (QMessageBox::question(this, "确认永久删除", msg, QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes) 
-        {
-            for (int id : idsToDelete) {
-                DatabaseManager::instance().deleteNote(id);
-            }
+        QString msg = QString("确定要永久删除选中的 %1 条数据吗？此操作不可逆。").arg(idsToDelete.count());
+        if (QMessageBox::question(this, "确认彻底删除", msg) == QMessageBox::Yes) {
+            DatabaseManager::instance().deleteNotesBatch(idsToDelete);
             refreshData();
-            refreshSidebar();
         }
     } else {
-        // 移入回收站 (一级删除)，静默且无视保护
-        QList<int> ids;
-        for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
-        DatabaseManager::instance().updateNoteStateBatch(ids, "is_deleted", 1);
+        // 移至回收站：解除绑定
+        QList<int> idsToTrash;
+        for (const auto& index : selected) idsToTrash << index.data(NoteModel::IdRole).toInt();
+        DatabaseManager::instance().softDeleteNotes(idsToTrash);
         refreshData();
-        refreshSidebar();
     }
+    refreshSidebar();
 }
 
 void QuickWindow::doRestoreTrash() {

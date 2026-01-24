@@ -460,6 +460,51 @@ bool DatabaseManager::deleteNote(int id) {
     return success;
 }
 
+bool DatabaseManager::deleteNotesBatch(const QList<int>& ids) {
+    if (ids.isEmpty()) return true;
+    bool success = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
+        
+        m_db.transaction();
+        QSqlQuery query(m_db);
+        query.prepare("DELETE FROM notes WHERE id=:id");
+        for (int id : ids) {
+            query.bindValue(":id", id);
+            query.exec();
+        }
+        success = m_db.commit();
+    }
+    if (success) emit noteUpdated();
+    return success;
+}
+
+// 批量软删除：放入回收站
+bool DatabaseManager::softDeleteNotes(const QList<int>& ids) {
+    if (ids.isEmpty()) return true;
+    bool success = false;
+    QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
+
+        m_db.transaction();
+        QSqlQuery query(m_db);
+        query.prepare("UPDATE notes SET is_deleted = 1, category_id = NULL, color = '#2d2d2d', "
+                      "is_pinned = 0, is_favorite = 0, updated_at = :now WHERE id = :id");
+        
+        for (int id : ids) {
+            query.bindValue(":now", currentTime);
+            query.bindValue(":id", id);
+            query.exec();
+        }
+        success = m_db.commit();
+    }
+    if (success) emit noteUpdated();
+    return success;
+}
+
 void DatabaseManager::addNoteAsync(const QString& title, const QString& content, const QStringList& tags,
                                  const QString& color, int categoryId,
                                  const QString& itemType, const QByteArray& dataBlob,
@@ -502,7 +547,8 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
 
     QString finalSql = baseSql + whereClause + "ORDER BY is_pinned DESC, updated_at DESC";
     
-    if (page > 0) {
+    // 回收站不分页，显示所有
+    if (page > 0 && filterType != "trash") {
         finalSql += QString(" LIMIT %1 OFFSET %2").arg(pageSize).arg((page - 1) * pageSize);
     }
 
@@ -726,8 +772,9 @@ bool DatabaseManager::emptyTrash() {
         QMutexLocker locker(&m_mutex);
         if (!m_db.isOpen()) return false;
         QSqlQuery query(m_db);
-        // 对齐保护准则：严禁物理删除任何带有标签、书签或锁定状态的数据项
-        success = query.exec("DELETE FROM notes WHERE is_deleted = 1 AND is_locked = 0 AND is_favorite = 0 AND (tags IS NULL OR tags = '')");
+        // 修正逻辑：只要 is_deleted=1 就彻底删除，不再判断锁/收藏/标签
+        // 用户既然显式清空回收站，就应该尊重其意愿
+        success = query.exec("DELETE FROM notes WHERE is_deleted = 1");
     }
     if (success) emit noteUpdated();
     return success;

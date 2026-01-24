@@ -5,6 +5,7 @@
 #include <QStringList>
 #include <QVBoxLayout>
 #include <QLineEdit>
+#include <QLabel>
 #include <QScrollArea>
 #include "FlowLayout.h"
 
@@ -36,6 +37,7 @@ private:
     QStringList m_all;
     QStringList m_selected;
     QLineEdit* m_search;
+    QLabel* m_tipsLabel; // 新增提示标签
     QWidget* m_tagContainer;
     FlowLayout* m_flow;
 };

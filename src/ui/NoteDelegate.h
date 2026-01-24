@@ -32,7 +32,8 @@ public:
         bool isPinned = index.data(NoteModel::PinnedRole).toBool();
         
         // 2. 处理选中状态和背景 (更精致的配色与阴影感)
-        QRect rect = option.rect.adjusted(8, 4, -8, -4);
+        // 外部布局已预留 15px 边距，内部不再缩进
+        QRect rect = option.rect.adjusted(0, 0, 0, -4); // 仅保留底部间隔视觉
         bool isSelected = (option.state & QStyle::State_Selected);
         
         QColor bgColor = isSelected ? QColor("#323233") : QColor("#1a1a1b"); // 修正非选中状态下的深灰色调

@@ -9,7 +9,7 @@
 
 FilterPanel::FilterPanel(QWidget* parent) : QWidget(parent) {
     setMouseTracking(true);
-    setMinimumSize(250, 350);
+    setMinimumSize(230, 350);
     initUI();
     setupTree();
 }
@@ -71,7 +71,7 @@ void FilterPanel::initUI() {
     m_tree->setHeaderHidden(true);
     m_tree->setIndentation(20);
     m_tree->setFocusPolicy(Qt::NoFocus);
-    m_tree->setRootIsDecorated(true);
+    m_tree->setRootIsDecorated(false);
     m_tree->setUniformRowHeights(true);
     m_tree->setAnimated(true);
     m_tree->setAllColumnsShowFocus(true);
@@ -82,10 +82,11 @@ void FilterPanel::initUI() {
         "  border: none;"
         "  font-size: 12px;"
         "}"
+        "QTreeWidget::branch { image: none; border: none; width: 0px; }"
         "QTreeWidget::item {"
         "  height: 28px;"
         "  border-radius: 4px;"
-        "  padding: 2px 5px;"
+        "  padding-left: 10px;"
         "}"
         "QTreeWidget::item:hover { background-color: #2a2d2e; }"
         "QTreeWidget::item:selected { background-color: #37373d; color: white; }"
@@ -101,6 +102,7 @@ void FilterPanel::initUI() {
     );
     connect(m_tree, &QTreeWidget::itemChanged, this, &FilterPanel::onItemChanged);
     connect(m_tree, &QTreeWidget::itemClicked, this, &FilterPanel::onItemClicked);
+    m_tree->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     contentLayout->addWidget(m_tree);
 
     // 底部区域
