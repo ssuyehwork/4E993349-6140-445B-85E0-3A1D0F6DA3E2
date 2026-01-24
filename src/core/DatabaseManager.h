@@ -57,6 +57,7 @@ public:
     int getNotesCount(const QString& keyword, const QString& filterType = "all", const QVariant& filterValue = -1);
     QList<QVariantMap> getAllNotes();
     QStringList getAllTags();
+    QList<QVariantMap> getRecentTagsWithCounts(int limit = 20);
     QVariantMap getNoteById(int id);
 
     // 统计
