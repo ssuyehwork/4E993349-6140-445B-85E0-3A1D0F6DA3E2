@@ -2,6 +2,7 @@
 #include "NoteEditWindow.h"
 #include "IconHelper.h"
 #include "QuickNoteDelegate.h"
+#include "CategoryDelegate.h"
 #include "../core/DatabaseManager.h"
 #include "../core/ClipboardMonitor.h"
 #include <QGuiApplication>
@@ -33,60 +34,6 @@
 #include <QStyledItemDelegate>
 #include <QPainter>
 
-// 侧边栏分类项自定义代理：实现动态高亮色
-class CategoryDelegate : public QStyledItemDelegate {
-public:
-    using QStyledItemDelegate::QStyledItemDelegate;
-    
-    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-        if (!index.isValid()) return;
-
-        bool selected = option.state & QStyle::State_Selected;
-        bool hover = option.state & QStyle::State_MouseOver;
-        bool isSelectable = index.flags() & Qt::ItemIsSelectable;
-
-        if (isSelectable && (selected || hover)) {
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing);
-
-            QString colorHex = index.data(CategoryModel::ColorRole).toString();
-            QColor baseColor = colorHex.isEmpty() ? QColor("#4a90e2") : QColor(colorHex);
-            QColor bg = selected ? baseColor : QColor("#2a2d2e");
-            if (selected) bg.setAlphaF(0.2); // 选中时应用 20% 透明度联动分类颜色
-
-            // 精准计算高亮区域：联合图标与文字区域，避开左侧缩进/箭头区域
-            QStyle* style = option.widget ? option.widget->style() : QApplication::style();
-            QRect decoRect = style->subElementRect(QStyle::SE_ItemViewItemDecoration, &option, option.widget);
-            QRect textRect = style->subElementRect(QStyle::SE_ItemViewItemText, &option, option.widget);
-            
-            // 联合区域并与当前行 rect 取交集，防止溢出
-            QRect contentRect = decoRect.united(textRect);
-            contentRect = contentRect.intersected(option.rect);
-            
-            // 向左右微调 (padding)，并保持上下略有间隙以体现圆角效果
-            contentRect.adjust(-6, 1, 6, -1);
-            
-            painter->setBrush(bg);
-            painter->setPen(Qt::NoPen);
-            painter->drawRoundedRect(contentRect, 5, 5);
-            painter->restore();
-        }
-
-        // 绘制原内容 (图标、文字)
-        QStyleOptionViewItem opt = option;
-        // 关键：移除 Selected 状态，由我们自己控制背景，防止 QStyle 绘制默认的蓝色/灰色整行高亮
-        opt.state &= ~QStyle::State_Selected;
-        opt.state &= ~QStyle::State_MouseOver;
-        
-        // 选中时文字强制设为白色以确保清晰度
-        if (selected) {
-            opt.palette.setColor(QPalette::Text, Qt::white);
-            opt.palette.setColor(QPalette::HighlightedText, Qt::white);
-        }
-        
-        QStyledItemDelegate::paint(painter, opt, index);
-    }
-};
 
 // 定义调整大小的边缘触发区域宽度 (与边距一致)
 #define RESIZE_MARGIN 10 
@@ -631,9 +578,49 @@ void QuickWindow::updatePartitionStatus(const QString& name) {
 }
 
 void QuickWindow::refreshSidebar() {
+    // 保存选中状态
+    QString selectedType;
+    QVariant selectedValue;
+    QModelIndex sysIdx = m_systemTree->currentIndex();
+    QModelIndex partIdx = m_partitionTree->currentIndex();
+
+    if (sysIdx.isValid()) {
+        selectedType = sysIdx.data(CategoryModel::TypeRole).toString();
+        selectedValue = sysIdx.data(CategoryModel::NameRole);
+    } else if (partIdx.isValid()) {
+        selectedType = partIdx.data(CategoryModel::TypeRole).toString();
+        selectedValue = partIdx.data(CategoryModel::IdRole);
+    }
+
     m_systemModel->refresh();
     m_partitionModel->refresh();
     m_partitionTree->expandAll();
+
+    // 恢复选中
+    if (!selectedType.isEmpty()) {
+        if (selectedType != "category") {
+            for (int i = 0; i < m_systemModel->rowCount(); ++i) {
+                QModelIndex idx = m_systemModel->index(i, 0);
+                if (idx.data(CategoryModel::TypeRole).toString() == selectedType &&
+                    idx.data(CategoryModel::NameRole) == selectedValue) {
+                    m_systemTree->setCurrentIndex(idx);
+                    break;
+                }
+            }
+        } else {
+            std::function<void(const QModelIndex&)> findAndSelect = [&](const QModelIndex& parent) {
+                for (int i = 0; i < m_partitionModel->rowCount(parent); ++i) {
+                    QModelIndex idx = m_partitionModel->index(i, 0, parent);
+                    if (idx.data(CategoryModel::IdRole) == selectedValue) {
+                        m_partitionTree->setCurrentIndex(idx);
+                        return;
+                    }
+                    if (m_partitionModel->rowCount(idx) > 0) findAndSelect(idx);
+                }
+            };
+            findAndSelect(QModelIndex());
+        }
+    }
 }
 
 void QuickWindow::applyListTheme(const QString& colorHex) {
@@ -1064,7 +1051,7 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
     if (!index.isValid() || index.data().toString() == "我的分区") {
-        menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分组", [this]() {
+        menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建分组", [this]() {
             bool ok;
             QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
             if (ok && !text.isEmpty()) {
@@ -1101,6 +1088,8 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
             };
             QString chosenColor = palette.at(QRandomGenerator::global()->bounded(palette.size()));
             DatabaseManager::instance().setCategoryColor(catId, chosenColor);
+            refreshData();
+            refreshSidebar();
         });
         menu.addAction(IconHelper::getIcon("tag", "#FFAB91"), "设置预设标签", [this, catId]() {
             QString currentTags = DatabaseManager::instance().getCategoryPresetTags(catId);
@@ -1111,12 +1100,12 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
             }
         });
         menu.addSeparator();
-        menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分组", [this]() {
+        menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建分组", [this]() {
             bool ok;
             QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
             if (ok && !text.isEmpty()) DatabaseManager::instance().addCategory(text);
         });
-        menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建子分区", [this, catId]() {
+        menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建子分区", [this, catId]() {
             bool ok;
             QString text = QInputDialog::getText(this, "新建区", "区名称:", QLineEdit::Normal, "", &ok);
             if (ok && !text.isEmpty()) DatabaseManager::instance().addCategory(text, catId);

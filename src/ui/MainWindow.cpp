@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "../core/DatabaseManager.h"
 #include "NoteDelegate.h"
+#include "CategoryDelegate.h"
 #include <QHBoxLayout>
 #include <utility>
 #include <QVBoxLayout>
@@ -171,6 +172,7 @@ void MainWindow::initUI() {
     m_sideBar->setMinimumWidth(200); 
     m_sideModel = new CategoryModel(CategoryModel::Both, this);
     m_sideBar->setModel(m_sideModel);
+    m_sideBar->setItemDelegate(new CategoryDelegate(this));
     m_sideBar->setHeaderHidden(true);
     m_sideBar->setRootIsDecorated(false);
     m_sideBar->setIndentation(12);
@@ -197,7 +199,7 @@ void MainWindow::initUI() {
                            "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
         if (!index.isValid() || index.data().toString() == "我的分区") {
-            menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分组", [this]() {
+            menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建分组", [this]() {
                 bool ok;
                 QString text = QInputDialog::getText(this, "新建组", "组名称:", QLineEdit::Normal, "", &ok);
                 if (ok && !text.isEmpty()) {
@@ -255,7 +257,7 @@ void MainWindow::initUI() {
                     refreshData();
                 }
             });
-            menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建子分区", [this, catId]() {
+            menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建子分区", [this, catId]() {
                 bool ok;
                 QString text = QInputDialog::getText(this, "新建区", "区名称:", QLineEdit::Normal, "", &ok);
                 if (ok && !text.isEmpty()) {
@@ -636,6 +638,19 @@ void MainWindow::onNoteAdded(const QVariantMap& note) {
 }
 
 void MainWindow::refreshData() {
+    // 保存当前选中项状态以供恢复
+    QString selectedType;
+    QVariant selectedValue;
+    QModelIndex currentIdx = m_sideBar->currentIndex();
+    if (currentIdx.isValid()) {
+        selectedType = currentIdx.data(CategoryModel::TypeRole).toString();
+        if (selectedType == "category") {
+            selectedValue = currentIdx.data(CategoryModel::IdRole);
+        } else {
+            selectedValue = currentIdx.data(CategoryModel::NameRole);
+        }
+    }
+
     QSet<QString> expandedPaths;
     std::function<void(const QModelIndex&)> checkChildren = [&](const QModelIndex& parent) {
         for (int j = 0; j < m_sideModel->rowCount(parent); ++j) {
@@ -734,6 +749,13 @@ void MainWindow::refreshData() {
     for (int i = 0; i < m_sideModel->rowCount(); ++i) {
         QModelIndex index = m_sideModel->index(i, 0);
         QString name = index.data(CategoryModel::NameRole).toString();
+        QString type = index.data(CategoryModel::TypeRole).toString();
+
+        // 恢复选中
+        if (!selectedType.isEmpty() && type == selectedType && index.data(CategoryModel::NameRole) == selectedValue) {
+            m_sideBar->setCurrentIndex(index);
+        }
+
         if (name == "我的分区" || expandedPaths.contains(name)) {
             m_sideBar->setExpanded(index, true);
         }
@@ -741,10 +763,20 @@ void MainWindow::refreshData() {
         std::function<void(const QModelIndex&)> restoreChildren = [&](const QModelIndex& parent) {
             for (int j = 0; j < m_sideModel->rowCount(parent); ++j) {
                 QModelIndex child = m_sideModel->index(j, 0, parent);
-                QString type = child.data(CategoryModel::TypeRole).toString();
-                QString identifier = (type == "category") ? 
-                    ("cat_" + QString::number(child.data(CategoryModel::IdRole).toInt())) : 
-                    child.data(CategoryModel::NameRole).toString();
+                QString cType = child.data(CategoryModel::TypeRole).toString();
+                QString cName = child.data(CategoryModel::NameRole).toString();
+
+                // 恢复选中
+                if (!selectedType.isEmpty() && cType == selectedType) {
+                    if (cType == "category" && child.data(CategoryModel::IdRole) == selectedValue) {
+                        m_sideBar->setCurrentIndex(child);
+                    } else if (cType != "category" && cName == selectedValue) {
+                        m_sideBar->setCurrentIndex(child);
+                    }
+                }
+
+                QString identifier = (cType == "category") ?
+                    ("cat_" + QString::number(child.data(CategoryModel::IdRole).toInt())) : cName;
 
                 if (expandedPaths.contains(identifier) || (parent.data(CategoryModel::NameRole).toString() == "我的分区")) {
                     m_sideBar->setExpanded(child, true);
