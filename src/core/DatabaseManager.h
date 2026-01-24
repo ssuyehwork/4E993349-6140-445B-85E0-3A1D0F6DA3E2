@@ -8,8 +8,12 @@
 #include <QDateTime>
 #include <QVariant>
 #include <QVariantList>
+#include <QMap>
+#include <QList>
 #include <QRecursiveMutex>
 #include <QStringList>
+
+typedef QMap<QString, QVariant> QVariantMap;
 
 class DatabaseManager : public QObject {
     Q_OBJECT
@@ -51,15 +55,15 @@ public:
     bool removeTagFromNote(int noteId, const QString& tag);
 
     // 搜索与查询
-    QList<QVariantMap> searchNotes(const QString& keyword, const QString& filterType = "all", QVariant filterValue = -1, int page = -1, int pageSize = 20);
-    int getNotesCount(const QString& keyword, const QString& filterType = "all", QVariant filterValue = -1);
+    QList<QVariantMap> searchNotes(const QString& keyword, const QString& filterType = "all", const QVariant& filterValue = -1, int page = -1, int pageSize = 20);
+    int getNotesCount(const QString& keyword, const QString& filterType = "all", const QVariant& filterValue = -1);
     QList<QVariantMap> getAllNotes();
     QStringList getAllTags();
     QVariantMap getNoteById(int id);
 
     // 统计
     QVariantMap getCounts();
-    QVariantMap getFilterStats(const QString& keyword = "", const QString& filterType = "all", QVariant filterValue = -1);
+    QVariantMap getFilterStats(const QString& keyword = "", const QString& filterType = "all", const QVariant& filterValue = -1);
 
     // 异步操作
     void addNoteAsync(const QString& title, const QString& content, const QStringList& tags = QStringList(),
@@ -68,9 +72,8 @@ public:
                       const QString& sourceApp = "", const QString& sourceTitle = "");
 
 signals:
-    // 【修改】现在信号携带具体数据，实现增量更新
     void noteAdded(const QVariantMap& note);
-    void noteUpdated(); // 用于普通刷新
+    void noteUpdated();
     void categoriesChanged();
 
 private:

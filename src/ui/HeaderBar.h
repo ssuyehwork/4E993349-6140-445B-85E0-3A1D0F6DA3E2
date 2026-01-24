@@ -22,19 +22,20 @@ signals:
     void metadataToggled(bool checked);
     void refreshRequested();
     void filterRequested();
+    void previewToggled(bool checked);
     void windowClose();
     void windowMinimize();
     void windowMaximize();
-
-protected:
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseDoubleClickEvent(QMouseEvent* event) override;
 
 public:
     void updatePagination(int current, int total);
     void setFilterActive(bool active);
     void setMetadataActive(bool active);
+
+protected:
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
 
 private:
     SearchLineEdit* m_searchEdit;

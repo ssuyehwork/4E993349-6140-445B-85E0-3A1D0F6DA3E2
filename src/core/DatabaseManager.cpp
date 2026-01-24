@@ -469,7 +469,7 @@ void DatabaseManager::addNoteAsync(const QString& title, const QString& content,
     }, Qt::QueuedConnection);
 }
 
-QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QString& filterType, QVariant filterValue, int page, int pageSize) {
+QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QString& filterType, const QVariant& filterValue, int page, int pageSize) {
     QMutexLocker locker(&m_mutex);
     QList<QVariantMap> results;
     if (!m_db.isOpen()) return results;
@@ -521,7 +521,7 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
     return results;
 }
 
-int DatabaseManager::getNotesCount(const QString& keyword, const QString& filterType, QVariant filterValue) {
+int DatabaseManager::getNotesCount(const QString& keyword, const QString& filterType, const QVariant& filterValue) {
     QMutexLocker locker(&m_mutex);
     if (!m_db.isOpen()) return 0;
 
@@ -799,7 +799,7 @@ QVariantMap DatabaseManager::getCounts() {
     return counts;
 }
 
-QVariantMap DatabaseManager::getFilterStats(const QString& keyword, const QString& filterType, QVariant filterValue) {
+QVariantMap DatabaseManager::getFilterStats(const QString& keyword, const QString& filterType, const QVariant& filterValue) {
     QMutexLocker locker(&m_mutex);
     QVariantMap stats;
     if (!m_db.isOpen()) return stats;
