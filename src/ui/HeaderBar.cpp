@@ -8,10 +8,16 @@
 #include <QIntValidator>
 
 HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
-    setFixedHeight(40);
-    setStyleSheet("background-color: #252526; border-bottom: 1px solid #333;");
+    setFixedHeight(41); // 40 + 1px 线
+    setStyleSheet("background-color: #252526; border: none;");
 
-    QHBoxLayout* layout = new QHBoxLayout(this);
+    auto* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
+
+    // 顶部内容区
+    auto* topContent = new QWidget();
+    auto* layout = new QHBoxLayout(topContent);
     layout->setContentsMargins(10, 0, 10, 0);
     layout->setSpacing(0);
     
@@ -32,7 +38,6 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     m_searchEdit->setPlaceholderText("搜索灵感 (双击查看历史)...");
     m_searchEdit->setFixedWidth(280);
     m_searchEdit->setFixedHeight(28);
-    // 恢复深色背景、15px圆角和紧凑高度 (5px内边距)，确保在标题栏中的精致感和对比度
     m_searchEdit->setStyleSheet("background: #1e1e1e; border-radius: 14px; padding: 5px 15px; border: 1px solid #444; color: white;");
     connect(m_searchEdit, &QLineEdit::textChanged, this, &HeaderBar::searchChanged);
     connect(m_searchEdit, &QLineEdit::returnPressed, [this](){
@@ -41,7 +46,7 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     layout->addWidget(m_searchEdit);
     layout->addSpacing(15);
 
-    // 3. Pagination Controls
+    // 3. Pagination Controls (保持原有逻辑)
     QString pageBtnStyle = 
         "QPushButton {"
         "    background-color: transparent;"
@@ -169,13 +174,13 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     winCtrlWidget->setStyleSheet("background: transparent;");
     QHBoxLayout* winCtrlLayout = new QHBoxLayout(winCtrlWidget);
     winCtrlLayout->setContentsMargins(0, 0, 0, 0);
-    winCtrlLayout->setSpacing(0); // 严格间距为0
+    winCtrlLayout->setSpacing(0);
 
     auto addWinBtn = [&](const QString& icon, const QString& hoverColor, auto signal) {
         QPushButton* btn = new QPushButton();
         btn->setIcon(IconHelper::getIcon(icon, "#aaaaaa", 20));
         btn->setIconSize(QSize(20, 20));
-        btn->setFixedSize(32, 32); // 统一 32x32
+        btn->setFixedSize(32, 32);
         btn->setStyleSheet(QString("QPushButton { background: transparent; border: none; border-radius: 5px; } QPushButton:hover { background: %1; }").arg(hoverColor));
         connect(btn, &QPushButton::clicked, this, signal);
         winCtrlLayout->addWidget(btn);
@@ -185,6 +190,15 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     addWinBtn("maximize", "rgba(255,255,255,0.1)", &HeaderBar::windowMaximize);
     addWinBtn("close", "#e81123", &HeaderBar::windowClose);
     layout->addWidget(winCtrlWidget);
+
+    mainLayout->addWidget(topContent);
+
+    // 【关键修复】实体的 1px 全宽分割线
+    auto* bottomLine = new QFrame();
+    bottomLine->setFrameShape(QFrame::HLine);
+    bottomLine->setFixedHeight(1);
+    bottomLine->setStyleSheet("background-color: #333333; border: none; margin: 0px;");
+    mainLayout->addWidget(bottomLine);
 }
 
 void HeaderBar::updatePagination(int current, int total) {

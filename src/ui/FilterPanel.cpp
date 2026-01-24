@@ -1,78 +1,389 @@
 #include "FilterPanel.h"
 #include "../core/DatabaseManager.h"
-#include <QScrollArea>
+#include "IconHelper.h"
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QPainter>
+#include <QApplication>
+#include <QTimer>
 
-FilterPanel::FilterPanel(QWidget* parent) : QWidget(parent, Qt::Popup) {
-    setFixedWidth(300);
-    setFixedHeight(400);
-    setStyleSheet("QWidget { background: #2D2D2D; color: #CCC; border: 1px solid #444; }");
+FilterPanel::FilterPanel(QWidget* parent) : QWidget(parent) {
+    setMouseTracking(true);
+    setMinimumSize(250, 350);
+    initUI();
+    setupTree();
+}
 
-    auto* layout = new QVBoxLayout(this);
-    auto* scroll = new QScrollArea();
-    scroll->setWidgetResizable(true);
-    scroll->setFrameShape(QFrame::NoFrame);
-    
-    auto* container = new QWidget();
-    m_mainLayout = new QVBoxLayout(container);
-    m_mainLayout->setContentsMargins(10, 10, 10, 10);
-    m_mainLayout->setSpacing(15);
-    
-    scroll->setWidget(container);
-    layout->addWidget(scroll);
+void FilterPanel::initUI() {
+    auto* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
+
+    // 标题栏
+    m_header = new QWidget();
+    m_header->setFixedHeight(32);
+    m_header->setStyleSheet(
+        "background-color: #252526; "
+        "border-top-left-radius: 12px; "
+        "border-top-right-radius: 12px; "
+        "border-bottom: 1px solid #333;" // 统一分割线
+    );
+
+    auto* headerLayout = new QHBoxLayout(m_header);
+    headerLayout->setContentsMargins(15, 0, 15, 0); // 统一 15px 边距
+
+    auto* headerIcon = new QLabel();
+    headerIcon->setPixmap(IconHelper::getIcon("filter", "#007ACC").pixmap(20, 20));
+    headerLayout->addWidget(headerIcon);
+
+    auto* headerTitle = new QLabel("高级筛选");
+    headerTitle->setStyleSheet("color: #007ACC; font-size: 13px; font-weight: bold; background: transparent;");
+    headerLayout->addWidget(headerTitle);
+    headerLayout->addStretch();
+
+    auto* closeBtn = new QPushButton();
+    closeBtn->setIcon(IconHelper::getIcon("close", "#888888"));
+    closeBtn->setFixedSize(24, 24);
+    closeBtn->setCursor(Qt::PointingHandCursor);
+    closeBtn->setStyleSheet(
+        "QPushButton { background-color: transparent; border: none; border-radius: 4px; }"
+        "QPushButton:hover { background-color: #e74c3c; }"
+    );
+    connect(closeBtn, &QPushButton::clicked, this, &FilterPanel::hide);
+    headerLayout->addWidget(closeBtn);
+    mainLayout->addWidget(m_header);
+
+    // 内容容器
+    auto* contentWidget = new QWidget();
+    contentWidget->setStyleSheet(
+        "QWidget { "
+        "  background-color: transparent; "
+        "  border-bottom-left-radius: 12px; "
+        "  border-bottom-right-radius: 12px; "
+        "}"
+    );
+    auto* contentLayout = new QVBoxLayout(contentWidget);
+    contentLayout->setContentsMargins(10, 8, 10, 10);
+    contentLayout->setSpacing(8);
+
+    // 树形筛选器
+    m_tree = new QTreeWidget();
+    m_tree->setHeaderHidden(true);
+    m_tree->setIndentation(20);
+    m_tree->setFocusPolicy(Qt::NoFocus);
+    m_tree->setRootIsDecorated(true);
+    m_tree->setUniformRowHeights(true);
+    m_tree->setAnimated(true);
+    m_tree->setAllColumnsShowFocus(true);
+    m_tree->setStyleSheet(
+        "QTreeWidget {"
+        "  background-color: transparent;"
+        "  color: #ddd;"
+        "  border: none;"
+        "  font-size: 12px;"
+        "}"
+        "QTreeWidget::item {"
+        "  height: 28px;"
+        "  border-radius: 4px;"
+        "  padding: 2px 5px;"
+        "}"
+        "QTreeWidget::item:hover { background-color: #2a2d2e; }"
+        "QTreeWidget::item:selected { background-color: #37373d; color: white; }"
+        "QTreeWidget::indicator {"
+        "  width: 14px;"
+        "  height: 14px;"
+        "}"
+        "QScrollBar:vertical { border: none; background: transparent; width: 6px; margin: 0px; }"
+        "QScrollBar::handle:vertical { background: #444; border-radius: 3px; min-height: 20px; }"
+        "QScrollBar::handle:vertical:hover { background: #555; }"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }"
+    );
+    connect(m_tree, &QTreeWidget::itemChanged, this, &FilterPanel::onItemChanged);
+    connect(m_tree, &QTreeWidget::itemClicked, this, &FilterPanel::onItemClicked);
+    contentLayout->addWidget(m_tree);
+
+    // 底部区域
+    auto* bottomLayout = new QHBoxLayout();
+    bottomLayout->setContentsMargins(0, 0, 0, 0);
+    bottomLayout->setSpacing(4);
+
+    m_btnReset = new QPushButton(" 重置");
+    m_btnReset->setIcon(IconHelper::getIcon("refresh", "white"));
+    m_btnReset->setCursor(Qt::PointingHandCursor);
+    m_btnReset->setFixedWidth(80);
+    m_btnReset->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #252526;"
+        "  border: 1px solid #444;"
+        "  color: #888;"
+        "  border-radius: 6px;"
+        "  padding: 8px;"
+        "  font-size: 12px;"
+        "}"
+        "QPushButton:hover { color: #ddd; background-color: #333; }"
+    );
+    connect(m_btnReset, &QPushButton::clicked, this, &FilterPanel::resetFilters);
+    bottomLayout->addWidget(m_btnReset);
+    bottomLayout->addStretch();
+
+    contentLayout->addLayout(bottomLayout);
+    mainLayout->addWidget(contentWidget);
+}
+
+void FilterPanel::setupTree() {
+    struct Section {
+        QString key;
+        QString label;
+        QString icon;
+        QString color;
+    };
+
+    QList<Section> sections = {
+        {"date_create", "创建时间", "today", "#2ecc71"},
+        {"stars", "评级", "star_filled", "#f39c12"},
+        {"colors", "颜色", "palette", "#e91e63"},
+        {"types", "类型", "folder", "#3498db"},
+        {"tags", "标签", "tag", "#e67e22"}
+    };
+
+    QFont headerFont = m_tree->font();
+    headerFont.setBold(true);
+
+    for (const auto& sec : sections) {
+        auto* item = new QTreeWidgetItem(m_tree);
+        item->setText(0, sec.label);
+        item->setIcon(0, IconHelper::getIcon(sec.icon, sec.color));
+        item->setExpanded(true);
+        item->setFlags(Qt::ItemIsEnabled);
+        item->setFont(0, headerFont);
+        item->setForeground(0, QBrush(Qt::gray));
+        m_roots[sec.key] = item;
+    }
+
+    addFixedDateOptions("date_create");
+}
+
+void FilterPanel::addFixedDateOptions(const QString& key) {
+    if (!m_roots.contains(key)) return;
+    auto* root = m_roots[key];
+
+    struct Option {
+        QString id;
+        QString label;
+        QString icon;
+    };
+
+    QList<Option> options = {
+        {"today", "今日", "today"},
+        {"yesterday", "昨日", "clock"},
+        {"week", "本周", "today"},
+        {"month", "本月", "today"}
+    };
+
+    m_blockItemClick = true;
+    for (const auto& opt : options) {
+        auto* item = new QTreeWidgetItem(root);
+        item->setText(0, QString("%1 (0)").arg(opt.label));
+        item->setData(0, Qt::UserRole, opt.id);
+        item->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        item->setCheckState(0, Qt::Unchecked);
+    }
+    m_blockItemClick = false;
 }
 
 void FilterPanel::updateStats(const QString& keyword, const QString& type, const QVariant& value) {
-    // 清除旧内容
-    QLayoutItem* item;
-    while ((item = m_mainLayout->takeAt(0)) != nullptr) {
-        if (item->widget()) delete item->widget();
-        delete item;
+    m_tree->blockSignals(true);
+    m_blockItemClick = true;
+
+    QVariantMap stats = DatabaseManager::instance().getFilterStats(keyword, type, value);
+
+    // 1. 评级
+    QList<QVariantMap> starData;
+    QVariantMap starStats = stats["stars"].toMap();
+    for (int i = 5; i >= 1; --i) {
+        int count = starStats[QString::number(i)].toInt();
+        if (count > 0) {
+            QVariantMap item;
+            item["key"] = QString::number(i);
+            item["label"] = QString(i, QChar(0x2605)); // ★
+            item["count"] = count;
+            starData.append(item);
+        }
     }
-    m_checkboxes.clear();
+    if (starStats["0"].toInt() > 0) {
+        QVariantMap item;
+        item["key"] = "0";
+        item["label"] = "无评级";
+        item["count"] = starStats["0"].toInt();
+        starData.append(item);
+    }
+    refreshNode("stars", starData);
 
-    QVariantMap stats = DatabaseManager::instance().getFilterStats(keyword, type, value.toInt());
+    // 2. 颜色
+    QList<QVariantMap> colorData;
+    QVariantMap colorStats = stats["colors"].toMap();
+    for (auto it = colorStats.begin(); it != colorStats.end(); ++it) {
+        int count = it.value().toInt();
+        if (count > 0) {
+            QVariantMap item;
+            item["key"] = it.key();
+            item["label"] = it.key();
+            item["count"] = count;
+            colorData.append(item);
+        }
+    }
+    refreshNode("colors", colorData, true);
 
-    createSection("星级", "stars", stats["stars"].toMap());
-    createSection("类型", "types", stats["types"].toMap());
-    createSection("颜色", "colors", stats["colors"].toMap());
-    createSection("标签", "tags", stats["tags"].toMap());
-    createSection("创建时间", "date_create", stats["date_create"].toMap());
+    // 3. 类型
+    QMap<QString, QString> typeMap = {{"text", "文本"}, {"image", "图片"}, {"file", "文件"}};
+    QList<QVariantMap> typeData;
+    QVariantMap typeStats = stats["types"].toMap();
+    for (auto it = typeStats.begin(); it != typeStats.end(); ++it) {
+        int count = it.value().toInt();
+        if (count > 0) {
+            QVariantMap item;
+            item["key"] = it.key();
+            item["label"] = typeMap.value(it.key(), it.key());
+            item["count"] = count;
+            typeData.append(item);
+        }
+    }
+    refreshNode("types", typeData);
+
+    // 4. 标签
+    QList<QVariantMap> tagData;
+    QVariantMap tagStats = stats["tags"].toMap();
+    for (auto it = tagStats.begin(); it != tagStats.end(); ++it) {
+        QVariantMap item;
+        item["key"] = it.key();
+        item["label"] = it.key();
+        item["count"] = it.value().toInt();
+        tagData.append(item);
+    }
+    refreshNode("tags", tagData);
+
+    // 5. 固定日期节点
+    updateFixedNode("date_create", stats["date_create"].toMap());
+
+    m_blockItemClick = false;
+    m_tree->blockSignals(false);
 }
 
-void FilterPanel::createSection(const QString& title, const QString& key, const QVariantMap& data) {
-    if (data.isEmpty()) return;
+void FilterPanel::refreshNode(const QString& key, const QList<QVariantMap>& items, bool isCol) {
+    if (!m_roots.contains(key)) return;
+    auto* root = m_roots[key];
 
-    auto* group = new QWidget();
-    auto* v = new QVBoxLayout(group);
-    v->setContentsMargins(0, 0, 0, 0);
-    v->setSpacing(5);
-
-    auto* lbl = new QLabel(title);
-    lbl->setStyleSheet("font-weight: bold; color: #888;");
-    v->addWidget(lbl);
-
-    auto* flow = new FlowLayout(0, 5, 5);
-    for (auto it = data.begin(); it != data.end(); ++it) {
-        QString label = QString("%1 (%2)").arg(it.key()).arg(it.value().toInt());
-        auto* cb = new QCheckBox(label);
-        cb->setProperty("key", it.key());
-        cb->setStyleSheet("QCheckBox { font-size: 11px; }");
-        connect(cb, &QCheckBox::toggled, this, &FilterPanel::criteriaChanged);
-        flow->addWidget(cb);
-        m_checkboxes[key].append(cb);
+    // 建立现有的 key -> item 映射
+    QMap<QString, QTreeWidgetItem*> existingItems;
+    for (int i = 0; i < root->childCount(); ++i) {
+        auto* child = root->child(i);
+        existingItems[child->data(0, Qt::UserRole).toString()] = child;
     }
-    v->addLayout(flow);
-    m_mainLayout->addWidget(group);
+
+    QSet<QString> currentKeys;
+    for (const auto& data : items) {
+        QString itemKey = data["key"].toString();
+        QString label = data["label"].toString();
+        int count = data["count"].toInt();
+        currentKeys.insert(itemKey);
+
+        QString newText = QString("%1 (%2)").arg(label).arg(count);
+        if (existingItems.contains(itemKey)) {
+            auto* child = existingItems[itemKey];
+            if (child->text(0) != newText) {
+                child->setText(0, newText);
+            }
+        } else {
+            auto* child = new QTreeWidgetItem(root);
+            child->setText(0, newText);
+            child->setData(0, Qt::UserRole, itemKey);
+            child->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+            child->setCheckState(0, Qt::Unchecked);
+            
+            if (isCol) {
+                child->setIcon(0, IconHelper::getIcon("circle_filled", itemKey)); // 颜色项仍保留颜色圆点
+            }
+        }
+    }
+
+    // 移除不再需要的项目
+    for (int i = root->childCount() - 1; i >= 0; --i) {
+        auto* child = root->child(i);
+        if (!currentKeys.contains(child->data(0, Qt::UserRole).toString())) {
+            delete root->takeChild(i);
+        }
+    }
+}
+
+void FilterPanel::updateFixedNode(const QString& key, const QVariantMap& stats) {
+    if (!m_roots.contains(key)) return;
+    auto* root = m_roots[key];
+    QMap<QString, QString> labels = {{"today", "今日"}, {"yesterday", "昨日"}, {"week", "本周"}, {"month", "本月"}};
+    
+    for (int i = 0; i < root->childCount(); ++i) {
+        auto* child = root->child(i);
+        QString val = child->data(0, Qt::UserRole).toString();
+        int count = stats.value(val).toInt();
+        QString baseLabel = labels.value(val, val);
+        QString newText = QString("%1 (%2)").arg(baseLabel).arg(count);
+        if (child->text(0) != newText) {
+            child->setText(0, newText);
+        }
+    }
 }
 
 QVariantMap FilterPanel::getCheckedCriteria() const {
     QVariantMap criteria;
-    for (auto it = m_checkboxes.begin(); it != m_checkboxes.end(); ++it) {
+    for (auto it = m_roots.begin(); it != m_roots.end(); ++it) {
         QStringList checked;
-        for (QCheckBox* cb : it.value()) {
-            if (cb->isChecked()) checked << cb->property("key").toString();
+        for (int i = 0; i < it.value()->childCount(); ++i) {
+            auto* item = it.value()->child(i);
+            if (item->checkState(0) == Qt::Checked) {
+                checked << item->data(0, Qt::UserRole).toString();
+            }
         }
-        if (!checked.isEmpty()) criteria[it.key()] = checked;
+        if (!checked.isEmpty()) {
+            criteria[it.key()] = checked;
+        }
     }
     return criteria;
+}
+
+void FilterPanel::resetFilters() {
+    m_tree->blockSignals(true);
+    for (auto* root : m_roots) {
+        for (int i = 0; i < root->childCount(); ++i) {
+            root->child(i)->setCheckState(0, Qt::Unchecked);
+        }
+    }
+    m_tree->blockSignals(false);
+    emit filterChanged();
+}
+
+void FilterPanel::onItemChanged(QTreeWidgetItem* item, int column) {
+    if (m_blockItemClick) return;
+    
+    // 记录最近改变的项，用于防止 onItemClicked 重复处理
+    m_lastChangedItem = item;
+    QTimer::singleShot(100, [this]() { m_lastChangedItem = nullptr; });
+    
+    emit filterChanged();
+}
+
+void FilterPanel::onItemClicked(QTreeWidgetItem* item, int column) {
+    if (!item) return;
+
+    // 如果该项刚刚由 Qt 原生机制改变了状态（点击了复选框），则忽略此次点击事件
+    if (m_lastChangedItem == item) return;
+
+    if (item->parent() == nullptr) {
+        item->setExpanded(!item->isExpanded());
+    } else if (item->flags() & Qt::ItemIsUserCheckable) {
+        m_blockItemClick = true;
+        Qt::CheckState state = item->checkState(0);
+        item->setCheckState(0, (state == Qt::Checked) ? Qt::Unchecked : Qt::Checked);
+        m_blockItemClick = false;
+        emit filterChanged();
+    }
 }

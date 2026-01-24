@@ -26,6 +26,8 @@ set(SOURCES
     src/ui/QuickToolbar.cpp
     src/ui/DropTreeView.cpp
     src/ui/MainWindow.cpp
+    src/ui/CleanListView.h
+    src/ui/CleanListView.cpp
     src/ui/QuickPreview.h
     src/ui/HeaderBar.cpp
     src/ui/MetadataPanel.cpp

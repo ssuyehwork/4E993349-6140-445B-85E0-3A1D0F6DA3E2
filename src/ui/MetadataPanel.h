@@ -33,6 +33,7 @@ public:
 signals:
     void noteUpdated();
     void tagAdded(const QStringList& tags);
+    void closed();
 
 private:
     void initUI();

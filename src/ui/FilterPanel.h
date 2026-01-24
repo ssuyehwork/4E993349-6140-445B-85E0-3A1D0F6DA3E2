@@ -4,10 +4,12 @@
 #include <QWidget>
 #include <QVariantMap>
 #include <QVBoxLayout>
-#include <QCheckBox>
-#include <QScrollArea>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
+#include <QPushButton>
 #include <QLabel>
-#include "FlowLayout.h"
+#include <QMouseEvent>
+#include <QGraphicsDropShadowEffect>
 
 class FilterPanel : public QWidget {
     Q_OBJECT
@@ -15,18 +17,28 @@ public:
     explicit FilterPanel(QWidget* parent = nullptr);
     void updateStats(const QString& keyword, const QString& type, const QVariant& value);
     QVariantMap getCheckedCriteria() const;
+    void resetFilters();
 
 signals:
-    void criteriaChanged();
-
-protected:
-    void leaveEvent(QEvent* event) override { hide(); }
+    void filterChanged();
 
 private:
-    void createSection(const QString& title, const QString& key, const QVariantMap& data);
-    
-    QVBoxLayout* m_mainLayout;
-    QMap<QString, QList<QCheckBox*>> m_checkboxes;
+    void initUI();
+    void setupTree();
+    void addFixedDateOptions(const QString& key);
+    void onItemChanged(QTreeWidgetItem* item, int column);
+    void onItemClicked(QTreeWidgetItem* item, int column);
+    void refreshNode(const QString& key, const QList<QVariantMap>& items, bool isCol = false);
+    void updateFixedNode(const QString& key, const QVariantMap& stats);
+
+    QWidget* m_container;
+    QWidget* m_header;
+    QTreeWidget* m_tree;
+    QPushButton* m_btnReset;
+
+    QMap<QString, QTreeWidgetItem*> m_roots;
+    bool m_blockItemClick = false;
+    QTreeWidgetItem* m_lastChangedItem = nullptr;
 };
 
 #endif // FILTERPANEL_H

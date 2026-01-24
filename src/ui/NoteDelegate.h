@@ -35,7 +35,7 @@ public:
         QRect rect = option.rect.adjusted(8, 4, -8, -4);
         bool isSelected = (option.state & QStyle::State_Selected);
         
-        QColor bgColor = isSelected ? QColor("#323233") : QColor("#252526");
+        QColor bgColor = isSelected ? QColor("#323233") : QColor("#1a1a1b"); // 修正非选中状态下的深灰色调
         QColor borderColor = isSelected ? QColor("#4a90e2") : QColor("#333333");
         
         // 绘制卡片背景

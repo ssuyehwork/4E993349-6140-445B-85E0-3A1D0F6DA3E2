@@ -71,7 +71,7 @@ private:
 public:
     QString currentCategoryColor() const { return m_currentCategoryColor; }
     bool isAutoCategorizeEnabled() const { return m_autoCategorizeClipboard; }
-    int getCurrentCategoryId() const { return (m_currentFilterType == "category") ? m_currentFilterValue : -1; }
+    int getCurrentCategoryId() const { return (m_currentFilterType == "category") ? m_currentFilterValue.toInt() : -1; }
 
     // 快捷键处理函数
     void doDeleteSelected(bool physical = false);
@@ -111,7 +111,7 @@ public:
     int m_currentPage = 1;
     int m_totalPages = 1;
     QString m_currentFilterType = "all";
-    int m_currentFilterValue = -1;
+    QVariant m_currentFilterValue = -1;
     QString m_currentCategoryColor = "#4a90e2"; // 默认蓝色
     bool m_autoCategorizeClipboard = false;
 

@@ -39,6 +39,7 @@ public:
     QString toPlainText() const;
     void setPlaceholderText(const QString& text);
     void togglePreview(bool preview);
+    void setReadOnly(bool ro);
     
     // 代理 InternalEditor 的功能
     void undo() { m_edit->undo(); }

@@ -131,15 +131,9 @@ void InternalEditor::insertFromMimeData(const QMimeData* source) {
 
 Editor::Editor(QWidget* parent) : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(12, 12, 12, 12); // 为卡片形态留出外边距
+    layout->setContentsMargins(0, 0, 0, 0); 
 
-    // 创建卡片容器
-    QFrame* cardFrame = new QFrame(this);
-    cardFrame->setStyleSheet("QFrame { background-color: #1E1E1E; border: 1px solid #333; border-radius: 8px; }");
-    auto* cardLayout = new QVBoxLayout(cardFrame);
-    cardLayout->setContentsMargins(0, 0, 0, 0);
-
-    m_stack = new QStackedWidget(cardFrame);
+    m_stack = new QStackedWidget(this);
     m_stack->setStyleSheet("background: transparent; border: none;");
     
     m_edit = new InternalEditor(this);
@@ -153,8 +147,7 @@ Editor::Editor(QWidget* parent) : QWidget(parent) {
     m_stack->addWidget(m_edit);
     m_stack->addWidget(m_preview);
     
-    cardLayout->addWidget(m_stack);
-    layout->addWidget(cardFrame);
+    layout->addWidget(m_stack);
 }
 
 void Editor::setPlainText(const QString& text) {
@@ -270,4 +263,8 @@ void Editor::togglePreview(bool preview) {
     } else {
         m_stack->setCurrentWidget(m_edit);
     }
+}
+
+void Editor::setReadOnly(bool ro) {
+    m_edit->setReadOnly(ro);
 }

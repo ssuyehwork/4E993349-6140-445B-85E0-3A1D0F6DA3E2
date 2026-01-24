@@ -15,6 +15,8 @@
 #include <QInputDialog>
 #include <QColorDialog>
 #include <QSet>
+#include "FilterPanel.h"
+#include "CleanListView.h"
 #include <functional>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindowHint) {
@@ -51,12 +53,10 @@ void MainWindow::initUI() {
     });
     connect(m_header, &HeaderBar::refreshRequested, this, &MainWindow::refreshData);
     connect(m_header, &HeaderBar::filterRequested, this, [this](){
-        if (m_filterPanel->isVisible()) m_filterPanel->hide();
-        else {
+        bool visible = !m_filterWrapper->isVisible();
+        m_filterWrapper->setVisible(visible);
+        if (visible) {
             m_filterPanel->updateStats(m_currentKeyword, m_currentFilterType, m_currentFilterValue);
-            QPoint pos = m_header->mapToGlobal(QPoint(m_header->width() - 320, m_header->height() + 5));
-            m_filterPanel->move(pos);
-            m_filterPanel->show();
         }
     });
     connect(m_header, &HeaderBar::newNoteRequested, this, [this](){
@@ -79,15 +79,71 @@ void MainWindow::initUI() {
     });
     mainLayout->addWidget(m_header);
 
-    auto* splitter = new QSplitter(Qt::Horizontal);
-    splitter->setHandleWidth(1);
-    splitter->setChildrenCollapsible(false);
-    // 明确设置 Splitter 手柄样式，确保其为实色而非虚线
-    splitter->setStyleSheet("QSplitter::handle { background-color: #333; }");
+    // 核心内容容器：管理 5px 全局边距
+    auto* contentWidget = new QWidget(centralWidget);
+    auto* contentLayout = new QVBoxLayout(contentWidget);
+    contentLayout->setContentsMargins(5, 5, 5, 5); // 确保顶栏下方及窗口四周均有 5px 留白
+    contentLayout->setSpacing(0);
 
-    // 2. 左侧侧边栏 (固定最小宽度)
+    auto* splitter = new QSplitter(Qt::Horizontal);
+    splitter->setHandleWidth(5); // 统一横向板块间的物理缝隙为 5px
+    splitter->setChildrenCollapsible(false);
+    splitter->setStyleSheet("QSplitter::handle { background: transparent; }");
+
+    // 1. 左侧侧边栏包装容器 (固定 230px)
+    auto* sidebarWrapper = new QWidget();
+    sidebarWrapper->setMinimumWidth(230);
+    auto* sidebarWrapperLayout = new QVBoxLayout(sidebarWrapper);
+    sidebarWrapperLayout->setContentsMargins(0, 0, 0, 0); // 彻底消除偏移边距，由全局 Layout 和 Splitter 控制
+
+    auto* sidebarContainer = new QWidget();
+    sidebarContainer->setObjectName("SidebarContainer");
+    sidebarContainer->setStyleSheet(
+        "#SidebarContainer {"
+        "  background-color: #1e1e1e;"
+        "  border: 1px solid #333333;"
+        "  border-radius: 12px;"
+        "}"
+    );
+
+    auto* sidebarShadow = new QGraphicsDropShadowEffect(sidebarContainer);
+    sidebarShadow->setBlurRadius(10);
+    sidebarShadow->setXOffset(0);
+    sidebarShadow->setYOffset(4);
+    sidebarShadow->setColor(QColor(0, 0, 0, 150));
+    sidebarContainer->setGraphicsEffect(sidebarShadow);
+
+    auto* sidebarContainerLayout = new QVBoxLayout(sidebarContainer);
+    sidebarContainerLayout->setContentsMargins(0, 0, 0, 0); 
+    sidebarContainerLayout->setSpacing(0);
+
+    // 侧边栏标题栏 (全宽下划线方案)
+    auto* sidebarHeader = new QWidget();
+    sidebarHeader->setFixedHeight(32);
+    sidebarHeader->setStyleSheet(
+        "background-color: #252526; "
+        "border-top-left-radius: 12px; "
+        "border-top-right-radius: 12px; "
+        "border-bottom: 1px solid #333;"
+    );
+    auto* sidebarHeaderLayout = new QHBoxLayout(sidebarHeader);
+    sidebarHeaderLayout->setContentsMargins(15, 0, 15, 0);
+    auto* sbIcon = new QLabel();
+    sbIcon->setPixmap(IconHelper::getIcon("category", "#3498db").pixmap(18, 18));
+    sidebarHeaderLayout->addWidget(sbIcon);
+    auto* sbTitle = new QLabel("数据分类");
+    sbTitle->setStyleSheet("color: #3498db; font-size: 13px; font-weight: bold; background: transparent; border: none;");
+    sidebarHeaderLayout->addWidget(sbTitle);
+    sidebarHeaderLayout->addStretch();
+    sidebarContainerLayout->addWidget(sidebarHeader);
+
+    // 内容容器
+    auto* sbContent = new QWidget();
+    auto* sbContentLayout = new QVBoxLayout(sbContent);
+    sbContentLayout->setContentsMargins(8, 8, 8, 8);
+
     m_sideBar = new DropTreeView();
-    m_sideBar->setFixedWidth(220); // 彻底固定
+    m_sideBar->setMinimumWidth(200); 
     m_sideModel = new CategoryModel(CategoryModel::Both, this);
     m_sideBar->setModel(m_sideModel);
     m_sideBar->setHeaderHidden(true);
@@ -95,14 +151,19 @@ void MainWindow::initUI() {
     m_sideBar->setIndentation(12);
     m_sideBar->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_sideBar->setStyleSheet(
-        "QTreeView { background-color: #252526; border: none; color: #CCC; outline: none; }"
+        "QTreeView { background-color: transparent; border: none; color: #CCC; outline: none; }"
         "QTreeView::branch { image: none; border: none; width: 0px; }"
-        "QTreeView::branch:has-children:closed, QTreeView::branch:has-children:open, "
-        "QTreeView::branch:has-siblings:has-children:closed, QTreeView::branch:has-siblings:has-children:open { image: none; width: 0px; }"
         "QTreeView::item { height: 22px; padding-left: 10px; }"
     );
     m_sideBar->expandAll();
     m_sideBar->setContextMenuPolicy(Qt::CustomContextMenu);
+    
+    sbContentLayout->addWidget(m_sideBar);
+    sidebarContainerLayout->addWidget(sbContent);
+
+    // 直接放入 Splitter (移除 Wrapper)
+    splitter->addWidget(sidebarContainer);
+
     connect(m_sideBar, &QTreeView::customContextMenuRequested, this, [this](const QPoint& pos){
         QModelIndex index = m_sideBar->indexAt(pos);
         QMenu menu(this);
@@ -198,15 +259,15 @@ void MainWindow::initUI() {
     });
     connect(m_sideBar, &QTreeView::clicked, this, &MainWindow::onTagSelected);
     
-    // 连接拖拽信号
+    // 连接拖拽信号 (使用 Model 定义的枚举)
     connect(m_sideBar, &DropTreeView::notesDropped, this, [this](const QList<int>& ids, const QModelIndex& targetIndex){
         if (!targetIndex.isValid()) return;
-        QString type = targetIndex.data(Qt::UserRole).toString();
+        QString type = targetIndex.data(CategoryModel::TypeRole).toString();
         for (int id : ids) {
             if (type == "category") {
-                int catId = targetIndex.data(Qt::UserRole + 1).toInt();
+                int catId = targetIndex.data(CategoryModel::IdRole).toInt();
                 DatabaseManager::instance().updateNoteState(id, "category_id", catId);
-            } else if (type == "bookmark") {
+            } else if (targetIndex.data().toString() == "收藏" || type == "bookmark") { 
                 DatabaseManager::instance().updateNoteState(id, "is_favorite", 1);
             } else if (type == "trash") {
                 DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
@@ -216,21 +277,72 @@ void MainWindow::initUI() {
         }
         refreshData();
     });
-    splitter->addWidget(m_sideBar);
 
-    // 3. 中间列表
-    m_noteList = new QListView();
-    m_noteList->setMinimumWidth(268); // 设置最小宽度为268px
-    m_noteList->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // 隐藏垂直滚动条
-    m_noteList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // 隐藏水平滚动条
+    // 3. 中间列表卡片容器
+    // 3. 中间列表卡片容器 (归一化样式)
+    auto* listContainer = new QWidget();
+    listContainer->setMinimumWidth(230);
+    listContainer->setObjectName("ListContainer");
+    listContainer->setStyleSheet(
+        "#ListContainer {"
+        "  background-color: #1e1e1e;"
+        "  border: 1px solid #333333;"
+        "  border-radius: 12px;"
+        "}"
+    );
+
+    auto* listShadow = new QGraphicsDropShadowEffect(listContainer);
+    listShadow->setBlurRadius(10);
+    listShadow->setXOffset(0);
+    listShadow->setYOffset(4);
+    listShadow->setColor(QColor(0, 0, 0, 150));
+    listContainer->setGraphicsEffect(listShadow);
+
+    auto* listContainerLayout = new QVBoxLayout(listContainer);
+    listContainerLayout->setContentsMargins(0, 0, 0, 0); 
+    listContainerLayout->setSpacing(0);
+
+    // 列表标题栏 (锁定 32px, 统一配色与分割线)
+    auto* listHeader = new QWidget();
+    listHeader->setFixedHeight(32);
+    listHeader->setStyleSheet(
+        "background-color: #252526; "
+        "border-top-left-radius: 12px; "
+        "border-top-right-radius: 12px; "
+        "border-bottom: 1px solid #333;" 
+    );
+    auto* listHeaderLayout = new QHBoxLayout(listHeader);
+    listHeaderLayout->setContentsMargins(15, 0, 15, 0); 
+    auto* listIcon = new QLabel();
+    listIcon->setPixmap(IconHelper::getIcon("list_ul", "#2ecc71").pixmap(18, 18));
+    listHeaderLayout->addWidget(listIcon);
+    auto* listHeaderTitle = new QLabel("笔记列表");
+    listHeaderTitle->setStyleSheet("color: #2ecc71; font-size: 13px; font-weight: bold; background: transparent; border: none;");
+    listHeaderLayout->addWidget(listHeaderTitle);
+    listHeaderLayout->addStretch();
+    listContainerLayout->addWidget(listHeader);
+
+    // 内容容器
+    auto* listContent = new QWidget();
+    auto* listContentLayout = new QVBoxLayout(listContent);
+    listContentLayout->setContentsMargins(8, 8, 8, 8);
+    // ... 其余逻辑保持不变 ...
+
+    m_noteList = new CleanListView();
+    m_noteList->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_noteList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_noteModel = new NoteModel(this);
     m_noteList->setModel(m_noteModel);
     m_noteList->setItemDelegate(new NoteDelegate(m_noteList));
     m_noteList->setContextMenuPolicy(Qt::CustomContextMenu);
     m_noteList->setSelectionMode(QAbstractItemView::ExtendedSelection);
     connect(m_noteList, &QListView::customContextMenuRequested, this, &MainWindow::showContextMenu);
-    m_noteList->setSpacing(2);
-    m_noteList->setStyleSheet("background: #1E1E1E; border: none;");
+    m_noteList->setSpacing(5);
+    m_noteList->setStyleSheet("QListView { background: transparent; border: none; padding: 5px; }");
+    
+    // 基础拖拽使能 (其余复杂逻辑已由 CleanListView 实现)
+    m_noteList->setDragEnabled(true);
+
     connect(m_noteList->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::onSelectionChanged);
     connect(m_noteList, &QListView::doubleClicked, this, [this](const QModelIndex& index){
         if (!index.isValid()) return;
@@ -239,23 +351,104 @@ void MainWindow::initUI() {
         connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
         win->show();
     });
-    splitter->addWidget(m_noteList);
+
+    listContentLayout->addWidget(m_noteList);
+    listContainerLayout->addWidget(listContent);
+    splitter->addWidget(listContainer);
     
-    // 4. 右侧内容容器 (编辑器 + 元数据)
-    // 为了实现“固定”感，这里不再使用嵌套 Splitter，而是使用 QHBoxLayout
+    // 4. 右侧内容组合 (水平对齐编辑器与元数据)
     QWidget* rightContainer = new QWidget();
     QHBoxLayout* rightLayout = new QHBoxLayout(rightContainer);
     rightLayout->setContentsMargins(0, 0, 0, 0);
-    rightLayout->setSpacing(0);
+    rightLayout->setSpacing(5); 
+
+    // 4.1 编辑器容器 (Card)
+    auto* editorContainer = new QWidget();
+    editorContainer->setObjectName("EditorContainer");
+    editorContainer->setStyleSheet(
+        "#EditorContainer {"
+        "  background-color: #1e1e1e;"
+        "  border: 1px solid #333333;"
+        "  border-radius: 12px;"
+        "}"
+    );
+
+    auto* editorShadow = new QGraphicsDropShadowEffect(editorContainer);
+    editorShadow->setBlurRadius(10);
+    editorShadow->setXOffset(0);
+    editorShadow->setYOffset(4);
+    editorShadow->setColor(QColor(0, 0, 0, 150));
+    editorContainer->setGraphicsEffect(editorShadow);
+
+    auto* editorContainerLayout = new QVBoxLayout(editorContainer);
+    editorContainerLayout->setContentsMargins(0, 0, 0, 0);
+    editorContainerLayout->setSpacing(0);
+
+    // 编辑器标题栏 (全宽贯穿线)
+    auto* editorHeader = new QWidget();
+    editorHeader->setFixedHeight(32);
+    editorHeader->setStyleSheet(
+        "background-color: #252526; "
+        "border-top-left-radius: 12px; "
+        "border-top-right-radius: 12px; "
+        "border-bottom: 1px solid #333;"
+    );
+    auto* editorHeaderLayout = new QHBoxLayout(editorHeader);
+    editorHeaderLayout->setContentsMargins(15, 0, 15, 0);
+    auto* edIcon = new QLabel();
+    edIcon->setPixmap(IconHelper::getIcon("eye", "#e67e22").pixmap(18, 18));
+    editorHeaderLayout->addWidget(edIcon);
+    auto* edTitle = new QLabel("预览数据"); // 保护用户修改的标题内容
+    edTitle->setStyleSheet("color: #e67e22; font-size: 13px; font-weight: bold; background: transparent; border: none;");
+    editorHeaderLayout->addWidget(edTitle);
+    editorHeaderLayout->addStretch();
+
+    // 编辑锁定/解锁按钮
+    auto* editLockBtn = new QPushButton();
+    editLockBtn->setFixedSize(24, 24);
+    editLockBtn->setCursor(Qt::PointingHandCursor);
+    editLockBtn->setCheckable(true);
+    editLockBtn->setToolTip("点击进入编辑模式");
+    editLockBtn->setIcon(IconHelper::getIcon("edit", "#888888")); 
+    editLockBtn->setStyleSheet(
+        "QPushButton { background: transparent; border: none; border-radius: 4px; }"
+        "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }"
+        "QPushButton:checked { background-color: rgba(74, 144, 226, 0.2); }"
+    );
+    editorHeaderLayout->addWidget(editLockBtn);
+    
+    editorContainerLayout->addWidget(editorHeader);
+
+    // 内容容器
+    auto* editorContent = new QWidget();
+    auto* editorContentLayout = new QVBoxLayout(editorContent);
+    editorContentLayout->setContentsMargins(2, 2, 2, 2); // 编辑器保留微量对齐边距
 
     m_editor = new Editor();
     m_editor->togglePreview(false);
-    rightLayout->addWidget(m_editor, 4); // 编辑器占 4 份
+    m_editor->setReadOnly(true); // 默认不可编辑
+
+    connect(editLockBtn, &QPushButton::toggled, this, [this, editLockBtn](bool checked){
+        m_editor->setReadOnly(!checked);
+        if (checked) {
+            editLockBtn->setIcon(IconHelper::getIcon("eye", "#4a90e2"));
+            editLockBtn->setToolTip("当前：编辑模式 (点击切回预览)");
+        } else {
+            editLockBtn->setIcon(IconHelper::getIcon("edit", "#888888"));
+            editLockBtn->setToolTip("当前：锁定模式 (点击解锁编辑)");
+        }
+    });
+    
+    editorContentLayout->addWidget(m_editor);
+    editorContainerLayout->addWidget(editorContent);
+    rightLayout->addWidget(editorContainer, 4); 
 
     m_metaPanel = new MetadataPanel(this);
-    m_metaPanel->setFixedWidth(240); // 元数据面板强制固定宽度
-    m_metaPanel->setVisible(true); // 默认显示
+    m_metaPanel->setVisible(true);
     connect(m_metaPanel, &MetadataPanel::noteUpdated, this, &MainWindow::refreshData);
+    connect(m_metaPanel, &MetadataPanel::closed, this, [this](){
+        m_header->setMetadataActive(false);
+    });
     connect(m_metaPanel, &MetadataPanel::tagAdded, this, [this](const QStringList& tags){
         QModelIndexList indices = m_noteList->selectionModel()->selectedIndexes();
         if (indices.isEmpty()) return;
@@ -268,6 +461,42 @@ void MainWindow::initUI() {
     rightLayout->addWidget(m_metaPanel, 1);
 
     splitter->addWidget(rightContainer);
+
+    // 4. 高级筛选器卡片容器 (最小 230px)
+    m_filterWrapper = new QWidget();
+    m_filterWrapper->setMinimumWidth(230);
+    auto* filterWrapperLayout = new QVBoxLayout(m_filterWrapper);
+    filterWrapperLayout->setContentsMargins(0, 0, 0, 0); 
+
+    auto* filterContainer = new QWidget();
+    filterContainer->setObjectName("FilterContainer");
+    filterContainer->setStyleSheet(
+        "#FilterContainer {"
+        "  background-color: #1e1e1e;"
+        "  border: 1px solid #333333;"
+        "  border-radius: 12px;"
+        "}"
+    );
+
+    auto* filterShadow = new QGraphicsDropShadowEffect(filterContainer);
+    filterShadow->setBlurRadius(10);
+    filterShadow->setXOffset(0);
+    filterShadow->setYOffset(4);
+    filterShadow->setColor(QColor(0, 0, 0, 150));
+    filterContainer->setGraphicsEffect(filterShadow);
+
+    auto* fLayout = new QVBoxLayout(filterContainer);
+    fLayout->setContentsMargins(0, 0, 0, 0); // 关键：设为 0 以允许内部 FilterPanel 的标题分割线触边
+
+    m_filterPanel = new FilterPanel(this);
+    connect(m_filterPanel, &FilterPanel::filterChanged, this, &MainWindow::refreshData);
+    fLayout->addWidget(m_filterPanel);
+
+    // 直接放入 Splitter (移除 Wrapper)
+    m_filterWrapper = filterContainer;
+    m_filterWrapper->setMinimumWidth(230);
+    m_filterWrapper->setVisible(false);
+    splitter->addWidget(m_filterWrapper);
 
     // 快捷键注册
     auto* actionFilter = new QAction(this);
@@ -294,11 +523,13 @@ void MainWindow::initUI() {
     splitter->setStretchFactor(0, 1); // 侧边栏
     splitter->setStretchFactor(1, 2); // 笔记列表
     splitter->setStretchFactor(2, 8); // 内容区
+    splitter->setStretchFactor(3, 0); // 筛选器
     
     // 显式设置初始大小比例
-    splitter->setSizes({220, 300, 800});
+    splitter->setSizes({220, 300, 800, 280});
 
-    mainLayout->addWidget(splitter);
+    contentLayout->addWidget(splitter);
+    mainLayout->addWidget(contentWidget);
 
     m_quickPreview = new QuickPreview(this);
     connect(m_quickPreview, &QuickPreview::editRequested, this, [this](int id){
@@ -306,9 +537,6 @@ void MainWindow::initUI() {
         connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
         win->show();
     });
-
-    m_filterPanel = new FilterPanel(this);
-    connect(m_filterPanel, &FilterPanel::criteriaChanged, this, &MainWindow::refreshData);
 
     m_noteList->installEventFilter(this);
     
@@ -377,7 +605,39 @@ void MainWindow::refreshData() {
                 }
                 if (!tagMatch) match = false;
             }
-            // 可以继续添加日期过滤
+            
+            if (match && criteria.contains("date_create")) {
+                bool dateMatch = false;
+                QDateTime now = QDateTime::currentDateTime();
+                QDateTime createdAt;
+                
+                QVariant cv = note["created_at"];
+                if (cv.typeId() == QMetaType::QDateTime) {
+                    createdAt = cv.toDateTime();
+                } else {
+                    createdAt = QDateTime::fromString(cv.toString(), Qt::ISODate);
+                    if (!createdAt.isValid()) {
+                        createdAt = QDateTime::fromString(cv.toString(), "yyyy-MM-dd HH:mm:ss");
+                    }
+                }
+
+                if (createdAt.isValid()) {
+                    for (const QString& d_opt : criteria["date_create"].toStringList()) {
+                        if (d_opt == "today") {
+                            if (createdAt.date() == now.date()) dateMatch = true;
+                        } else if (d_opt == "yesterday") {
+                            if (createdAt.date() == now.date().addDays(-1)) dateMatch = true;
+                        } else if (d_opt == "this_week" || d_opt == "week") {
+                            if (createdAt.date() >= now.date().addDays(-6)) dateMatch = true;
+                        } else if (d_opt == "this_month" || d_opt == "month") {
+                            if (createdAt.date().year() == now.date().year() && createdAt.date().month() == now.date().month()) dateMatch = true;
+                        }
+                        if (dateMatch) break;
+                    }
+                    if (!dateMatch) match = false;
+                }
+            }
+
             if (match) filtered.append(note);
         }
         notes = filtered;
@@ -517,9 +777,18 @@ void MainWindow::showContextMenu(const QPoint& pos) {
 
     menu.addSeparator();
 
-    QAction* actDel = menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), "移至回收站");
+    QAction* actDel = menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), 
+                                    (m_currentFilterType == "trash") ? "彻底删除 (不可逆)" : "移至回收站");
     connect(actDel, &QAction::triggered, [this, id](){
-        DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
+        if (m_currentFilterType == "trash") {
+            if (QMessageBox::question(this, "确认彻底删除", "确定要永久从数据库中删除这条数据吗？此操作不可逆。") == QMessageBox::Yes) {
+                DatabaseManager::instance().deleteNote(id);
+                refreshData();
+            }
+        } else {
+            DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
+            refreshData();
+        }
     });
 
     menu.exec(QCursor::pos());

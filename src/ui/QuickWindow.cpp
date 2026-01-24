@@ -1294,7 +1294,7 @@ void QuickWindow::dropEvent(QDropEvent* event) {
     const QMimeData* mime = event->mimeData();
     int targetId = -1;
     if (m_currentFilterType == "category") {
-        targetId = m_currentFilterValue;
+        targetId = m_currentFilterValue.toInt();
     }
 
     QString itemType = "text";
