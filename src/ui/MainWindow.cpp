@@ -16,6 +16,7 @@
 #include <QColorDialog>
 #include <QSet>
 #include <QSettings>
+#include <QRandomGenerator>
 #include "FilterPanel.h"
 #include "CleanListView.h"
 #include <functional>
@@ -226,6 +227,16 @@ void MainWindow::initUI() {
                     DatabaseManager::instance().setCategoryColor(catId, color.name());
                     refreshData();
                 }
+            });
+            menu.addAction(IconHelper::getIcon("random_color", "#FF6B9D"), "随机颜色", [this, catId]() {
+                static const QStringList palette = {
+                    "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD",
+                    "#D4A5A5", "#9B59B6", "#3498DB", "#E67E22", "#2ECC71",
+                    "#E74C3C", "#F1C40F", "#1ABC9C", "#34495E", "#95A5A6"
+                };
+                QString chosenColor = palette.at(QRandomGenerator::global()->bounded(palette.size()));
+                DatabaseManager::instance().setCategoryColor(catId, chosenColor);
+                refreshData();
             });
             menu.addAction(IconHelper::getIcon("tag", "#FFAB91"), "设置预设标签", [this, catId]() {
                 QString currentTags = DatabaseManager::instance().getCategoryPresetTags(catId);
