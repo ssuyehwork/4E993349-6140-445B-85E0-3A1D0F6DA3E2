@@ -54,7 +54,7 @@ private:
 
     QString m_currentKeyword;
     QString m_currentFilterType = "all";
-    int m_currentFilterValue = -1;
+    QVariant m_currentFilterValue = -1;
     int m_currentPage = 1;
     int m_pageSize = 50;
 };

@@ -223,7 +223,7 @@ void FilterPanel::updateStats(const QString& keyword, const QString& type, const
         }
     }
 
-    QVariantMap stats = DatabaseManager::instance().getFilterStats(keyword, type, value.toInt());
+    QVariantMap stats = DatabaseManager::instance().getFilterStats(keyword, type, value);
 
     auto addStatsToRoot = [&](const QString& key, const QString& iconName, const QString& iconColor) {
         if (!m_roots.contains(key)) return;
