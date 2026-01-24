@@ -20,7 +20,14 @@ bool HotkeyManager::registerHotkey(int id, uint modifiers, uint vk) {
     if (RegisterHotKey(nullptr, id, modifiers, vk)) {
         return true;
     }
-    qWarning() << "注册热键失败:" << id;
+
+    QString keyDesc = QString("ID=%1").arg(id);
+    if (id == 1) keyDesc = "Alt+Space (快速窗口)";
+    else if (id == 2) keyDesc = "Ctrl+Shift+E (全局收藏)";
+    else if (id == 3) keyDesc = "Ctrl+Alt+A (全局截屏)";
+
+    qWarning().noquote() << QString("[HotkeyManager] 注册热键失败: %1 (错误代码: %2). 该快捷键可能已被系统或其他软件占用。")
+                            .arg(keyDesc).arg(GetLastError());
 #endif
     return false;
 }

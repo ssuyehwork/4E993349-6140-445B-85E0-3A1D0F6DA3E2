@@ -6,6 +6,7 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QFileInfo>
+#include <QBuffer>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include "core/DatabaseManager.h"
@@ -16,6 +17,7 @@
 #include "ui/QuickWindow.h"
 #include "ui/SystemTray.h"
 #include "ui/Toolbox.h"
+#include "ui/ScreenshotTool.h"
 #include "core/KeyboardHook.h"
 
 int main(int argc, char *argv[]) {
@@ -109,6 +111,8 @@ int main(int argc, char *argv[]) {
     HotkeyManager::instance().registerHotkey(1, 0x0001, 0x20);
     // Ctrl+Shift+E (0x0002 = MOD_CONTROL, 0x0004 = MOD_SHIFT, 0x45 = 'E')
     HotkeyManager::instance().registerHotkey(2, 0x0002 | 0x0004, 0x45);
+    // Ctrl+Alt+A (0x0002 = MOD_CONTROL, 0x0001 = MOD_ALT, 0x41 = 'A')
+    HotkeyManager::instance().registerHotkey(3, 0x0002 | 0x0001, 0x41);
     
     QObject::connect(&HotkeyManager::instance(), &HotkeyManager::hotkeyPressed, [&](int id){
         if (id == 1) {
@@ -121,6 +125,20 @@ int main(int argc, char *argv[]) {
                 DatabaseManager::instance().updateNoteState(lastId, "is_favorite", 1);
                 qDebug() << "[Main] 已收藏最新灵感 ID:" << lastId;
             }
+        } else if (id == 3) {
+            // 截屏功能
+            auto* tool = new ScreenshotTool();
+            tool->setAttribute(Qt::WA_DeleteOnClose);
+            QObject::connect(tool, &ScreenshotTool::screenshotCaptured, [=](const QImage& img){
+                QByteArray ba;
+                QBuffer buffer(&ba);
+                buffer.open(QIODevice::WriteOnly);
+                img.save(&buffer, "PNG");
+
+                QString title = "[截屏] " + QDateTime::currentDateTime().toString("MMdd_HHmm");
+                DatabaseManager::instance().addNoteAsync(title, "[Image Data]", QStringList() << "截屏", "", -1, "image", ba);
+            });
+            tool->show();
         }
     });
 

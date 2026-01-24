@@ -18,6 +18,10 @@
 #include <QSet>
 #include <QSettings>
 #include <QRandomGenerator>
+#include <QLineEdit>
+#include <QTextEdit>
+#include <QApplication>
+#include <QPlainTextEdit>
 #include "CleanListView.h"
 #include "FramelessDialog.h"
 #include <functional>
@@ -988,7 +992,9 @@ void MainWindow::restoreLayout() {
 void MainWindow::doPreview() {
     // 保护：如果焦点在输入框，空格键应保留其原始打字功能
     QWidget* focusWidget = QApplication::focusWidget();
-    if (focusWidget && (qobject_cast<QLineEdit*>(focusWidget) || qobject_cast<QTextEdit*>(focusWidget))) {
+    if (focusWidget && (qobject_cast<QLineEdit*>(focusWidget) ||
+                        qobject_cast<QTextEdit*>(focusWidget) ||
+                        qobject_cast<QPlainTextEdit*>(focusWidget))) {
         // 允许空格键在输入框中输入
         return;
     }
