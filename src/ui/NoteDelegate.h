@@ -36,7 +36,11 @@ public:
         QRect rect = option.rect.adjusted(0, 0, 0, -4); // 仅保留底部间隔视觉
         bool isSelected = (option.state & QStyle::State_Selected);
         
-        QColor bgColor = isSelected ? QColor("#323233") : QColor("#1a1a1b"); // 修正非选中状态下的深灰色调
+        // 获取笔记自身的颜色标记作为背景
+        QString colorHex = index.data(NoteModel::ColorRole).toString();
+        QColor noteColor = colorHex.isEmpty() ? QColor("#1a1a1b") : QColor(colorHex);
+
+        QColor bgColor = isSelected ? noteColor.lighter(115) : noteColor;
         QColor borderColor = isSelected ? QColor("#4a90e2") : QColor("#333333");
         
         // 绘制卡片背景

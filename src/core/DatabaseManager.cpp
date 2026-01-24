@@ -837,12 +837,58 @@ bool DatabaseManager::emptyTrash() {
 bool DatabaseManager::setCategoryPresetTags(int catId, const QString& tags) {
     QMutexLocker locker(&m_mutex);
     if (!m_db.isOpen()) return false;
+
+    m_db.transaction();
+
     QSqlQuery query(m_db);
     query.prepare("UPDATE categories SET preset_tags=:tags WHERE id=:id");
     query.bindValue(":tags", tags);
     query.bindValue(":id", catId);
-    bool ok = query.exec();
-    if (ok) emit categoriesChanged();
+
+    if (!query.exec()) {
+        m_db.rollback();
+        return false;
+    }
+
+    // 只要设定了预设标签，旧数据也必须绑定
+    if (!tags.isEmpty()) {
+        QStringList newTagsList = tags.split(",", Qt::SkipEmptyParts);
+
+        QSqlQuery fetchNotes(m_db);
+        fetchNotes.prepare("SELECT id, tags FROM notes WHERE category_id = :catId AND is_deleted = 0");
+        fetchNotes.bindValue(":catId", catId);
+
+        if (fetchNotes.exec()) {
+            while (fetchNotes.next()) {
+                int noteId = fetchNotes.value(0).toInt();
+                QString existingTagsStr = fetchNotes.value(1).toString();
+                QStringList existingTags = existingTagsStr.split(",", Qt::SkipEmptyParts);
+
+                bool changed = false;
+                for (const QString& t : newTagsList) {
+                    QString trimmed = t.trimmed();
+                    if (!trimmed.isEmpty() && !existingTags.contains(trimmed)) {
+                        existingTags.append(trimmed);
+                        changed = true;
+                    }
+                }
+
+                if (changed) {
+                    QSqlQuery updateNote(m_db);
+                    updateNote.prepare("UPDATE notes SET tags = :tags WHERE id = :id");
+                    updateNote.bindValue(":tags", existingTags.join(","));
+                    updateNote.bindValue(":id", noteId);
+                    updateNote.exec();
+                }
+            }
+        }
+    }
+
+    bool ok = m_db.commit();
+    if (ok) {
+        emit categoriesChanged();
+        emit noteUpdated();
+    }
     return ok;
 }
 

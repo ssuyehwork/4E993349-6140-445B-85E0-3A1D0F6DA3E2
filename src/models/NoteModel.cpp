@@ -188,6 +188,8 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             return note.value("rating");
         case CategoryIdRole:
             return note.value("category_id");
+        case ColorRole:
+            return note.value("color");
         case SourceAppRole:
             return note.value("source_app");
         case SourceTitleRole:
