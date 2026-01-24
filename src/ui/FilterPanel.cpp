@@ -248,7 +248,7 @@ void FilterPanel::updateStats(const QString& keyword, const QString& type, const
         QVariantMap starData = stats["stars"].toMap();
         for (int i = 5; i >= 1; --i) {
             int count = starData[QString::number(i)].toInt();
-            QString label = QString("").fill(0x2605, i); // Unicode star
+            QString label = QString(i, QChar(0x2605)); // Unicode star
             auto* item = new QTreeWidgetItem(root);
             item->setText(0, QString("%1 (%2)").arg(label).arg(count));
             item->setData(0, Qt::UserRole, QString::number(i));
