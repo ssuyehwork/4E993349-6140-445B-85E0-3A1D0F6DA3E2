@@ -34,6 +34,7 @@
 #include <QColorDialog>
 #include <QMessageBox>
 #include "FramelessDialog.h"
+#include "CategoryPasswordDialog.h"
 #include <QRandomGenerator>
 #include <QStyledItemDelegate>
 #include <QPainter>
@@ -169,6 +170,12 @@ void QuickWindow::initUI() {
     m_model = new NoteModel(this);
     m_listView->setModel(m_model);
     m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
+
+    m_lockWidget = new CategoryLockWidget(this);
+    m_lockWidget->setVisible(false);
+    connect(m_lockWidget, &CategoryLockWidget::unlocked, this, [this](){
+        refreshData();
+    });
     connect(m_listView, &QListView::customContextMenuRequested, this, &QuickWindow::showListContextMenu);
     connect(m_listView, &QListView::doubleClicked, this, [this](const QModelIndex& index){
         activateNote(index);
@@ -296,10 +303,12 @@ void QuickWindow::initUI() {
     // 主要是 showSidebarMenu 的实现...
 
     m_splitter->addWidget(m_listView);
+    m_splitter->addWidget(m_lockWidget);
     m_splitter->addWidget(sidebarContainer);
     m_splitter->setStretchFactor(0, 1);
-    m_splitter->setStretchFactor(1, 0);
-    m_splitter->setSizes({550, 150});
+    m_splitter->setStretchFactor(1, 1);
+    m_splitter->setStretchFactor(2, 0);
+    m_splitter->setSizes({550, 0, 150});
     leftLayout->addWidget(m_splitter);
 
     applyListTheme(""); // 【核心修复】初始化时即应用深色主题
@@ -530,6 +539,13 @@ void QuickWindow::setupShortcuts() {
     new QShortcut(QKeySequence("Ctrl+N"), this, [this](){ doNewIdea(); });
     new QShortcut(QKeySequence("Ctrl+A"), this, [this](){ m_listView->selectAll(); });
     new QShortcut(QKeySequence("Ctrl+T"), this, [this](){ doExtractContent(); });
+    new QShortcut(QKeySequence("Ctrl+Shift+L"), this, [this](){
+        if (m_currentFilterType == "category" && m_currentFilterValue != -1) {
+            DatabaseManager::instance().lockCategory(m_currentFilterValue.toInt());
+            refreshSidebar();
+            refreshData();
+        }
+    });
     
     // Alt+D Toggle Stay on Top
     new QShortcut(QKeySequence("Alt+D"), this, [this](){ 
@@ -566,7 +582,27 @@ void QuickWindow::refreshData() {
     if (m_currentPage > m_totalPages) m_currentPage = m_totalPages;
     if (m_currentPage < 1) m_currentPage = 1;
 
-    m_model->setNotes(DatabaseManager::instance().searchNotes(keyword, m_currentFilterType, m_currentFilterValue, m_currentPage, pageSize));
+    // 检查当前分类是否锁定
+    bool isLocked = false;
+    if (m_currentFilterType == "category" && m_currentFilterValue != -1) {
+        int catId = m_currentFilterValue.toInt();
+        if (DatabaseManager::instance().isCategoryLocked(catId)) {
+            isLocked = true;
+            QString hint;
+            auto cats = DatabaseManager::instance().getAllCategories();
+            for(const auto& c : cats) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
+            m_lockWidget->setCategory(catId, hint);
+        }
+    }
+
+    m_listView->setVisible(!isLocked);
+    m_lockWidget->setVisible(isLocked);
+
+    if (isLocked && m_quickPreview->isVisible()) {
+        m_quickPreview->hide();
+    }
+
+    m_model->setNotes(isLocked ? QList<QVariantMap>() : DatabaseManager::instance().searchNotes(keyword, m_currentFilterType, m_currentFilterValue, m_currentPage, pageSize));
     
     // 更新工具栏页码 (对齐新版 1:1 布局)
     auto* pageInput = findChild<QLineEdit*>("pageInput");
@@ -1160,6 +1196,48 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
             });
             dlg->show();
         });
+
+        menu.addSeparator();
+        auto* pwdMenu = menu.addMenu(IconHelper::getIcon("lock", "#aaaaaa"), "密码保护");
+        pwdMenu->setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item:selected { background-color: #3E3E42; }");
+
+        pwdMenu->addAction("设置", [this, catId]() {
+            auto* dlg = new CategoryPasswordDialog("设置密码", this);
+            connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
+                DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
+                refreshSidebar();
+            });
+            dlg->show();
+        });
+        pwdMenu->addAction("修改", [this, catId]() {
+            auto* dlg = new CategoryPasswordDialog("修改密码", this);
+            QString currentHint;
+            auto cats = DatabaseManager::instance().getAllCategories();
+            for(const auto& c : cats) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
+            dlg->setInitialData(currentHint);
+            connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
+                DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
+                refreshSidebar();
+            });
+            dlg->show();
+        });
+        pwdMenu->addAction("移除", [this, catId]() {
+            auto* dlg = new FramelessInputDialog("验证密码", "请输入当前密码以移除保护:", "", this);
+            connect(dlg, &FramelessInputDialog::accepted, [this, catId, dlg]() {
+                if (DatabaseManager::instance().verifyCategoryPassword(catId, dlg->text())) {
+                    DatabaseManager::instance().removeCategoryPassword(catId);
+                    refreshSidebar();
+                } else {
+                    QMessageBox::warning(this, "错误", "密码错误");
+                }
+            });
+            dlg->show();
+        });
+        pwdMenu->addAction("立即锁定", [this, catId]() {
+            DatabaseManager::instance().lockCategory(catId);
+            refreshSidebar();
+            refreshData();
+        })->setShortcut(QKeySequence("Ctrl+Shift+L"));
     } else if (type == "trash") {
         menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "全部恢复 (到未分类)", this, &QuickWindow::doRestoreTrash);
         menu.addSeparator();

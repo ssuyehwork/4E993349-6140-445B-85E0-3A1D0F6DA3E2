@@ -107,10 +107,16 @@ bool DatabaseManager::createTables() {
             parent_id INTEGER,
             color TEXT DEFAULT '#808080',
             sort_order INTEGER DEFAULT 0,
-            preset_tags TEXT
+            preset_tags TEXT,
+            password TEXT,
+            password_hint TEXT
         )
     )";
     query.exec(createCategoriesTable);
+
+    // 补全缺失列
+    query.exec("ALTER TABLE categories ADD COLUMN password TEXT");
+    query.exec("ALTER TABLE categories ADD COLUMN password_hint TEXT");
 
     // 3. 创建 tags 和关联表
     query.exec("CREATE TABLE IF NOT EXISTS tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL)");
@@ -292,6 +298,86 @@ bool DatabaseManager::updateNote(int id, const QString& title, const QString& co
 
     if (success) emit noteUpdated();
     return success;
+}
+
+bool DatabaseManager::setCategoryPassword(int id, const QString& password, const QString& hint) {
+    QMutexLocker locker(&m_mutex);
+    if (!m_db.isOpen()) return false;
+
+    QString hashedPassword = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
+
+    QSqlQuery query(m_db);
+    query.prepare("UPDATE categories SET password=:password, password_hint=:hint WHERE id=:id");
+    query.bindValue(":password", hashedPassword);
+    query.bindValue(":hint", hint);
+    query.bindValue(":id", id);
+    bool success = query.exec();
+    if (success) {
+        emit categoriesChanged();
+    }
+    return success;
+}
+
+bool DatabaseManager::removeCategoryPassword(int id) {
+    QMutexLocker locker(&m_mutex);
+    if (!m_db.isOpen()) return false;
+    QSqlQuery query(m_db);
+    query.prepare("UPDATE categories SET password=NULL, password_hint=NULL WHERE id=:id");
+    query.bindValue(":id", id);
+    bool success = query.exec();
+    if (success) {
+        m_unlockedCategories.remove(id);
+        emit categoriesChanged();
+    }
+    return success;
+}
+
+bool DatabaseManager::verifyCategoryPassword(int id, const QString& password) {
+    QMutexLocker locker(&m_mutex);
+    if (!m_db.isOpen()) return false;
+
+    QString hashedPassword = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
+
+    QSqlQuery query(m_db);
+    query.prepare("SELECT password FROM categories WHERE id=:id");
+    query.bindValue(":id", id);
+    if (query.exec() && query.next()) {
+        QString actualPwd = query.value(0).toString();
+        if (actualPwd == hashedPassword) {
+            m_unlockedCategories.insert(id);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool DatabaseManager::isCategoryLocked(int id) {
+    QMutexLocker locker(&m_mutex);
+    if (!m_db.isOpen()) return false;
+
+    // 如果已经在已解锁列表中，则未锁定
+    if (m_unlockedCategories.contains(id)) return false;
+
+    // 检查数据库中是否有密码
+    QSqlQuery query(m_db);
+    query.prepare("SELECT password FROM categories WHERE id=:id");
+    query.bindValue(":id", id);
+    if (query.exec() && query.next()) {
+        return !query.value(0).toString().isEmpty();
+    }
+    return false;
+}
+
+void DatabaseManager::lockCategory(int id) {
+    QMutexLocker locker(&m_mutex);
+    m_unlockedCategories.remove(id);
+    emit categoriesChanged();
+}
+
+void DatabaseManager::unlockCategory(int id) {
+    QMutexLocker locker(&m_mutex);
+    m_unlockedCategories.insert(id);
+    emit categoriesChanged();
 }
 
 bool DatabaseManager::restoreAllFromTrash() {

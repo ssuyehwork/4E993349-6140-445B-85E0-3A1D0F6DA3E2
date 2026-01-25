@@ -31,6 +31,10 @@ set(SOURCES
     src/ui/QuickPreview.h
     src/ui/HeaderBar.cpp
     src/ui/MetadataPanel.cpp
+    src/ui/CategoryPasswordDialog.h
+    src/ui/CategoryPasswordDialog.cpp
+    src/ui/CategoryLockWidget.h
+    src/ui/CategoryLockWidget.cpp
     src/ui/Toolbox.cpp
     src/ui/TimePasteWindow.cpp
     src/ui/PasswordGeneratorWindow.cpp
