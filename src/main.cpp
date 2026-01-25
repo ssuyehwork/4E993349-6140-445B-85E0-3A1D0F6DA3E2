@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QBuffer>
+#include <QTimer>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include "core/DatabaseManager.h"
@@ -30,6 +31,7 @@ int main(int argc, char *argv[]) {
     QApplication a(argc, argv);
     a.setApplicationName("RapidNotes");
     a.setOrganizationName("RapidDev");
+    a.setQuitOnLastWindowClosed(false); // 关键修复：防止登录对话框关闭后导致应用退出
 
     // 单实例运行保护
     QString serverName = "RapidNotes_SingleInstance_Server";
@@ -138,6 +140,10 @@ int main(int argc, char *argv[]) {
     QuickWindow* quickWin = new QuickWindow();
     quickWin->showCentered(); // 默认启动显示极速窗口
     
+    // 强制激活，确保在对话框结束后能拿到焦点
+    QTimer::singleShot(100, quickWin, &QuickWindow::raise);
+    QTimer::singleShot(200, quickWin, &QuickWindow::activateWindow);
+
     Toolbox* toolbox = new Toolbox();
     TimePasteWindow* timePasteWin = new TimePasteWindow();
     PasswordGeneratorWindow* passwordGenWin = new PasswordGeneratorWindow();
