@@ -18,6 +18,9 @@
 #include "ui/QuickWindow.h"
 #include "ui/SystemTray.h"
 #include "ui/Toolbox.h"
+#include "ui/TimePasteWindow.h"
+#include "ui/PasswordGeneratorWindow.h"
+#include "ui/OCRWindow.h"
 #include "ui/ScreenshotTool.h"
 #include "core/KeyboardHook.h"
 
@@ -66,32 +69,40 @@ int main(int argc, char *argv[]) {
     FloatingBall* ball = new FloatingBall();
     ball->show();
 
-    // 4. 初始化快速记录窗口与工具箱
+    // 4. 初始化快速记录窗口与工具箱及其功能子窗口
     QuickWindow* quickWin = new QuickWindow();
     quickWin->showCentered(); // 默认启动显示极速窗口
-    Toolbox* toolbox = new Toolbox();
 
-    auto toggleToolbox = [toolbox](QWidget* parentWin) {
-        if (toolbox->isVisible()) {
-            toolbox->hide();
+    Toolbox* toolbox = new Toolbox();
+    TimePasteWindow* timePasteWin = new TimePasteWindow();
+    PasswordGeneratorWindow* passwordGenWin = new PasswordGeneratorWindow();
+    OCRWindow* ocrWin = new OCRWindow();
+
+    auto toggleWindow = [](QWidget* win, QWidget* parentWin = nullptr) {
+        if (win->isVisible()) {
+            win->hide();
         } else {
             if (parentWin) {
-                // 如果是快速窗口唤起，停靠在左侧
                 if (parentWin->objectName() == "QuickWindow") {
-                    toolbox->move(parentWin->x() - toolbox->width() - 10, parentWin->y());
+                    win->move(parentWin->x() - win->width() - 10, parentWin->y());
                 } else {
-                    toolbox->move(parentWin->geometry().center() - toolbox->rect().center());
+                    win->move(parentWin->geometry().center() - win->rect().center());
                 }
             }
-            toolbox->show();
-            toolbox->raise();
-            toolbox->activateWindow();
+            win->show();
+            win->raise();
+            win->activateWindow();
         }
     };
 
     quickWin->setObjectName("QuickWindow");
-    QObject::connect(quickWin, &QuickWindow::toolboxRequested, [=](){ toggleToolbox(quickWin); });
-    QObject::connect(mainWin, &MainWindow::toolboxRequested, [=](){ toggleToolbox(mainWin); });
+    QObject::connect(quickWin, &QuickWindow::toolboxRequested, [=](){ toggleWindow(toolbox, quickWin); });
+    QObject::connect(mainWin, &MainWindow::toolboxRequested, [=](){ toggleWindow(toolbox, mainWin); });
+
+    // 连接工具箱按钮信号
+    QObject::connect(toolbox, &Toolbox::showTimePasteRequested, [=](){ toggleWindow(timePasteWin); });
+    QObject::connect(toolbox, &Toolbox::showPasswordGeneratorRequested, [=](){ toggleWindow(passwordGenWin); });
+    QObject::connect(toolbox, &Toolbox::showOCRRequested, [=](){ toggleWindow(ocrWin); });
 
     // 处理主窗口切换信号
     QObject::connect(quickWin, &QuickWindow::toggleMainWindowRequested, [=](){

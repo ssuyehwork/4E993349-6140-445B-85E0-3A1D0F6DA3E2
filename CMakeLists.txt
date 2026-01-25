@@ -32,6 +32,9 @@ set(SOURCES
     src/ui/HeaderBar.cpp
     src/ui/MetadataPanel.cpp
     src/ui/Toolbox.cpp
+    src/ui/TimePasteWindow.cpp
+    src/ui/PasswordGeneratorWindow.cpp
+    src/ui/OCRWindow.cpp
     src/ui/SystemTray.cpp
     src/ui/Editor.cpp
     src/ui/FlowLayout.cpp
