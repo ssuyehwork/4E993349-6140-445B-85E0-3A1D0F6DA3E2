@@ -55,53 +55,62 @@ int main(int argc, char *argv[]) {
         a.setStyleSheet(styleFile.readAll());
     }
 
-    // 1. 数据库解密逻辑
+    // 1. 数据库解密与隐藏逻辑
     QString appDir = QCoreApplication::applicationDirPath();
-    QString dbPath = appDir + "/notes.db";
+    QString oldDbPath = appDir + "/notes.db";
     QString encPath = appDir + "/notes.db.enc";
+    // 关键改变：解密库永远不放在程序目录下，而是系统临时目录的隐藏文件
+    QString dbPath = QDir::tempPath() + "/.rn_vault_cache.db";
     QString masterPassword;
 
-    // 崩溃恢复/安全清理：如果加密文件存在，说明明文文件不应长期驻留
-    if (QFile::exists(encPath) && QFile::exists(dbPath)) {
-        qDebug() << "[Main] 检测到残留明文数据库，正在执行安全清理...";
+    // 崩溃恢复：如果加密库存在，强制清理程序目录下的任何旧明文库
+    if (QFile::exists(encPath) && QFile::exists(oldDbPath)) {
+        FileCryptoHelper::secureDelete(oldDbPath);
+    }
+    // 清理临时目录残留
+    if (QFile::exists(dbPath)) {
         FileCryptoHelper::secureDelete(dbPath);
     }
 
     if (QFile::exists(encPath)) {
-        // 已加密，要求登录
+        // 已锁定状态
         DatabaseLockDialog dlg(DatabaseLockDialog::Login);
         if (dlg.exec() != QDialog::Accepted) return 0;
         masterPassword = dlg.password();
 
         if (!FileCryptoHelper::decryptFile(encPath, dbPath, masterPassword)) {
-            QMessageBox::critical(nullptr, "错误", "主密码错误或数据库损坏，无法解密。");
+            QMessageBox::critical(nullptr, "锁定", "主密码验证失败，无法解密数据库。");
             return -1;
         }
     } else {
-        // 首次运行或尚未加密
-        bool shouldEncrypt = true;
-        if (!QFile::exists(dbPath)) {
-            // 全新安装，询问是否启用加密
-            if (QMessageBox::question(nullptr, "安全提醒", "是否为数据库启用主密码加密？\n启用后，没有密码将无法读取任何数据。") == QMessageBox::No) {
-                shouldEncrypt = false;
+        // 未锁定状态（可能是新装或未开启加密）
+        bool wantEncrypt = true;
+        if (!QFile::exists(oldDbPath)) {
+            if (QMessageBox::question(nullptr, "安全提醒", "是否为数据库启用全量加密锁定？\n启用后，没有主密码将无法通过任何工具读取数据。") == QMessageBox::No) {
+                wantEncrypt = false;
             }
         }
 
-        if (shouldEncrypt) {
+        if (wantEncrypt) {
             DatabaseLockDialog dlg(DatabaseLockDialog::SetPassword);
             if (dlg.exec() == QDialog::Accepted) {
                 masterPassword = dlg.password();
-                if (QFile::exists(dbPath)) {
-                    if (FileCryptoHelper::encryptFile(dbPath, encPath, masterPassword)) {
-                        FileCryptoHelper::secureDelete(dbPath);
+                // 如果存在旧明文库，进行迁移
+                if (QFile::exists(oldDbPath)) {
+                    if (FileCryptoHelper::encryptFile(oldDbPath, encPath, masterPassword)) {
+                        FileCryptoHelper::secureDelete(oldDbPath);
                         FileCryptoHelper::decryptFile(encPath, dbPath, masterPassword);
                     }
+                } else {
+                    // 全新加密库创建
+                    dbPath = QDir::tempPath() + "/.rn_vault_cache.db";
                 }
-            } else if (!QFile::exists(dbPath)) {
-                // 全新安装拒绝设置密码，则不启动 (强制安全) 或 继续明文?
-                // 遵从用户“防止有人提取”的强烈意愿，建议强制设置
-                QMessageBox::warning(nullptr, "提示", "未设置主密码，数据库将以明文形式存储。");
+            } else {
+                dbPath = oldDbPath; // 拒绝加密，则回退到普通模式
+                if (!QFile::exists(dbPath)) QMessageBox::warning(nullptr, "提示", "未设置主密码，数据将以明文存储在程序目录下。");
             }
+        } else {
+            dbPath = oldDbPath;
         }
     }
 

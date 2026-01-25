@@ -158,6 +158,12 @@ void QuickWindow::initUI() {
     m_splitter->setHandleWidth(4);
     m_splitter->setChildrenCollapsible(false);
     
+    // --- 列表与锁定页容器 (解决 Splitter 伸缩问题) ---
+    auto* centerArea = new QWidget();
+    auto* centerLayout = new QVBoxLayout(centerArea);
+    centerLayout->setContentsMargins(0, 0, 0, 0);
+    centerLayout->setSpacing(0);
+
     m_listView = new DittoListView();
     m_listView->setDragEnabled(true);
     m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -170,9 +176,12 @@ void QuickWindow::initUI() {
     m_model = new NoteModel(this);
     m_listView->setModel(m_model);
     m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
+    centerLayout->addWidget(m_listView);
 
     m_lockWidget = new CategoryLockWidget(this);
     m_lockWidget->setVisible(false);
+    centerLayout->addWidget(m_lockWidget);
+
     connect(m_lockWidget, &CategoryLockWidget::unlocked, this, [this](){
         refreshData();
     });
@@ -302,13 +311,11 @@ void QuickWindow::initUI() {
     // (此处省略部分右键菜单代码以保持简洁，逻辑与原版保持一致)
     // 主要是 showSidebarMenu 的实现...
 
-    m_splitter->addWidget(m_listView);
-    m_splitter->addWidget(m_lockWidget);
+    m_splitter->addWidget(centerArea);
     m_splitter->addWidget(sidebarContainer);
     m_splitter->setStretchFactor(0, 1);
-    m_splitter->setStretchFactor(1, 1);
-    m_splitter->setStretchFactor(2, 0);
-    m_splitter->setSizes({550, 0, 150});
+    m_splitter->setStretchFactor(1, 0);
+    m_splitter->setSizes({650, 150});
     leftLayout->addWidget(m_splitter);
 
     applyListTheme(""); // 【核心修复】初始化时即应用深色主题

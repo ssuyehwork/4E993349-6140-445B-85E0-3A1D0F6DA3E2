@@ -26,20 +26,7 @@ bool DatabaseManager::init(const QString& dbPath) {
     QMutexLocker locker(&m_mutex);
     m_dbPath = dbPath;
     
-    // 自动备份
-    if (QFile::exists(dbPath)) {
-        QString backupDir = QCoreApplication::applicationDirPath() + "/backups";
-        QDir().mkpath(backupDir);
-        QString backupPath = backupDir + "/backup_" + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".db";
-        if (QFile::copy(dbPath, backupPath)) {
-            // 清理旧备份 (保留 20 份)
-            QDir dir(backupDir);
-            QFileInfoList list = dir.entryInfoList(QStringList() << "*.db", QDir::Files, QDir::Time);
-            while (list.size() > 20) {
-                QFile::remove(list.takeLast().absoluteFilePath());
-            }
-        }
-    }
+    // 自动备份逻辑已移除，防止明文泄密。加密环境下的备份应通过加密备份方案实现。
 
     if (m_db.isOpen()) m_db.close();
 
@@ -50,6 +37,11 @@ bool DatabaseManager::init(const QString& dbPath) {
         qCritical() << "无法打开数据库:" << m_db.lastError().text();
         return false;
     }
+
+    // 关键安全设置：使用内存日志模式，防止在磁盘产生明文日志文件
+    QSqlQuery q(m_db);
+    q.exec("PRAGMA journal_mode = MEMORY;");
+    q.exec("PRAGMA synchronous = OFF;");
 
     if (!createTables()) return false;
 
