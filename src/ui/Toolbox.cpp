@@ -1,6 +1,9 @@
 #include "Toolbox.h"
+#include "IconHelper.h"
 #include <QMouseEvent>
 #include <QGraphicsDropShadowEffect>
+#include <QHBoxLayout>
+#include <QLabel>
 
 Toolbox::Toolbox(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::Tool);
@@ -32,8 +35,42 @@ void Toolbox::initUI() {
     container->setGraphicsEffect(shadow);
 
     auto* contentLayout = new QVBoxLayout(container);
-    contentLayout->setContentsMargins(20, 20, 20, 20);
+    contentLayout->setContentsMargins(10, 5, 10, 20);
     contentLayout->setSpacing(15);
+
+    // Title Bar with Close and Pin buttons
+    auto* titleHeader = new QWidget();
+    titleHeader->setFixedHeight(40);
+    auto* titleLayout = new QHBoxLayout(titleHeader);
+    titleLayout->setContentsMargins(10, 0, 5, 0);
+    titleLayout->setSpacing(5);
+
+    auto* titleLabel = new QLabel("工具箱");
+    titleLabel->setStyleSheet("color: #888; font-size: 12px; font-weight: bold;");
+    titleLayout->addWidget(titleLabel);
+    titleLayout->addStretch();
+
+    auto* btnPin = new QPushButton();
+    btnPin->setObjectName("btnPin");
+    btnPin->setFixedSize(30, 30);
+    btnPin->setIconSize(QSize(20, 20));
+    btnPin->setCheckable(true);
+    btnPin->setIcon(IconHelper::getIcon("pin_tilted", "#888888"));
+    btnPin->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: #404040; border-radius: 5px; } QPushButton:checked { background: #0078d4; }");
+    btnPin->setToolTip("置顶");
+    connect(btnPin, &QPushButton::toggled, this, &Toolbox::toggleStayOnTop);
+    titleLayout->addWidget(btnPin);
+
+    auto* btnClose = new QPushButton();
+    btnClose->setFixedSize(30, 30);
+    btnClose->setIconSize(QSize(20, 20));
+    btnClose->setIcon(IconHelper::getIcon("close", "#888888"));
+    btnClose->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: #c42b1c; }");
+    btnClose->setToolTip("关闭");
+    connect(btnClose, &QPushButton::clicked, this, &Toolbox::hide);
+    titleLayout->addWidget(btnClose);
+
+    contentLayout->addWidget(titleHeader);
 
     auto* btnTime = createToolButton("时间输出");
     connect(btnTime, &QPushButton::clicked, this, &Toolbox::showTimePasteRequested);
@@ -58,16 +95,39 @@ QPushButton* Toolbox::createToolButton(const QString& text) {
     return btn;
 }
 
+void Toolbox::toggleStayOnTop(bool checked) {
+    m_isStayOnTop = checked;
+    Qt::WindowFlags flags = windowFlags();
+    if (checked) {
+        flags |= Qt::WindowStaysOnTopHint;
+    } else {
+        flags &= ~Qt::WindowStaysOnTopHint;
+    }
+    setWindowFlags(flags);
+
+    // 更新图标
+    if (auto* btnPin = findChild<QPushButton*>("btnPin")) {
+        btnPin->setIcon(IconHelper::getIcon(checked ? "pin_vertical" : "pin_tilted", checked ? "#ffffff" : "#888888"));
+    }
+
+    show(); // Important to show again after changing flags
+}
+
 void Toolbox::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::LeftButton && event->pos().y() <= 60) {
         m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
         event->accept();
     }
 }
 
 void Toolbox::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() & Qt::LeftButton) {
+    if (event->buttons() & Qt::LeftButton && !m_dragPos.isNull()) {
         move(event->globalPosition().toPoint() - m_dragPos);
         event->accept();
     }
+}
+
+void Toolbox::mouseReleaseEvent(QMouseEvent* event) {
+    Q_UNUSED(event);
+    m_dragPos = QPoint();
 }

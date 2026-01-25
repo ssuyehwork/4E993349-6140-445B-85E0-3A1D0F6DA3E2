@@ -50,15 +50,19 @@ void TimePasteWindow::initUI() {
     titleLayout->addWidget(titleLabel);
     titleLayout->addStretch();
 
-    auto* btnMin = new QPushButton("—");
+    auto* btnMin = new QPushButton();
+    btnMin->setIcon(IconHelper::getIcon("minimize", "#B0B0B0"));
     btnMin->setFixedSize(30, 25);
-    btnMin->setStyleSheet("QPushButton { background: transparent; color: #B0B0B0; border: none; font-size: 16px; font-weight: bold; } QPushButton:hover { background: #404040; color: #FFFFFF; border-radius: 3px; }");
+    btnMin->setIconSize(QSize(20, 20));
+    btnMin->setStyleSheet("QPushButton { background: transparent; border: none; } QPushButton:hover { background: #404040; border-radius: 3px; }");
     connect(btnMin, &QPushButton::clicked, this, &TimePasteWindow::showMinimized);
     titleLayout->addWidget(btnMin);
 
-    auto* btnClose = new QPushButton("✕");
+    auto* btnClose = new QPushButton();
+    btnClose->setIcon(IconHelper::getIcon("close", "#B0B0B0"));
     btnClose->setFixedSize(30, 25);
-    btnClose->setStyleSheet("QPushButton { background: transparent; color: #B0B0B0; border: none; font-size: 16px; } QPushButton:hover { background: #E81123; color: #FFFFFF; border-radius: 3px; }");
+    btnClose->setIconSize(QSize(20, 20));
+    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; } QPushButton:hover { background: #E81123; border-radius: 3px; }");
     connect(btnClose, &QPushButton::clicked, this, &TimePasteWindow::hide);
     titleLayout->addWidget(btnClose);
 

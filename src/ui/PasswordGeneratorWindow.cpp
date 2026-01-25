@@ -1,4 +1,5 @@
 #include "PasswordGeneratorWindow.h"
+#include "IconHelper.h"
 #include <QMouseEvent>
 #include <QApplication>
 #include <QClipboard>
@@ -72,9 +73,11 @@ QWidget* PasswordGeneratorWindow::createTitleBar() {
     titleLabel->setStyleSheet("color: #555555; font-size: 12px; font-weight: bold;");
     layout->addWidget(titleLabel, 0, Qt::AlignLeft);
 
-    auto* closeBtn = new QPushButton("×");
+    auto* closeBtn = new QPushButton();
+    closeBtn->setIcon(IconHelper::getIcon("close", "#888888"));
     closeBtn->setFixedSize(30, 30);
-    closeBtn->setStyleSheet("QPushButton { color: #888888; font-size: 20px; border: none; background: transparent; } QPushButton:hover { background: #c42b1c; color: white; border-radius: 5px; }");
+    closeBtn->setIconSize(QSize(20, 20));
+    closeBtn->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: #c42b1c; border-radius: 5px; }");
     connect(closeBtn, &QPushButton::clicked, this, &PasswordGeneratorWindow::hide);
     layout->addWidget(closeBtn, 0, Qt::AlignRight);
 
@@ -242,15 +245,20 @@ QString PasswordGeneratorWindow::generateSecurePassword(int length, bool upper, 
 }
 
 void PasswordGeneratorWindow::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::LeftButton && event->pos().y() <= 45) {
         m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
         event->accept();
     }
 }
 
 void PasswordGeneratorWindow::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() & Qt::LeftButton) {
+    if (event->buttons() & Qt::LeftButton && !m_dragPos.isNull()) {
         move(event->globalPosition().toPoint() - m_dragPos);
         event->accept();
     }
+}
+
+void PasswordGeneratorWindow::mouseReleaseEvent(QMouseEvent* event) {
+    Q_UNUSED(event);
+    m_dragPos = QPoint();
 }

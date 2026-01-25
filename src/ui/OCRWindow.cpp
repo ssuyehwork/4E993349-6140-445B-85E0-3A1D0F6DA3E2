@@ -41,15 +41,18 @@ void OCRWindow::initUI() {
     titleHeader->addWidget(titleLabel);
     titleHeader->addStretch();
     
-    auto* closeBtn = new QPushButton("×");
+    auto* closeBtn = new QPushButton();
+    closeBtn->setIcon(IconHelper::getIcon("close", "#888888"));
     closeBtn->setFixedSize(30, 30);
-    closeBtn->setStyleSheet("QPushButton { color: #888888; font-size: 20px; border: none; background: transparent; } QPushButton:hover { background: #c42b1c; color: white; border-radius: 5px; }");
+    closeBtn->setIconSize(QSize(20, 20));
+    closeBtn->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: #c42b1c; border-radius: 5px; }");
     connect(closeBtn, &QPushButton::clicked, this, &OCRWindow::hide);
     titleHeader->addWidget(closeBtn);
     contentLayout->addLayout(titleHeader);
 
     auto* btnPaste = new QPushButton(" 从剪贴板识别图片");
     btnPaste->setIcon(IconHelper::getIcon("copy", "#ffffff"));
+    btnPaste->setIconSize(QSize(20, 20));
     btnPaste->setFixedHeight(40);
     btnPaste->setStyleSheet("QPushButton { background: #4a90e2; color: white; font-weight: bold; border-radius: 6px; } QPushButton:hover { background: #357abd; }");
     connect(btnPaste, &QPushButton::clicked, this, &OCRWindow::onPasteAndRecognize);
@@ -62,6 +65,7 @@ void OCRWindow::initUI() {
 
     auto* btnCopy = new QPushButton(" 复制结果");
     btnCopy->setIcon(IconHelper::getIcon("copy", "#ffffff"));
+    btnCopy->setIconSize(QSize(18, 18));
     btnCopy->setFixedHeight(32);
     btnCopy->setStyleSheet("QPushButton { background: #333; border: 1px solid #444; border-radius: 4px; color: #ddd; } QPushButton:hover { background: #3e3e42; }");
     connect(btnCopy, &QPushButton::clicked, this, &OCRWindow::onCopyResult);
@@ -96,15 +100,20 @@ void OCRWindow::onCopyResult() {
 }
 
 void OCRWindow::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::LeftButton && event->pos().y() <= 50) {
         m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
         event->accept();
     }
 }
 
 void OCRWindow::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() & Qt::LeftButton) {
+    if (event->buttons() & Qt::LeftButton && !m_dragPos.isNull()) {
         move(event->globalPosition().toPoint() - m_dragPos);
         event->accept();
     }
+}
+
+void OCRWindow::mouseReleaseEvent(QMouseEvent* event) {
+    Q_UNUSED(event);
+    m_dragPos = QPoint();
 }
