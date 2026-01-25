@@ -24,6 +24,7 @@
 #include <QPlainTextEdit>
 #include "CleanListView.h"
 #include "FramelessDialog.h"
+#include "CategoryPasswordDialog.h"
 #include <functional>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindowHint) {
@@ -312,6 +313,47 @@ void MainWindow::initUI() {
                 });
                 dlg->show();
             });
+
+            menu.addSeparator();
+            auto* pwdMenu = menu.addMenu(IconHelper::getIcon("lock", "#aaaaaa"), "密码保护");
+            pwdMenu->setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item:selected { background-color: #3E3E42; }");
+
+            pwdMenu->addAction("设置", [this, catId]() {
+                auto* dlg = new CategoryPasswordDialog("设置密码", this);
+                connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
+                    DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
+                    refreshData();
+                });
+                dlg->show();
+            });
+            pwdMenu->addAction("修改", [this, catId]() {
+                auto* dlg = new CategoryPasswordDialog("修改密码", this);
+                QString currentHint;
+                auto cats = DatabaseManager::instance().getAllCategories();
+                for(const auto& c : cats) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
+                dlg->setInitialData(currentHint);
+                connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
+                    DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
+                    refreshData();
+                });
+                dlg->show();
+            });
+            pwdMenu->addAction("移除", [this, catId]() {
+                auto* dlg = new FramelessInputDialog("验证密码", "请输入当前密码以移除保护:", "", this);
+                connect(dlg, &FramelessInputDialog::accepted, [this, catId, dlg]() {
+                    if (DatabaseManager::instance().verifyCategoryPassword(catId, dlg->text())) {
+                        DatabaseManager::instance().removeCategoryPassword(catId);
+                        refreshData();
+                    } else {
+                        QMessageBox::warning(this, "错误", "密码错误");
+                    }
+                });
+                dlg->show();
+            });
+            pwdMenu->addAction("立即锁定", [this, catId]() {
+                DatabaseManager::instance().lockCategory(catId);
+                refreshData();
+            })->setShortcut(QKeySequence("Ctrl+Shift+L"));
         } else if (type == "trash") {
             menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "全部恢复 (到未分类)", [this](){
                 DatabaseManager::instance().restoreAllFromTrash();
@@ -442,6 +484,14 @@ void MainWindow::initUI() {
     });
 
     listContentLayout->addWidget(m_noteList);
+
+    m_lockWidget = new CategoryLockWidget(this);
+    m_lockWidget->setVisible(false);
+    connect(m_lockWidget, &CategoryLockWidget::unlocked, this, [this](){
+        refreshData();
+    });
+    listContentLayout->addWidget(m_lockWidget);
+
     listContainerLayout->addWidget(listContent);
     splitter->addWidget(listContainer);
     
@@ -644,6 +694,16 @@ void MainWindow::initUI() {
     connect(actionRefresh, &QAction::triggered, this, &MainWindow::refreshData);
     addAction(actionRefresh);
 
+    auto* actionLockCat = new QAction(this);
+    actionLockCat->setShortcut(QKeySequence("Ctrl+Shift+L"));
+    connect(actionLockCat, &QAction::triggered, this, [this](){
+        if (m_currentFilterType == "category" && m_currentFilterValue != -1) {
+            DatabaseManager::instance().lockCategory(m_currentFilterValue.toInt());
+            refreshData();
+        }
+    });
+    addAction(actionLockCat);
+
     // 使用 QAction 统一绑定空格键，支持 Toggle 逻辑且优先级更高
     auto* actionSpace = new QAction(this);
     actionSpace->setShortcut(QKeySequence(Qt::Key_Space));
@@ -781,7 +841,28 @@ void MainWindow::refreshData() {
         totalCount = notes.size(); 
     }
 
-    m_noteModel->setNotes(notes);
+    // 检查当前分类是否锁定
+    bool isLocked = false;
+    if (m_currentFilterType == "category" && m_currentFilterValue != -1) {
+        int catId = m_currentFilterValue.toInt();
+        if (DatabaseManager::instance().isCategoryLocked(catId)) {
+            isLocked = true;
+            QString hint;
+            auto cats = DatabaseManager::instance().getAllCategories();
+            for(const auto& c : cats) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
+            m_lockWidget->setCategory(catId, hint);
+        }
+    }
+
+    m_noteList->setVisible(!isLocked);
+    m_lockWidget->setVisible(isLocked);
+
+    if (isLocked) {
+        m_editor->setPlainText("");
+        m_metaPanel->clearSelection();
+    }
+
+    m_noteModel->setNotes(isLocked ? QList<QVariantMap>() : notes);
     m_sideModel->refresh();
 
     int totalPages = (totalCount + m_pageSize - 1) / m_pageSize;

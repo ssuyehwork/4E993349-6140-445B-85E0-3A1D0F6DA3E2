@@ -16,6 +16,7 @@
 #include "QuickPreview.h"
 #include "QuickToolbar.h"
 #include "DropTreeView.h"
+#include "CategoryLockWidget.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -94,6 +95,7 @@ public:
     
     SearchLineEdit* m_searchEdit;
     QListView* m_listView;
+    CategoryLockWidget* m_lockWidget;
     NoteModel* m_model;
     QuickPreview* m_quickPreview;
     
