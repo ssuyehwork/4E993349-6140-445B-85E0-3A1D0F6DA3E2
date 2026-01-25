@@ -951,7 +951,7 @@ void MainWindow::onSelectionChanged(const QItemSelection& selected, const QItemS
     } else if (indices.size() == 1) {
         int id = indices.first().data(NoteModel::IdRole).toInt();
         QVariantMap note = DatabaseManager::instance().getNoteById(id);
-        m_editor->setPlainText(QString("# %1\n\n%2").arg(note["title"].toString(), note["content"].toString()));
+        m_editor->setNote(note);
         m_metaPanel->setNote(note);
     } else {
         m_metaPanel->setMultipleNotes(indices.size());

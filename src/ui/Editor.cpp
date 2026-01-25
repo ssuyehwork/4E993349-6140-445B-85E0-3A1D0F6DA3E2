@@ -150,7 +150,37 @@ Editor::Editor(QWidget* parent) : QWidget(parent) {
     layout->addWidget(m_stack);
 }
 
+void Editor::setNote(const QVariantMap& note) {
+    m_currentNote = note;
+    QString title = note["title"].toString();
+    QString content = note["content"].toString();
+    QString type = note["item_type"].toString();
+    QByteArray blob = note["data_blob"].toByteArray();
+
+    m_edit->clear();
+    QTextCursor cursor = m_edit->textCursor();
+
+    // 模拟 Markdown 标题格式 (由 Highlighter 进一步上色)
+    cursor.insertText("# " + title + "\n\n");
+
+    if (type == "image" && !blob.isEmpty()) {
+        QImage img;
+        img.loadFromData(blob);
+        if (!img.isNull()) {
+            // 限制编辑器内的预览宽度
+            if (img.width() > 550) {
+                img = img.scaledToWidth(550, Qt::SmoothTransformation);
+            }
+            cursor.insertImage(img);
+            cursor.insertText("\n\n");
+        }
+    }
+
+    cursor.insertText(content);
+}
+
 void Editor::setPlainText(const QString& text) {
+    m_currentNote.clear();
     m_edit->setPlainText(text);
 }
 
@@ -221,12 +251,28 @@ void Editor::togglePreview(bool preview) {
                        "pre { background-color: #252526; padding: 10px; border-radius: 5px; border: 1px solid #444; }"
                        "blockquote { border-left: 4px solid #569CD6; padding-left: 15px; color: #888; font-style: italic; background: #252526; margin: 10px 0; }"
                        "p { margin: 10px 0; }"
+                       "img { max-width: 100%; border-radius: 5px; border: 1px solid #333; margin: 10px 0; }"
                        "</style></head><body>";
+
+        // 如果是图片笔记，且 text 没有包含图片标记（目前逻辑下 text 是 H1 + content）
+        // 我们在预览模式下根据 m_currentNote 显式渲染
+        QString type = m_currentNote["item_type"].toString();
+        QByteArray blob = m_currentNote["data_blob"].toByteArray();
         
         QStringList lines = text.split("\n");
         bool inCodeBlock = false;
-        
-        for (QString line : lines) {
+        bool imageRendered = false;
+
+        for (const QString& line : std::as_const(lines)) {
+            // 如果这一行是标题且我们还没渲染过图片，对于图片笔记，我们可以在标题后插入图片
+            if (line.startsWith("# ") && type == "image" && !blob.isEmpty() && !imageRendered) {
+                html += "<h1>" + line.mid(2).toHtmlEscaped() + "</h1>";
+                html += "<div style='text-align: center;'><img src='data:image/png;base64," + QString(blob.toBase64()) + "'></div>";
+                html += "<hr style='border: 0; border-top: 1px solid #333;'>";
+                imageRendered = true;
+                continue;
+            }
+
             if (line.startsWith("```")) {
                 if (!inCodeBlock) { html += "<pre><code>"; inCodeBlock = true; }
                 else { html += "</code></pre>"; inCodeBlock = false; }
