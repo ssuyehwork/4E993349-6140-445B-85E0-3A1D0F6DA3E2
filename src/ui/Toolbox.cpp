@@ -6,8 +6,9 @@
 #include <QLabel>
 
 Toolbox::Toolbox(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::Tool);
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::Tool | Qt::WindowStaysOnTopHint);
     setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_StyledBackground);
     setWindowTitle("工具箱");
     setObjectName("ToolboxLauncher");
     resize(300, 400);
@@ -22,9 +23,9 @@ void Toolbox::initUI() {
     auto* rootLayout = new QVBoxLayout(this);
     rootLayout->setContentsMargins(15, 15, 15, 15);
 
-    auto* container = new QWidget();
+    auto* container = new QFrame();
     container->setObjectName("ToolboxContainer");
-    container->setStyleSheet("#ToolboxContainer { background-color: #2D2D2D; border-radius: 10px; border: 1px solid #444; }");
+    container->setStyleSheet("#ToolboxContainer { background-color: #2D2D2D; border-radius: 12px; border: 1px solid #444; }");
     rootLayout->addWidget(container);
 
     auto* shadow = new QGraphicsDropShadowEffect(this);
@@ -39,33 +40,43 @@ void Toolbox::initUI() {
     contentLayout->setSpacing(15);
 
     // Title Bar with Close and Pin buttons
-    auto* titleHeader = new QWidget();
+    auto* titleHeader = new QFrame();
+    titleHeader->setObjectName("ToolboxTitleBar");
     titleHeader->setFixedHeight(40);
+    titleHeader->setAttribute(Qt::WA_StyledBackground);
+    titleHeader->setStyleSheet("QFrame#ToolboxTitleBar { background: transparent; border: none; }");
     auto* titleLayout = new QHBoxLayout(titleHeader);
     titleLayout->setContentsMargins(10, 0, 5, 0);
-    titleLayout->setSpacing(5);
+    titleLayout->setSpacing(0);
 
     auto* titleLabel = new QLabel("工具箱");
-    titleLabel->setStyleSheet("color: #888; font-size: 12px; font-weight: bold;");
+    titleLabel->setStyleSheet("color: #888; font-size: 12px; font-weight: bold; background: transparent; border: none;");
     titleLayout->addWidget(titleLabel);
     titleLayout->addStretch();
 
     auto* btnPin = new QPushButton();
     btnPin->setObjectName("btnPin");
-    btnPin->setFixedSize(30, 30);
+    btnPin->setFixedSize(32, 32);
     btnPin->setIconSize(QSize(20, 20));
     btnPin->setCheckable(true);
-    btnPin->setIcon(IconHelper::getIcon("pin_tilted", "#888888"));
-    btnPin->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: #404040; border-radius: 5px; } QPushButton:checked { background: #0078d4; }");
+    btnPin->setChecked(true);
+    m_isStayOnTop = true;
+    btnPin->setIcon(IconHelper::getIcon("pin_vertical", "#ffffff"));
+    btnPin->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 5px; } "
+                          "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
+                          "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); } "
+                          "QPushButton:checked { background-color: #0078d4; }");
     btnPin->setToolTip("置顶");
     connect(btnPin, &QPushButton::toggled, this, &Toolbox::toggleStayOnTop);
     titleLayout->addWidget(btnPin);
 
     auto* btnClose = new QPushButton();
-    btnClose->setFixedSize(30, 30);
+    btnClose->setFixedSize(32, 32);
     btnClose->setIconSize(QSize(20, 20));
     btnClose->setIcon(IconHelper::getIcon("close", "#888888"));
-    btnClose->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: #c42b1c; }");
+    btnClose->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 5px; } "
+                            "QPushButton:hover { background-color: #e74c3c; } "
+                            "QPushButton:pressed { background-color: #c0392b; }");
     btnClose->setToolTip("关闭");
     connect(btnClose, &QPushButton::clicked, this, &Toolbox::hide);
     titleLayout->addWidget(btnClose);

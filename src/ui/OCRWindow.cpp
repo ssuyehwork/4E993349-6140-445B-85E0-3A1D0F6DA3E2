@@ -5,6 +5,7 @@
 #include <QClipboard>
 #include <QMimeData>
 #include <QMouseEvent>
+#include <QGraphicsDropShadowEffect>
 
 OCRWindow::OCRWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
@@ -22,13 +23,20 @@ OCRWindow::~OCRWindow() {
 
 void OCRWindow::initUI() {
     auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setContentsMargins(15, 15, 15, 15);
     mainLayout->setSpacing(0);
 
-    auto* container = new QWidget();
+    auto* container = new QFrame();
     container->setObjectName("OCRContainer");
     container->setStyleSheet("#OCRContainer { background-color: #1E1E1E; border-radius: 12px; border: 1px solid #333; }");
     mainLayout->addWidget(container);
+
+    auto* shadow = new QGraphicsDropShadowEffect(this);
+    shadow->setBlurRadius(25);
+    shadow->setXOffset(0);
+    shadow->setYOffset(4);
+    shadow->setColor(QColor(0, 0, 0, 120));
+    container->setGraphicsEffect(shadow);
 
     auto* contentLayout = new QVBoxLayout(container);
     contentLayout->setContentsMargins(20, 20, 20, 20);
@@ -43,9 +51,11 @@ void OCRWindow::initUI() {
     
     auto* closeBtn = new QPushButton();
     closeBtn->setIcon(IconHelper::getIcon("close", "#888888"));
-    closeBtn->setFixedSize(30, 30);
+    closeBtn->setFixedSize(32, 32);
     closeBtn->setIconSize(QSize(20, 20));
-    closeBtn->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: #c42b1c; border-radius: 5px; }");
+    closeBtn->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 5px; } "
+                            "QPushButton:hover { background-color: #e74c3c; } "
+                            "QPushButton:pressed { background-color: #c0392b; }");
     connect(closeBtn, &QPushButton::clicked, this, &OCRWindow::hide);
     titleHeader->addWidget(closeBtn);
     contentLayout->addLayout(titleHeader);

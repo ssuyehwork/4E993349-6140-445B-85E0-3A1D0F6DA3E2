@@ -6,6 +6,7 @@
 #include <QRandomGenerator>
 #include <QTimer>
 #include <QToolTip>
+#include <QGraphicsDropShadowEffect>
 
 PasswordGeneratorWindow::PasswordGeneratorWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
@@ -21,13 +22,20 @@ PasswordGeneratorWindow::~PasswordGeneratorWindow() {
 
 void PasswordGeneratorWindow::initUI() {
     auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setContentsMargins(15, 15, 15, 15);
     mainLayout->setSpacing(0);
 
-    auto* container = new QWidget();
+    auto* container = new QFrame();
     container->setObjectName("Container");
     container->setStyleSheet("#Container { background-color: #1E1E1E; border-radius: 16px; border: 2px solid #606060; }");
     mainLayout->addWidget(container);
+
+    auto* shadow = new QGraphicsDropShadowEffect(this);
+    shadow->setBlurRadius(25);
+    shadow->setXOffset(0);
+    shadow->setYOffset(4);
+    shadow->setColor(QColor(0, 0, 0, 120));
+    container->setGraphicsEffect(shadow);
 
     auto* contentLayout = new QVBoxLayout(container);
     contentLayout->setContentsMargins(0, 0, 0, 0);
@@ -75,9 +83,11 @@ QWidget* PasswordGeneratorWindow::createTitleBar() {
 
     auto* closeBtn = new QPushButton();
     closeBtn->setIcon(IconHelper::getIcon("close", "#888888"));
-    closeBtn->setFixedSize(30, 30);
+    closeBtn->setFixedSize(32, 32);
     closeBtn->setIconSize(QSize(20, 20));
-    closeBtn->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: #c42b1c; border-radius: 5px; }");
+    closeBtn->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 5px; } "
+                            "QPushButton:hover { background-color: #e74c3c; } "
+                            "QPushButton:pressed { background-color: #c0392b; }");
     connect(closeBtn, &QPushButton::clicked, this, &PasswordGeneratorWindow::hide);
     layout->addWidget(closeBtn, 0, Qt::AlignRight);
 

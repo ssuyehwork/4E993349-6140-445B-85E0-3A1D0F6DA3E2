@@ -17,7 +17,7 @@ TimePasteWindow::TimePasteWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
     setWindowTitle("时间输出工具");
-    setFixedSize(320, 270);
+    setFixedSize(350, 300); // 增加边距空间 (320+30, 270+30)
 
     initUI();
 
@@ -35,7 +35,7 @@ TimePasteWindow::~TimePasteWindow() {
 
 void TimePasteWindow::initUI() {
     auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setContentsMargins(15, 15, 15, 15);
     mainLayout->setSpacing(0);
 
     // 1. Title Bar
@@ -52,17 +52,21 @@ void TimePasteWindow::initUI() {
 
     auto* btnMin = new QPushButton();
     btnMin->setIcon(IconHelper::getIcon("minimize", "#B0B0B0"));
-    btnMin->setFixedSize(30, 25);
+    btnMin->setFixedSize(32, 32);
     btnMin->setIconSize(QSize(20, 20));
-    btnMin->setStyleSheet("QPushButton { background: transparent; border: none; } QPushButton:hover { background: #404040; border-radius: 3px; }");
+    btnMin->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 5px; } "
+                          "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
+                          "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); }");
     connect(btnMin, &QPushButton::clicked, this, &TimePasteWindow::showMinimized);
     titleLayout->addWidget(btnMin);
 
     auto* btnClose = new QPushButton();
     btnClose->setIcon(IconHelper::getIcon("close", "#B0B0B0"));
-    btnClose->setFixedSize(30, 25);
+    btnClose->setFixedSize(32, 32);
     btnClose->setIconSize(QSize(20, 20));
-    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; } QPushButton:hover { background: #E81123; border-radius: 3px; }");
+    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 5px; } "
+                            "QPushButton:hover { background-color: #e74c3c; } "
+                            "QPushButton:pressed { background-color: #c0392b; }");
     connect(btnClose, &QPushButton::clicked, this, &TimePasteWindow::hide);
     titleLayout->addWidget(btnClose);
 
@@ -205,8 +209,11 @@ void TimePasteWindow::paintEvent(QPaintEvent* event) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
+    // 绘制阴影（模拟效果，因为已经有了 margins，通常配合 QGraphicsDropShadowEffect 使用更佳，
+    // 但既然 Python 版是 paintEvent 绘制，我们在这里绘制主体）
+    QRectF bodyRect = QRectF(rect()).adjusted(15, 15, -15, -15);
     QPainterPath path;
-    path.addRoundedRect(rect(), 15, 15);
+    path.addRoundedRect(bodyRect, 15, 15);
 
     painter.fillPath(path, QColor(30, 30, 30, 250));
     painter.setPen(QColor(60, 60, 60));
