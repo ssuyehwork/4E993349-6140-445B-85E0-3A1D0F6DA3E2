@@ -35,6 +35,8 @@ protected:
 
 private:
     void switchSkin(const QString& name);
+    void drawBook(QPainter* p);
+    void drawPen(QPainter* p);
     void burstParticles();
     void startInertiaAnimation();
     void checkEdgeAdsorption();

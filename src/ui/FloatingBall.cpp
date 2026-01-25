@@ -17,8 +17,10 @@ FloatingBall::FloatingBall(QWidget* parent)
 {
     setAttribute(Qt::WA_TranslucentBackground);
     setAcceptDrops(true);
-    setFixedSize(60, 60);
+    setFixedSize(60, 80); // 调整尺寸以适应书籍长方形比例
     
+    switchSkin("mocha"); // 默认使用复刻外观
+
     // 初始化位置在屏幕右侧
     QScreen *screen = QGuiApplication::primaryScreen();
     if (screen) {
@@ -54,42 +56,82 @@ void FloatingBall::paintEvent(QPaintEvent* event) {
         painter.drawEllipse(p.pos, 3, 3);
     }
 
-    if (m_skinName == "open") {
-        // 绘制“摊开手稿”特别外观 (模仿 WritingAnimation 的书本)
+    if (m_skinName == "mocha" || m_skinName == "open" || m_skinName == "default") {
+        // 复刻 1:1 Python 版外观
+        float cx = width() / 2.0f;
+        float cy = height() / 2.0f;
+
+        // 绘制书籍
         painter.save();
-        painter.translate(rect().center());
-        painter.scale(0.5, 0.5);
+        painter.translate(cx, cy);
+        painter.scale(0.8, 0.8);
+        drawBook(&painter);
+        painter.restore();
 
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor("#f5f0e1"));
-        painter.drawRoundedRect(QRectF(-22, -32, 56, 76), 3, 3);
-
-        QLinearGradient grad(-28, -38, 28, 38);
-        grad.setColorAt(0, QColor("#5a3c32"));
-        grad.setColorAt(1, QColor("#321e19"));
-        painter.setBrush(grad);
-        painter.drawRoundedRect(QRectF(-28, -38, 56, 76), 3, 3);
-
-        painter.setBrush(QColor("#78141e"));
-        painter.drawRect(QRectF(13, -38, 8, 76));
+        // 绘制钢笔
+        painter.save();
+        painter.translate(cx, cy - 5);
+        painter.scale(0.8, 0.8);
+        painter.rotate(-45);
+        drawPen(&painter);
         painter.restore();
     } else {
-        // 2. 绘制阴影/外发光
+        // 兼容其他圆球皮肤
         painter.setBrush(QColor(0, 0, 0, 60));
         painter.setPen(Qt::NoPen);
         painter.drawEllipse(rect().adjusted(4, 4, -2, -2));
 
-        // 3. 绘制球体
         QLinearGradient gradient(0, 0, width(), height());
         gradient.setColorAt(0, m_color1);
         gradient.setColorAt(1, m_color2);
         painter.setBrush(gradient);
         painter.drawEllipse(rect().adjusted(6, 6, -6, -6));
 
-        // 绘制图标感
         painter.setPen(QPen(Qt::white, 2));
         painter.drawEllipse(rect().center(), 8, 8);
     }
+}
+
+void FloatingBall::drawBook(QPainter* p) {
+    p->setPen(Qt::NoPen);
+    // 纸张底层
+    p->setBrush(QColor("#f5f0e1"));
+    p->drawRoundedRect(QRectF(-22, -32, 56, 76), 3, 3);
+
+    // 封面
+    QLinearGradient grad(-28, -38, 28, 38);
+    grad.setColorAt(0, QColor("#5a3c32"));
+    grad.setColorAt(1, QColor("#321e19"));
+    p->setBrush(grad);
+    p->drawRoundedRect(QRectF(-28, -38, 56, 76), 3, 3);
+
+    // 红带子 (书脊装饰)
+    p->setBrush(QColor("#78141e"));
+    p->drawRect(QRectF(13, -38, 8, 76));
+}
+
+void FloatingBall::drawPen(QPainter* p) {
+    p->setPen(Qt::NoPen);
+    // 钢笔杆
+    QLinearGradient bodyGrad(-6, 0, 6, 0);
+    bodyGrad.setColorAt(0, QColor("#b43c46"));
+    bodyGrad.setColorAt(0.5, QColor("#8c141e"));
+    bodyGrad.setColorAt(1, QColor("#3c050a"));
+    p->setBrush(bodyGrad);
+    p->drawRoundedRect(QRectF(-6, -23, 12, 46), 5, 5);
+
+    // 钢笔尖
+    QPainterPath tipPath;
+    tipPath.moveTo(-3, 23);
+    tipPath.lineTo(3, 23);
+    tipPath.lineTo(0, 37);
+    tipPath.closeSubpath();
+    p->setBrush(QColor("#f0e6b4"));
+    p->drawPath(tipPath);
+
+    // 装饰线
+    p->setBrush(QColor("#d2c88c"));
+    p->drawRect(QRectF(-6, 19, 12, 4));
 }
 
 void FloatingBall::mousePressEvent(QMouseEvent* event) {
@@ -191,6 +233,7 @@ QIcon FloatingBall::generateBallIcon() {
     FloatingBall temp(nullptr);
     temp.setAttribute(Qt::WA_DontShowOnScreen);
     temp.m_particles.clear();
+    temp.switchSkin("mocha");
 
     QPixmap pixmap(temp.size());
     pixmap.fill(Qt::transparent);
