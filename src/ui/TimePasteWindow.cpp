@@ -6,6 +6,9 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QPushButton>
+#include <QPainter>
+#include <QPainterPath>
+#include <QThread>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -21,7 +24,7 @@ TimePasteWindow::TimePasteWindow(QWidget* parent) : QWidget(parent) {
 
     m_timer = new QTimer(this);
     connect(m_timer, &QTimer::timeout, this, &TimePasteWindow::updateDateTime);
-    m_timer->start(1000);
+    m_timer->start(100);
     updateDateTime();
 
     connect(&KeyboardHook::instance(), &KeyboardHook::digitPressed, this, &TimePasteWindow::onDigitPressed);
@@ -38,7 +41,7 @@ void TimePasteWindow::initUI() {
     // 1. Title Bar
     auto* titleBar = new QWidget();
     titleBar->setFixedHeight(35);
-    titleBar->setStyleSheet("background-color: #2D2D2D; border-top-left-radius: 10px; border-top-right-radius: 10px;");
+    titleBar->setStyleSheet("background-color: transparent;");
     auto* titleLayout = new QHBoxLayout(titleBar);
     titleLayout->setContentsMargins(15, 5, 10, 5);
 
@@ -63,7 +66,7 @@ void TimePasteWindow::initUI() {
 
     // 2. Content
     auto* content = new QWidget();
-    content->setStyleSheet("background-color: #2D2D2D; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;");
+    content->setStyleSheet("background-color: transparent;");
     auto* layout = new QVBoxLayout(content);
     layout->setContentsMargins(20, 10, 20, 20);
     layout->setSpacing(10);
@@ -112,7 +115,7 @@ QString TimePasteWindow::getRadioStyle() {
 
 void TimePasteWindow::updateDateTime() {
     QDateTime now = QDateTime::currentDateTime();
-    m_dateLabel->setText(now.toString("yyyy年MM月dd日"));
+    m_dateLabel->setText(now.toString("yyyy-MM-dd"));
     m_timeLabel->setText(now.toString("HH:mm:ss"));
 }
 
@@ -129,18 +132,44 @@ void TimePasteWindow::onDigitPressed(int digit) {
     QApplication::clipboard()->setText(timeStr);
     
 #ifdef Q_OS_WIN
+    // 模拟 Python 版的 50ms 延迟
+    QThread::msleep(50);
+
+    // 1. 显式释放所有 8 个修饰键 (L/R Ctrl, Shift, Alt, Win)
+    INPUT releaseInputs[8];
+    memset(releaseInputs, 0, sizeof(releaseInputs));
+    BYTE keys[] = { VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN };
+    for (int i = 0; i < 8; ++i) {
+        releaseInputs[i].type = INPUT_KEYBOARD;
+        releaseInputs[i].ki.wVk = keys[i];
+        releaseInputs[i].ki.dwFlags = KEYEVENTF_KEYUP;
+    }
+    SendInput(8, releaseInputs, sizeof(INPUT));
+
+    // 2. 发送 Ctrl + V (带扫描码以提高兼容性)
     INPUT inputs[4];
     memset(inputs, 0, sizeof(inputs));
 
+    // Ctrl 按下
     inputs[0].type = INPUT_KEYBOARD;
     inputs[0].ki.wVk = VK_LCONTROL;
+    inputs[0].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
+
+    // V 按下
     inputs[1].type = INPUT_KEYBOARD;
     inputs[1].ki.wVk = 'V';
+    inputs[1].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
+
+    // V 抬起
     inputs[2].type = INPUT_KEYBOARD;
     inputs[2].ki.wVk = 'V';
+    inputs[2].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
     inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+
+    // Ctrl 抬起
     inputs[3].type = INPUT_KEYBOARD;
     inputs[3].ki.wVk = VK_LCONTROL;
+    inputs[3].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
     inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
 
     SendInput(4, inputs, sizeof(INPUT));
@@ -148,17 +177,35 @@ void TimePasteWindow::onDigitPressed(int digit) {
 }
 
 void TimePasteWindow::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::LeftButton && event->pos().y() <= 35) {
         m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
         event->accept();
     }
 }
 
+void TimePasteWindow::mouseReleaseEvent(QMouseEvent* event) {
+    Q_UNUSED(event);
+    m_dragPos = QPoint();
+}
+
 void TimePasteWindow::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() & Qt::LeftButton) {
+    if (event->buttons() & Qt::LeftButton && !m_dragPos.isNull()) {
         move(event->globalPosition().toPoint() - m_dragPos);
         event->accept();
     }
+}
+
+void TimePasteWindow::paintEvent(QPaintEvent* event) {
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    QPainterPath path;
+    path.addRoundedRect(rect(), 15, 15);
+
+    painter.fillPath(path, QColor(30, 30, 30, 250));
+    painter.setPen(QColor(60, 60, 60));
+    painter.drawPath(path);
 }
 
 void TimePasteWindow::showEvent(QShowEvent* event) {
