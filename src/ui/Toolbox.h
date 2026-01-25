@@ -3,6 +3,7 @@
 
 #include <QDialog>
 #include <QTabWidget>
+#include <QTextEdit>
 
 class Toolbox : public QDialog {
     Q_OBJECT
