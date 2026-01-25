@@ -20,6 +20,9 @@
 #include <QRandomGenerator>
 #include <QLineEdit>
 #include <QTextEdit>
+#include <QToolTip>
+#include <QDateTime>
+#include <QGraphicsDropShadowEffect>
 #include <QApplication>
 #include <QPlainTextEdit>
 #include "CleanListView.h"
