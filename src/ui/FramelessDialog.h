@@ -40,6 +40,7 @@ public:
     explicit FramelessInputDialog(const QString& title, const QString& label, 
                                   const QString& initial = "", QWidget* parent = nullptr);
     QString text() const { return m_edit->text().trimmed(); }
+    void setEchoMode(QLineEdit::EchoMode mode) { m_edit->setEchoMode(mode); }
 
 protected:
     void showEvent(QShowEvent* event) override;
