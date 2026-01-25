@@ -10,10 +10,12 @@
 #include <QLocalServer>
 #include <QLocalSocket>
 #include "core/DatabaseManager.h"
+#include "core/FileCryptoHelper.h"
 #include "core/HotkeyManager.h"
 #include "core/ClipboardMonitor.h"
 #include "core/OCRManager.h"
 #include "ui/MainWindow.h"
+#include "ui/DatabaseLockDialog.h"
 #include "ui/FloatingBall.h"
 #include "ui/QuickWindow.h"
 #include "ui/SystemTray.h"
@@ -51,15 +53,78 @@ int main(int argc, char *argv[]) {
         a.setStyleSheet(styleFile.readAll());
     }
 
-    // 1. 初始化数据库
-    QString dbPath = QCoreApplication::applicationDirPath() + "/notes.db";
-    qDebug() << "[Main] 数据库路径:" << dbPath;
+    // 1. 数据库解密逻辑
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString dbPath = appDir + "/notes.db";
+    QString encPath = appDir + "/notes.db.enc";
+    QString masterPassword;
 
+    // 崩溃恢复/安全清理：如果加密文件存在，说明明文文件不应长期驻留
+    if (QFile::exists(encPath) && QFile::exists(dbPath)) {
+        qDebug() << "[Main] 检测到残留明文数据库，正在执行安全清理...";
+        FileCryptoHelper::secureDelete(dbPath);
+    }
+
+    if (QFile::exists(encPath)) {
+        // 已加密，要求登录
+        DatabaseLockDialog dlg(DatabaseLockDialog::Login);
+        if (dlg.exec() != QDialog::Accepted) return 0;
+        masterPassword = dlg.password();
+
+        if (!FileCryptoHelper::decryptFile(encPath, dbPath, masterPassword)) {
+            QMessageBox::critical(nullptr, "错误", "主密码错误或数据库损坏，无法解密。");
+            return -1;
+        }
+    } else {
+        // 首次运行或尚未加密
+        bool shouldEncrypt = true;
+        if (!QFile::exists(dbPath)) {
+            // 全新安装，询问是否启用加密
+            if (QMessageBox::question(nullptr, "安全提醒", "是否为数据库启用主密码加密？\n启用后，没有密码将无法读取任何数据。") == QMessageBox::No) {
+                shouldEncrypt = false;
+            }
+        }
+
+        if (shouldEncrypt) {
+            DatabaseLockDialog dlg(DatabaseLockDialog::SetPassword);
+            if (dlg.exec() == QDialog::Accepted) {
+                masterPassword = dlg.password();
+                if (QFile::exists(dbPath)) {
+                    if (FileCryptoHelper::encryptFile(dbPath, encPath, masterPassword)) {
+                        FileCryptoHelper::secureDelete(dbPath);
+                        FileCryptoHelper::decryptFile(encPath, dbPath, masterPassword);
+                    }
+                }
+            } else if (!QFile::exists(dbPath)) {
+                // 全新安装拒绝设置密码，则不启动 (强制安全) 或 继续明文?
+                // 遵从用户“防止有人提取”的强烈意愿，建议强制设置
+                QMessageBox::warning(nullptr, "提示", "未设置主密码，数据库将以明文形式存储。");
+            }
+        }
+    }
+
+    qDebug() << "[Main] 数据库路径:" << dbPath;
     if (!DatabaseManager::instance().init(dbPath)) {
         QMessageBox::critical(nullptr, "启动失败", 
             "无法初始化数据库！\n请检查是否有写入权限，或缺少 SQLite 驱动。");
+        FileCryptoHelper::secureDelete(dbPath);
         return -1;
     }
+
+    // 注册退出时的重加密逻辑
+    QObject::connect(&a, &QApplication::aboutToQuit, [&]() {
+        qDebug() << "[Main] 正在退出，执行数据库回密...";
+        DatabaseManager::instance().close();
+        if (!masterPassword.isEmpty()) {
+            if (FileCryptoHelper::encryptFile(dbPath, encPath, masterPassword)) {
+                FileCryptoHelper::secureDelete(dbPath);
+                qDebug() << "[Main] 数据库已安全锁定";
+            }
+        } else {
+            // 如果从未设置过主密码，直接删除明文临时文件（逻辑保护）
+            // FileCryptoHelper::secureDelete(dbPath);
+        }
+    });
 
     // 2. 初始化主界面
     MainWindow* mainWin = new MainWindow();

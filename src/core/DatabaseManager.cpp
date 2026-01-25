@@ -56,6 +56,17 @@ bool DatabaseManager::init(const QString& dbPath) {
     return true;
 }
 
+void DatabaseManager::close() {
+    QMutexLocker locker(&m_mutex);
+    if (m_db.isOpen()) {
+        m_db.close();
+    }
+    // 移除数据库连接，防止残留文件句柄
+    QString connectionName = m_db.connectionName();
+    m_db = QSqlDatabase();
+    QSqlDatabase::removeDatabase(connectionName);
+}
+
 bool DatabaseManager::createTables() {
     QSqlQuery query(m_db);
     

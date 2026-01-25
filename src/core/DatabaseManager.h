@@ -18,6 +18,7 @@ public:
     static DatabaseManager& instance();
 
     bool init(const QString& dbPath = "rapid_notes.db");
+    void close();
     
     // 核心 CRUD 操作
     bool addNote(const QString& title, const QString& content, const QStringList& tags = QStringList(), 
