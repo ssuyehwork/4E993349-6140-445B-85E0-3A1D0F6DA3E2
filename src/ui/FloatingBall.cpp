@@ -243,7 +243,17 @@ void FloatingBall::dropEvent(QDropEvent* event) {
     m_isHovering = false;
     QString text = event->mimeData()->text();
     if (!text.trimmed().isEmpty()) {
-        DatabaseManager::instance().addNoteAsync("拖拽投喂", text, {"投喂"}, "", -1, "text");
+        // 提取第一行作为标题
+        QString title;
+        QString firstLine = text.section('\n', 0, 0).trimmed();
+        if (firstLine.isEmpty()) {
+            title = "拖拽投喂";
+        } else {
+            title = firstLine.left(40);
+            if (firstLine.length() > 40) title += "...";
+        }
+
+        DatabaseManager::instance().addNoteAsync(title, text, {"投喂"}, "", -1, "text");
         burstParticles();
         m_isWriting = true;
         m_writeTimer = 0;
