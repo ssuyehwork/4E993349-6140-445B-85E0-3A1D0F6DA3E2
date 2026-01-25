@@ -344,7 +344,7 @@ bool DatabaseManager::verifyCategoryPassword(int id, const QString& password) {
     if (query.exec() && query.next()) {
         QString actualPwd = query.value(0).toString();
         if (actualPwd == hashedPassword) {
-            m_unlockedCategories.insert(id);
+            unlockCategory(id); // 使用统一解锁方法，确保发出 categoriesChanged 信号
             return true;
         }
     }

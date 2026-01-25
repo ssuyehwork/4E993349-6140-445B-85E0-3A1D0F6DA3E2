@@ -41,6 +41,9 @@ public:
                                   const QString& initial = "", QWidget* parent = nullptr);
     QString text() const { return m_edit->text().trimmed(); }
 
+protected:
+    void showEvent(QShowEvent* event) override;
+
 private:
     QLineEdit* m_edit;
 };

@@ -37,8 +37,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindo
     // 1. 增量更新：添加新笔记时不刷新全表
     connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, this, &MainWindow::onNoteAdded);
     
-    // 2. 全量刷新：修改、删除时才刷新全表
+    // 2. 全量刷新：修改、删除、分类变化（锁定状态）时才刷新全表
     connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, this, &MainWindow::refreshData);
+    connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, this, &MainWindow::refreshData);
 
     restoreLayout(); // 恢复布局
 }
@@ -223,6 +224,8 @@ void MainWindow::initUI() {
                     }
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             menu.exec(m_sideBar->mapToGlobal(pos));
             return;
@@ -270,6 +273,8 @@ void MainWindow::initUI() {
                     DatabaseManager::instance().setCategoryPresetTags(catId, dlg->text());
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             menu.addSeparator();
             menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分组", [this]() {
@@ -282,6 +287,8 @@ void MainWindow::initUI() {
                     }
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建子分区", [this, catId]() {
                 auto* dlg = new FramelessInputDialog("新建子分区", "区名称:", "", this);
@@ -293,6 +300,8 @@ void MainWindow::initUI() {
                     }
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名分类", [this, catId, currentName]() {
                 auto* dlg = new FramelessInputDialog("重命名分类", "新名称:", currentName, this);
@@ -304,6 +313,8 @@ void MainWindow::initUI() {
                     }
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "删除分类", [this, catId]() {
                 auto* dlg = new FramelessMessageBox("确认删除", "确定要删除此分类吗？内容将移至未分类。", this);
@@ -325,6 +336,8 @@ void MainWindow::initUI() {
                     refreshData();
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             pwdMenu->addAction("修改", [this, catId]() {
                 auto* dlg = new CategoryPasswordDialog("修改密码", this);
@@ -337,6 +350,8 @@ void MainWindow::initUI() {
                     refreshData();
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             pwdMenu->addAction("移除", [this, catId]() {
                 auto* dlg = new FramelessInputDialog("验证密码", "请输入当前密码以移除保护:", "", this);
@@ -704,12 +719,6 @@ void MainWindow::initUI() {
     });
     addAction(actionLockCat);
 
-    // 使用 QAction 统一绑定空格键，支持 Toggle 逻辑且优先级更高
-    auto* actionSpace = new QAction(this);
-    actionSpace->setShortcut(QKeySequence(Qt::Key_Space));
-    actionSpace->setShortcutContext(Qt::WindowShortcut);
-    connect(actionSpace, &QAction::triggered, this, &MainWindow::doPreview);
-    addAction(actionSpace);
 
     splitter->setStretchFactor(0, 1); 
     splitter->setStretchFactor(1, 2); 
@@ -930,6 +939,14 @@ void MainWindow::onSelectionChanged(const QItemSelection& selected, const QItemS
     } else {
         m_metaPanel->setMultipleNotes(indices.size());
     }
+}
+
+void MainWindow::keyPressEvent(QKeyEvent* event) {
+    if (event->key() == Qt::Key_Space) {
+        doPreview();
+        return;
+    }
+    QMainWindow::keyPressEvent(event);
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {

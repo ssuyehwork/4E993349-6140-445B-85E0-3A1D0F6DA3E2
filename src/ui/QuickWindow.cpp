@@ -563,13 +563,6 @@ void QuickWindow::setupShortcuts() {
         new QShortcut(QKeySequence(QString("Ctrl+%1").arg(i)), this, [this, i](){ doSetRating(i); });
     }
     
-    // 使用 QAction 绑定快捷键，确保在列表/侧边栏焦点下依然能全局触发
-    // 注意：这里使用 WindowShortcut 处理 Space，它会同时负责开启和关闭预览
-    QAction* spaceAction = new QAction(this);
-    spaceAction->setShortcut(QKeySequence(Qt::Key_Space));
-    spaceAction->setShortcutContext(Qt::WindowShortcut);
-    connect(spaceAction, &QAction::triggered, this, &QuickWindow::doPreview);
-    addAction(spaceAction);
 }
 
 void QuickWindow::refreshData() {
@@ -1165,6 +1158,8 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                 }
             });
             dlg->show();
+            dlg->activateWindow();
+            dlg->raise();
         });
         menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建子分区", [this, catId]() {
             auto* dlg = new FramelessInputDialog("新建子分区", "区名称:", "", this);
@@ -1176,6 +1171,8 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                 }
             });
             dlg->show();
+            dlg->activateWindow();
+            dlg->raise();
         });
         menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名", [this, catId, currentName]() {
             auto* dlg = new FramelessInputDialog("重命名", "新名称:", currentName, this);
@@ -1187,6 +1184,8 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                 }
             });
             dlg->show();
+            dlg->activateWindow();
+            dlg->raise();
         });
         menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "删除", [this, catId]() {
             auto* dlg = new FramelessMessageBox("确认删除", "确定要删除此分类吗？内容将移至未分类。", this);
@@ -1208,6 +1207,8 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                 refreshSidebar();
             });
             dlg->show();
+            dlg->activateWindow();
+            dlg->raise();
         });
         pwdMenu->addAction("修改", [this, catId]() {
             auto* dlg = new CategoryPasswordDialog("修改密码", this);
@@ -1220,6 +1221,8 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                 refreshSidebar();
             });
             dlg->show();
+            dlg->activateWindow();
+            dlg->raise();
         });
         pwdMenu->addAction("移除", [this, catId]() {
             auto* dlg = new FramelessInputDialog("验证密码", "请输入当前密码以移除保护:", "", this);
@@ -1454,6 +1457,10 @@ void QuickWindow::hideEvent(QHideEvent* event) {
 void QuickWindow::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_Escape) {
         hide();
+        return;
+    }
+    if (event->key() == Qt::Key_Space) {
+        doPreview();
         return;
     }
     QWidget::keyPressEvent(event);

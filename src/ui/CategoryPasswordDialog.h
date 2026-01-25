@@ -16,6 +16,9 @@ public:
     QString confirmPassword() const;
     QString passwordHint() const;
 
+protected:
+    void showEvent(QShowEvent* event) override;
+
 private:
     QLineEdit* m_pwdEdit;
     QLineEdit* m_confirmEdit;
