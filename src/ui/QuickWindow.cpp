@@ -83,7 +83,7 @@ public:
         // 4. 密码输入框
         m_pwdEdit = new QLineEdit();
         m_pwdEdit->setEchoMode(QLineEdit::Password);
-        m_pwdEdit->setPlaceholderText("Password");
+        m_pwdEdit->setPlaceholderText("请输入密码");
         m_pwdEdit->setFixedWidth(240);
         m_pwdEdit->setFixedHeight(36);
         m_pwdEdit->setAlignment(Qt::AlignCenter);
@@ -97,13 +97,17 @@ public:
         connect(m_pwdEdit, &QLineEdit::returnPressed, this, &AppLockWidget::handleVerify);
         layout->addWidget(m_pwdEdit, 0, Qt::AlignHCenter);
 
-        // 5. 退出程序按钮
-        auto* quitBtn = new QPushButton("退出程序");
-        quitBtn->setCursor(Qt::PointingHandCursor);
-        quitBtn->setStyleSheet("QPushButton { color: #888; border: none; background: transparent; font-size: 12px; } "
-                               "QPushButton:hover { color: #BBB; text-decoration: underline; }");
-        connect(quitBtn, &QPushButton::clicked, []() { QApplication::quit(); });
-        layout->addWidget(quitBtn, 0, Qt::AlignHCenter);
+        // 5. 右上角关闭按钮
+        m_closeBtn = new QPushButton(this);
+        m_closeBtn->setIcon(IconHelper::getIcon("close", "#aaaaaa"));
+        m_closeBtn->setIconSize(QSize(18, 18));
+        m_closeBtn->setFixedSize(32, 32);
+        m_closeBtn->setCursor(Qt::PointingHandCursor);
+        m_closeBtn->setStyleSheet(
+            "QPushButton { border: none; border-radius: 4px; background: transparent; } "
+            "QPushButton:hover { background-color: #E81123; }"
+        );
+        connect(m_closeBtn, &QPushButton::clicked, []() { QApplication::quit(); });
 
         // 初始焦点
         m_pwdEdit->setFocus();
@@ -115,6 +119,11 @@ protected:
             QApplication::quit();
         }
         QWidget::keyPressEvent(event);
+    }
+
+    void resizeEvent(QResizeEvent* event) override {
+        m_closeBtn->move(width() - m_closeBtn->width() - 10, 10);
+        QWidget::resizeEvent(event);
     }
 
 private slots:
@@ -164,6 +173,7 @@ signals:
 
 private:
     QLineEdit* m_pwdEdit;
+    QPushButton* m_closeBtn;
     QString m_correctPassword;
 };
 
