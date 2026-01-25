@@ -6,6 +6,7 @@
 #include "../core/DatabaseManager.h"
 #include "../core/ClipboardMonitor.h"
 #include <QGuiApplication>
+#include <utility>
 #include <QScreen>
 #include <QKeyEvent>
 #include <QGraphicsDropShadowEffect>
