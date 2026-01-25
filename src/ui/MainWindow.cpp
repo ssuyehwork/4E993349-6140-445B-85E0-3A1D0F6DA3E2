@@ -37,8 +37,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindo
     // 1. 增量更新：添加新笔记时不刷新全表
     connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, this, &MainWindow::onNoteAdded);
     
-    // 2. 全量刷新：修改、删除时才刷新全表
+    // 2. 全量刷新：修改、删除、分类变化（锁定状态）时才刷新全表
     connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, this, &MainWindow::refreshData);
+    connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, this, &MainWindow::refreshData);
 
     restoreLayout(); // 恢复布局
 }
