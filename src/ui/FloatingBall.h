@@ -19,6 +19,7 @@ class FloatingBall : public QWidget {
 
 public:
     explicit FloatingBall(QWidget* parent = nullptr);
+    static QIcon generateBallIcon();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -30,37 +31,48 @@ protected:
     void leaveEvent(QEvent* event) override;
     void contextMenuEvent(QContextMenuEvent* event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragLeaveEvent(QDragLeaveEvent* event) override;
     void dropEvent(QDropEvent* event) override;
 
 private:
     void switchSkin(const QString& name);
+    void drawBook(QPainter* p);
+    void drawPen(QPainter* p);
     void burstParticles();
-    void startInertiaAnimation();
-    void checkEdgeAdsorption();
-    void updateParticleEffect();
+    void updatePhysics();
+    void updateParticles();
+    void savePosition();
+    void restorePosition();
 
-    QPoint m_dragPosition;
+    QPoint m_offset;
     bool m_isDragging = false;
-    QPoint m_velocity;
-    QTimer* m_inertiaTimer;
-    QTimer* m_particleTimer;
-    WritingAnimation* m_writingAnim;
-    
+    bool m_isHovering = false;
+    bool m_isWriting = false;
+    int m_writeTimer = 0;
+
+    QTimer* m_timer;
+    float m_timeStep = 0.0f;
+    float m_penX = 0.0f;
+    float m_penY = 0.0f;
+    float m_penAngle = -45.0f;
+    float m_bookY = 0.0f;
+
     struct Particle {
         QPointF pos;
         QPointF velocity;
         double life;
+        float size;
         QColor color;
     };
     QList<Particle> m_particles;
 
-    QColor m_color1 = QColor("#4FACFE");
-    QColor m_color2 = QColor("#00F2FE");
+    QString m_skinName = "mocha";
 
 signals:
     void doubleClicked();
     void requestMainWindow();
     void requestQuickWindow();
+    void requestNewIdea();
 };
 
 #endif // FLOATINGBALL_H

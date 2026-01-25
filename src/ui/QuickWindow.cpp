@@ -38,6 +38,144 @@
 #include <QRandomGenerator>
 #include <QStyledItemDelegate>
 #include <QPainter>
+#include <QPropertyAnimation>
+#include <QGraphicsOpacityEffect>
+
+
+// --- AppLockWidget 实现 (Eagle 风格启动锁) ---
+class AppLockWidget : public QWidget {
+    Q_OBJECT
+public:
+    AppLockWidget(const QString& correctPassword, QWidget* parent = nullptr)
+        : QWidget(parent), m_correctPassword(correctPassword) {
+        setObjectName("AppLockWidget");
+        setFocusPolicy(Qt::StrongFocus);
+        setAttribute(Qt::WA_StyledBackground);
+        
+        auto* layout = new QVBoxLayout(this);
+        layout->setAlignment(Qt::AlignCenter);
+        layout->setSpacing(20);
+
+        // 背景色
+        setStyleSheet("QWidget#AppLockWidget { background-color: #1C1C1C; border-radius: 10px; } "
+                      "QLabel { background: transparent; border: none; }");
+
+        // 1. 锁图标
+        auto* lockIcon = new QLabel();
+        lockIcon->setPixmap(IconHelper::getIcon("lock", "#444444").pixmap(64, 64));
+        lockIcon->setAlignment(Qt::AlignCenter);
+        layout->addWidget(lockIcon);
+
+        // 2. 标题文字
+        auto* titleLabel = new QLabel("已锁定");
+        titleLabel->setStyleSheet("color: #EEEEEE; font-size: 18px; font-weight: bold;");
+        titleLabel->setAlignment(Qt::AlignCenter);
+        layout->addWidget(titleLabel);
+
+        // 3. 密码提示文字
+        QSettings settings("RapidNotes", "QuickWindow");
+        QString hint = settings.value("appPasswordHint", "请输入启动密码").toString();
+        auto* hintLabel = new QLabel(hint);
+        hintLabel->setStyleSheet("color: #666666; font-size: 12px;");
+        hintLabel->setAlignment(Qt::AlignCenter);
+        layout->addWidget(hintLabel);
+
+        // 4. 密码输入框
+        m_pwdEdit = new QLineEdit();
+        m_pwdEdit->setEchoMode(QLineEdit::Password);
+        m_pwdEdit->setPlaceholderText("请输入密码");
+        m_pwdEdit->setFixedWidth(240);
+        m_pwdEdit->setFixedHeight(36);
+        m_pwdEdit->setAlignment(Qt::AlignCenter);
+        m_pwdEdit->setStyleSheet(
+            "QLineEdit {"
+            "  background-color: #2A2A2A; border: 1px solid #333; border-radius: 6px;"
+            "  color: white; font-size: 14px;"
+            "}"
+            "QLineEdit:focus { border: 1px solid #3A90FF; }"
+        );
+        connect(m_pwdEdit, &QLineEdit::returnPressed, this, &AppLockWidget::handleVerify);
+        layout->addWidget(m_pwdEdit, 0, Qt::AlignHCenter);
+
+        // 5. 右上角关闭按钮
+        m_closeBtn = new QPushButton(this);
+        m_closeBtn->setIcon(IconHelper::getIcon("close", "#aaaaaa"));
+        m_closeBtn->setIconSize(QSize(18, 18));
+        m_closeBtn->setFixedSize(32, 32);
+        m_closeBtn->setCursor(Qt::PointingHandCursor);
+        m_closeBtn->setStyleSheet(
+            "QPushButton { border: none; border-radius: 4px; background: transparent; } "
+            "QPushButton:hover { background-color: #E81123; }"
+        );
+        connect(m_closeBtn, &QPushButton::clicked, []() { QApplication::quit(); });
+
+        // 初始焦点
+        m_pwdEdit->setFocus();
+    }
+
+protected:
+    void keyPressEvent(QKeyEvent* event) override {
+        if (event->key() == Qt::Key_Escape) {
+            QApplication::quit();
+        }
+        QWidget::keyPressEvent(event);
+    }
+
+    void resizeEvent(QResizeEvent* event) override {
+        m_closeBtn->move(width() - m_closeBtn->width() - 10, 10);
+        QWidget::resizeEvent(event);
+    }
+
+private slots:
+    void handleVerify() {
+        if (m_pwdEdit->text() == m_correctPassword) {
+            startFadeOut();
+        } else {
+            startShake();
+        }
+    }
+
+    void startFadeOut() {
+        auto* opacityEffect = new QGraphicsOpacityEffect(this);
+        setGraphicsEffect(opacityEffect);
+        auto* animation = new QPropertyAnimation(opacityEffect, "opacity");
+        animation->setDuration(300);
+        animation->setStartValue(1.0);
+        animation->setEndValue(0.0);
+        animation->setEasingCurve(QEasingCurve::OutCubic);
+        connect(animation, &QPropertyAnimation::finished, this, [this]() {
+            emit unlocked();
+            this->deleteLater();
+        });
+        animation->start(QAbstractAnimation::DeleteWhenStopped);
+    }
+
+    void startShake() {
+        m_pwdEdit->clear();
+        auto* anim = new QPropertyAnimation(m_pwdEdit, "pos");
+        anim->setDuration(400);
+        anim->setLoopCount(1);
+        
+        QPoint pos = m_pwdEdit->pos();
+        anim->setKeyValueAt(0, pos);
+        anim->setKeyValueAt(0.1, pos + QPoint(-10, 0));
+        anim->setKeyValueAt(0.3, pos + QPoint(10, 0));
+        anim->setKeyValueAt(0.5, pos + QPoint(-10, 0));
+        anim->setKeyValueAt(0.7, pos + QPoint(10, 0));
+        anim->setKeyValueAt(0.9, pos + QPoint(-10, 0));
+        anim->setKeyValueAt(1, pos);
+        
+        anim->start(QAbstractAnimation::DeleteWhenStopped);
+    }
+
+signals:
+    void unlocked();
+
+private:
+    QLineEdit* m_pwdEdit;
+    QPushButton* m_closeBtn;
+    QString m_correctPassword;
+};
 
 
 // 定义调整大小的边缘触发区域宽度 (与边距一致)
@@ -497,6 +635,25 @@ void QuickWindow::initUI() {
     setupShortcuts();
     restoreState();
     refreshData();
+    setupAppLock();
+}
+
+void QuickWindow::setupAppLock() {
+    QSettings settings("RapidNotes", "QuickWindow");
+    QString appPwd = settings.value("appPassword").toString();
+    if (!appPwd.isEmpty()) {
+        auto* lock = new AppLockWidget(appPwd, this);
+        m_appLockWidget = lock;
+        lock->resize(this->size());
+        
+        connect(lock, &AppLockWidget::unlocked, this, [this]() {
+            m_appLockWidget = nullptr;
+            m_searchEdit->setFocus();
+        });
+        
+        lock->show();
+        lock->raise();
+    }
 }
 
 void QuickWindow::saveState() {
@@ -1283,6 +1440,70 @@ void QuickWindow::showToolboxMenu(const QPoint& pos) {
         QToolTip::showText(QCursor::pos(), m_autoCategorizeClipboard ? "✅ 剪贴板自动归档已开启" : "❌ 剪贴板自动归档已关闭", this);
     });
 
+    menu.addSeparator();
+    
+    QSettings settings("RapidNotes", "QuickWindow");
+    bool hasAppPwd = !settings.value("appPassword").toString().isEmpty();
+
+    if (!hasAppPwd) {
+        menu.addAction(IconHelper::getIcon("lock", "#aaaaaa"), "设置启动密码", [this]() {
+            auto* dlg = new CategoryPasswordDialog("设置启动密码", this);
+            if (dlg->exec() == QDialog::Accepted) {
+                if (dlg->password() == dlg->confirmPassword()) {
+                    QSettings s("RapidNotes", "QuickWindow");
+                    s.setValue("appPassword", dlg->password());
+                    s.setValue("appPasswordHint", dlg->passwordHint());
+                    QMessageBox::information(this, "成功", "启动密码已设置，下次启动时生效。");
+                } else {
+                    QMessageBox::warning(this, "错误", "两次输入的密码不一致。");
+                }
+            }
+            dlg->deleteLater();
+        });
+    } else {
+        menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "修改启动密码", [this]() {
+            QSettings s("RapidNotes", "QuickWindow");
+            // Need to verify old password first for safety
+            auto* verifyDlg = new FramelessInputDialog("身份验证", "请输入当前启动密码:", "", this);
+            verifyDlg->setEchoMode(QLineEdit::Password);
+            if (verifyDlg->exec() == QDialog::Accepted) {
+                if (verifyDlg->text() == s.value("appPassword").toString()) {
+                    auto* dlg = new CategoryPasswordDialog("修改启动密码", this);
+                    dlg->setInitialData(s.value("appPasswordHint").toString());
+                    if (dlg->exec() == QDialog::Accepted) {
+                        if (dlg->password() == dlg->confirmPassword()) {
+                            s.setValue("appPassword", dlg->password());
+                            s.setValue("appPasswordHint", dlg->passwordHint());
+                            QMessageBox::information(this, "成功", "启动密码已更新。");
+                        } else {
+                            QMessageBox::warning(this, "错误", "两次输入的密码不一致。");
+                        }
+                    }
+                    dlg->deleteLater();
+                } else {
+                    QMessageBox::warning(this, "错误", "密码错误，无法修改。");
+                }
+            }
+            verifyDlg->deleteLater();
+        });
+
+        menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "移除启动密码", [this]() {
+            auto* verifyDlg = new FramelessInputDialog("身份验证", "请输入启动密码以移除保护:", "", this);
+            verifyDlg->setEchoMode(QLineEdit::Password);
+            if (verifyDlg->exec() == QDialog::Accepted) {
+                QSettings s("RapidNotes", "QuickWindow");
+                if (verifyDlg->text() == s.value("appPassword").toString()) {
+                    s.remove("appPassword");
+                    s.remove("appPasswordHint");
+                    QMessageBox::information(this, "成功", "启动密码已移除。");
+                } else {
+                    QMessageBox::warning(this, "错误", "密码错误，操作取消。");
+                }
+            }
+            verifyDlg->deleteLater();
+        });
+    }
+
     menu.exec(QCursor::pos());
 }
 
@@ -1461,8 +1682,18 @@ void QuickWindow::dropEvent(QDropEvent* event) {
 }
 
 void QuickWindow::hideEvent(QHideEvent* event) {
+    if (m_appLockWidget) {
+        QApplication::quit();
+    }
     saveState();
     QWidget::hideEvent(event);
+}
+
+void QuickWindow::resizeEvent(QResizeEvent* event) {
+    if (m_appLockWidget) {
+        m_appLockWidget->resize(this->size());
+    }
+    QWidget::resizeEvent(event);
 }
 
 void QuickWindow::keyPressEvent(QKeyEvent* event) {
@@ -1538,3 +1769,5 @@ void DittoListView::startDrag(Qt::DropActions supportedActions) {
     // 许多外部应用（特别是网页浏览器）需要明确的 Copy 握手信号。
     drag->exec(Qt::CopyAction | Qt::MoveAction, Qt::CopyAction);
 }
+
+#include "QuickWindow.moc"

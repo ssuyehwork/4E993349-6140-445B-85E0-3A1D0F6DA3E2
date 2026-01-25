@@ -69,6 +69,9 @@ int main(int argc, char *argv[]) {
     FloatingBall* ball = new FloatingBall();
     ball->show();
 
+    // 设置全局应用图标
+    a.setWindowIcon(FloatingBall::generateBallIcon());
+
     // 4. 初始化快速记录窗口与工具箱及其功能子窗口
     QuickWindow* quickWin = new QuickWindow();
     quickWin->showCentered(); // 默认启动显示极速窗口
@@ -104,8 +107,12 @@ int main(int argc, char *argv[]) {
     QObject::connect(toolbox, &Toolbox::showPasswordGeneratorRequested, [=](){ toggleWindow(passwordGenWin); });
     QObject::connect(toolbox, &Toolbox::showOCRRequested, [=](){ toggleWindow(ocrWin); });
 
-    // 处理主窗口切换信号
-    QObject::connect(quickWin, &QuickWindow::toggleMainWindowRequested, [=](){
+    // 统一显示主窗口的逻辑，处理启动锁定状态
+    auto showMainWindow = [=]() {
+        if (quickWin->isLocked()) {
+            quickWin->showCentered();
+            return;
+        }
         if (mainWin->isVisible()) {
             mainWin->hide();
         } else {
@@ -113,7 +120,10 @@ int main(int argc, char *argv[]) {
             mainWin->activateWindow();
             mainWin->raise();
         }
-    });
+    };
+
+    // 处理主窗口切换信号
+    QObject::connect(quickWin, &QuickWindow::toggleMainWindowRequested, showMainWindow);
 
     // 5. 开启全局键盘钩子 (支持快捷键重映射)
     KeyboardHook::instance().start();
@@ -185,7 +195,7 @@ int main(int argc, char *argv[]) {
     });
 
     SystemTray* tray = new SystemTray(&a);
-    QObject::connect(tray, &SystemTray::showMainWindow, mainWin, &MainWindow::showNormal);
+    QObject::connect(tray, &SystemTray::showMainWindow, showMainWindow);
     QObject::connect(tray, &SystemTray::showQuickWindow, quickWin, &QuickWindow::showCentered);
     QObject::connect(tray, &SystemTray::quitApp, &a, &QApplication::quit);
     tray->show();
@@ -193,8 +203,13 @@ int main(int argc, char *argv[]) {
     QObject::connect(ball, &FloatingBall::doubleClicked, [&](){
         quickWin->showCentered();
     });
-    QObject::connect(ball, &FloatingBall::requestMainWindow, mainWin, &MainWindow::showNormal);
+    QObject::connect(ball, &FloatingBall::requestMainWindow, showMainWindow);
     QObject::connect(ball, &FloatingBall::requestQuickWindow, quickWin, &QuickWindow::showCentered);
+    QObject::connect(ball, &FloatingBall::requestNewIdea, [=](){
+        NoteEditWindow* win = new NoteEditWindow();
+        QObject::connect(win, &NoteEditWindow::noteSaved, quickWin, &QuickWindow::refreshData);
+        win->show();
+    });
 
     // 8. 监听剪贴板 (智能标题与自动分类)
     QObject::connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, 

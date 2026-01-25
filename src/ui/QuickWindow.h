@@ -11,6 +11,8 @@
 #include <QLabel>
 #include <QTimer>
 #include <QKeyEvent>
+#include <QResizeEvent>
+#include <QHideEvent>
 #include "../models/NoteModel.h"
 #include "../models/CategoryModel.h"
 #include "QuickPreview.h"
@@ -60,10 +62,12 @@ protected:
     void dropEvent(QDropEvent* event) override;
     void hideEvent(QHideEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     void initUI();
+    void setupAppLock();
     void activateNote(const QModelIndex& index);
     void setupShortcuts();
     void updatePartitionStatus(const QString& name);
@@ -72,6 +76,7 @@ private:
 public:
     QString currentCategoryColor() const { return m_currentCategoryColor; }
     bool isAutoCategorizeEnabled() const { return m_autoCategorizeClipboard; }
+    bool isLocked() const { return m_appLockWidget != nullptr; }
     int getCurrentCategoryId() const { return (m_currentFilterType == "category") ? m_currentFilterValue.toInt() : -1; }
 
     // 快捷键处理函数
@@ -96,6 +101,7 @@ public:
     SearchLineEdit* m_searchEdit;
     QListView* m_listView;
     CategoryLockWidget* m_lockWidget;
+    QWidget* m_appLockWidget = nullptr;
     NoteModel* m_model;
     QuickPreview* m_quickPreview;
     
