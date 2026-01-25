@@ -11,6 +11,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QSettings>
+#include <utility>
 
 FloatingBall::FloatingBall(QWidget* parent) 
     : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool | Qt::X11BypassWindowManagerHint)
@@ -243,14 +244,20 @@ void FloatingBall::dropEvent(QDropEvent* event) {
     m_isHovering = false;
     QString text = event->mimeData()->text();
     if (!text.trimmed().isEmpty()) {
-        // 提取第一行作为标题
+        // 提取第一个非空行作为标题
         QString title;
-        QString firstLine = text.section('\n', 0, 0).trimmed();
-        if (firstLine.isEmpty()) {
+        QStringList lines = text.split('\n');
+        for (const QString& line : std::as_const(lines)) {
+            QString trimmed = line.trimmed();
+            if (!trimmed.isEmpty()) {
+                title = trimmed.left(40);
+                if (trimmed.length() > 40) title += "...";
+                break;
+            }
+        }
+
+        if (title.isEmpty()) {
             title = "拖拽投喂";
-        } else {
-            title = firstLine.left(40);
-            if (firstLine.length() > 40) title += "...";
         }
 
         DatabaseManager::instance().addNoteAsync(title, text, {"投喂"}, "", -1, "text");

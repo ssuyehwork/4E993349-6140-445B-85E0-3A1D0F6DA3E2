@@ -111,7 +111,6 @@ void MainWindow::initUI() {
     // 核心内容容器：管理 5px 全局边距
     auto* contentWidget = new QWidget(centralWidget);
     contentWidget->setAttribute(Qt::WA_StyledBackground, true);
-    contentWidget->setAttribute(Qt::WA_NoSystemBackground, true);
     contentWidget->setStyleSheet("background: transparent; border: none;");
     auto* contentLayout = new QVBoxLayout(contentWidget);
     contentLayout->setContentsMargins(5, 5, 5, 5); // 确保顶栏下方及窗口四周均有 5px 留白
@@ -121,7 +120,6 @@ void MainWindow::initUI() {
     splitter->setHandleWidth(5); // 统一横向板块间的物理缝隙为 5px
     splitter->setChildrenCollapsible(false);
     splitter->setAttribute(Qt::WA_StyledBackground, true);
-    splitter->setAttribute(Qt::WA_NoSystemBackground, true);
     splitter->setStyleSheet("QSplitter { background: transparent; border: none; } QSplitter::handle { background: transparent; }");
 
     // 1. 左侧侧边栏包装容器 (固定 230px)
@@ -137,7 +135,10 @@ void MainWindow::initUI() {
         "#SidebarContainer {"
         "  background-color: #1e1e1e;"
         "  border: 1px solid #333333;"
-        "  border-radius: 12px;"
+        "  border-top-left-radius: 12px;"
+        "  border-top-right-radius: 12px;"
+        "  border-bottom-left-radius: 0px;"
+        "  border-bottom-right-radius: 0px;"
         "}"
     );
 
@@ -195,7 +196,6 @@ void MainWindow::initUI() {
     // 内容容器
     auto* sbContent = new QWidget();
     sbContent->setAttribute(Qt::WA_StyledBackground, true);
-    sbContent->setAttribute(Qt::WA_NoSystemBackground, true);
     sbContent->setStyleSheet("background: transparent; border: none;");
     auto* sbContentLayout = new QVBoxLayout(sbContent);
     sbContentLayout->setContentsMargins(8, 8, 8, 8);
@@ -441,7 +441,10 @@ void MainWindow::initUI() {
         "#ListContainer {"
         "  background-color: #1e1e1e;"
         "  border: 1px solid #333333;"
-        "  border-radius: 12px;"
+        "  border-top-left-radius: 12px;"
+        "  border-top-right-radius: 12px;"
+        "  border-bottom-left-radius: 0px;"
+        "  border-bottom-right-radius: 0px;"
         "}"
     );
 
@@ -495,7 +498,6 @@ void MainWindow::initUI() {
     // 内容容器
     auto* listContent = new QWidget();
     listContent->setAttribute(Qt::WA_StyledBackground, true);
-    listContent->setAttribute(Qt::WA_NoSystemBackground, true);
     listContent->setStyleSheet("background: transparent; border: none;");
     auto* listContentLayout = new QVBoxLayout(listContent);
     // 恢复垂直边距为 8，保留水平边距 15 以对齐宽度
@@ -542,7 +544,6 @@ void MainWindow::initUI() {
     // 4. 右侧内容组合 (水平对齐编辑器与元数据)
     QWidget* rightContainer = new QWidget();
     rightContainer->setAttribute(Qt::WA_StyledBackground, true);
-    rightContainer->setAttribute(Qt::WA_NoSystemBackground, true);
     rightContainer->setStyleSheet("background: transparent; border: none;");
     QHBoxLayout* rightLayout = new QHBoxLayout(rightContainer);
     rightLayout->setContentsMargins(0, 0, 0, 0);
@@ -556,7 +557,10 @@ void MainWindow::initUI() {
         "#EditorContainer {"
         "  background-color: #1e1e1e;"
         "  border: 1px solid #333333;"
-        "  border-radius: 12px;"
+        "  border-top-left-radius: 12px;"
+        "  border-top-right-radius: 12px;"
+        "  border-bottom-left-radius: 0px;"
+        "  border-bottom-right-radius: 0px;"
         "}"
     );
 
@@ -624,7 +628,6 @@ void MainWindow::initUI() {
     // 内容容器
     auto* editorContent = new QWidget();
     editorContent->setAttribute(Qt::WA_StyledBackground, true);
-    editorContent->setAttribute(Qt::WA_NoSystemBackground, true);
     editorContent->setStyleSheet("background: transparent; border: none;");
     auto* editorContentLayout = new QVBoxLayout(editorContent);
     editorContentLayout->setContentsMargins(2, 2, 2, 2); // 编辑器保留微量对齐边距
@@ -680,7 +683,10 @@ void MainWindow::initUI() {
         "#FilterContainer {"
         "  background-color: #1e1e1e;"
         "  border: 1px solid #333333;"
-        "  border-radius: 12px;"
+        "  border-top-left-radius: 12px;"
+        "  border-top-right-radius: 12px;"
+        "  border-bottom-left-radius: 0px;"
+        "  border-bottom-right-radius: 0px;"
         "}"
     );
 
@@ -714,7 +720,6 @@ void MainWindow::initUI() {
     fLayout->setContentsMargins(0, 0, 0, 0); 
 
     m_filterPanel = new FilterPanel(this);
-    m_filterPanel->setAttribute(Qt::WA_StyledBackground, true);
     m_filterPanel->setStyleSheet("background: transparent; border: none;");
     connect(m_filterPanel, &FilterPanel::filterChanged, this, &MainWindow::refreshData);
     fLayout->addWidget(m_filterPanel);

@@ -84,7 +84,6 @@ private:
 MetadataPanel::MetadataPanel(QWidget* parent) : QWidget(parent) {
     setMinimumWidth(230); // 最小宽度 230px，可拉伸
     setAttribute(Qt::WA_StyledBackground, true);
-    setAttribute(Qt::WA_NoSystemBackground, true);
     setStyleSheet("background: transparent; border: none; outline: none;");
     initUI();
 }
@@ -100,7 +99,10 @@ void MetadataPanel::initUI() {
         "#MetadataContainer {"
         "  background-color: #1e1e1e;"
         "  border: 1px solid #333333;"
-        "  border-radius: 12px;"
+        "  border-top-left-radius: 12px;"
+        "  border-top-right-radius: 12px;"
+        "  border-bottom-left-radius: 0px;"
+        "  border-bottom-right-radius: 0px;"
         "}"
     );
     container->setAttribute(Qt::WA_StyledBackground, true);
@@ -154,13 +156,12 @@ void MetadataPanel::initUI() {
 
     // 3. 内容包裹容器 (带边距)
     auto* contentWidget = new QWidget();
-    contentWidget->setAttribute(Qt::WA_StyledBackground, true);
     contentWidget->setStyleSheet(
         "QWidget { "
         "  background-color: transparent; "
         "  border: none; "
-        "  border-bottom-left-radius: 12px; "
-        "  border-bottom-right-radius: 12px; "
+        "  border-bottom-left-radius: 0px; "
+        "  border-bottom-right-radius: 0px; "
         "}"
     );
     auto* innerLayout = new QVBoxLayout(contentWidget);
