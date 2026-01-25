@@ -1,10 +1,12 @@
 #include "PasswordGeneratorWindow.h"
+#include "IconHelper.h"
 #include <QMouseEvent>
 #include <QApplication>
 #include <QClipboard>
 #include <QRandomGenerator>
 #include <QTimer>
 #include <QToolTip>
+#include <QGraphicsDropShadowEffect>
 
 PasswordGeneratorWindow::PasswordGeneratorWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
@@ -20,13 +22,20 @@ PasswordGeneratorWindow::~PasswordGeneratorWindow() {
 
 void PasswordGeneratorWindow::initUI() {
     auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setContentsMargins(15, 15, 15, 15);
     mainLayout->setSpacing(0);
 
-    auto* container = new QWidget();
+    auto* container = new QFrame();
     container->setObjectName("Container");
-    container->setStyleSheet("#Container { background-color: #1E1E1E; border-radius: 16px; border: 2px solid #606060; }");
+    container->setStyleSheet("#Container { background-color: #1E1E1E; border-radius: 12px; border: 1px solid #333; }");
     mainLayout->addWidget(container);
+
+    auto* shadow = new QGraphicsDropShadowEffect(this);
+    shadow->setBlurRadius(25);
+    shadow->setXOffset(0);
+    shadow->setYOffset(4);
+    shadow->setColor(QColor(0, 0, 0, 120));
+    container->setGraphicsEffect(shadow);
 
     auto* contentLayout = new QVBoxLayout(container);
     contentLayout->setContentsMargins(0, 0, 0, 0);
@@ -72,9 +81,13 @@ QWidget* PasswordGeneratorWindow::createTitleBar() {
     titleLabel->setStyleSheet("color: #555555; font-size: 12px; font-weight: bold;");
     layout->addWidget(titleLabel, 0, Qt::AlignLeft);
 
-    auto* closeBtn = new QPushButton("×");
-    closeBtn->setFixedSize(30, 30);
-    closeBtn->setStyleSheet("QPushButton { color: #888888; font-size: 20px; border: none; background: transparent; } QPushButton:hover { background: #c42b1c; color: white; border-radius: 5px; }");
+    auto* closeBtn = new QPushButton();
+    closeBtn->setIcon(IconHelper::getIcon("close", "#888888"));
+    closeBtn->setFixedSize(28, 28);
+    closeBtn->setIconSize(QSize(18, 18));
+    closeBtn->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 4px; } "
+                            "QPushButton:hover { background-color: #e74c3c; } "
+                            "QPushButton:pressed { background-color: #c0392b; }");
     connect(closeBtn, &QPushButton::clicked, this, &PasswordGeneratorWindow::hide);
     layout->addWidget(closeBtn, 0, Qt::AlignRight);
 
@@ -242,15 +255,20 @@ QString PasswordGeneratorWindow::generateSecurePassword(int length, bool upper, 
 }
 
 void PasswordGeneratorWindow::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::LeftButton && event->pos().y() <= 45) {
         m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
         event->accept();
     }
 }
 
 void PasswordGeneratorWindow::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() & Qt::LeftButton) {
+    if (event->buttons() & Qt::LeftButton && !m_dragPos.isNull()) {
         move(event->globalPosition().toPoint() - m_dragPos);
         event->accept();
     }
+}
+
+void PasswordGeneratorWindow::mouseReleaseEvent(QMouseEvent* event) {
+    Q_UNUSED(event);
+    m_dragPos = QPoint();
 }

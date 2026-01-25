@@ -6,6 +6,8 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QPushButton>
+#include <QPainter>
+#include <QPainterPath>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -15,16 +17,17 @@ TimePasteWindow::TimePasteWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
     setWindowTitle("时间输出工具");
-    setFixedSize(320, 270);
+    setFixedSize(350, 300); // 增加边距空间 (320+30, 270+30)
 
     initUI();
 
     m_timer = new QTimer(this);
     connect(m_timer, &QTimer::timeout, this, &TimePasteWindow::updateDateTime);
-    m_timer->start(1000);
+    m_timer->start(100);
     updateDateTime();
 
-    connect(&KeyboardHook::instance(), &KeyboardHook::digitPressed, this, &TimePasteWindow::onDigitPressed);
+    // 使用 QueuedConnection 确保钩子回调立即返回，避免阻塞导致按键泄漏
+    connect(&KeyboardHook::instance(), &KeyboardHook::digitPressed, this, &TimePasteWindow::onDigitPressed, Qt::QueuedConnection);
 }
 
 TimePasteWindow::~TimePasteWindow() {
@@ -32,30 +35,39 @@ TimePasteWindow::~TimePasteWindow() {
 
 void TimePasteWindow::initUI() {
     auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setContentsMargins(15, 15, 15, 15);
     mainLayout->setSpacing(0);
 
     // 1. Title Bar
     auto* titleBar = new QWidget();
     titleBar->setFixedHeight(35);
-    titleBar->setStyleSheet("background-color: #2D2D2D; border-top-left-radius: 10px; border-top-right-radius: 10px;");
+    titleBar->setStyleSheet("background-color: transparent;");
     auto* titleLayout = new QHBoxLayout(titleBar);
     titleLayout->setContentsMargins(15, 5, 10, 5);
+    titleLayout->setSpacing(4);
 
     auto* titleLabel = new QLabel("时间输出工具");
     titleLabel->setStyleSheet("color: #B0B0B0; font-size: 13px;");
     titleLayout->addWidget(titleLabel);
     titleLayout->addStretch();
 
-    auto* btnMin = new QPushButton("—");
-    btnMin->setFixedSize(30, 25);
-    btnMin->setStyleSheet("QPushButton { background: transparent; color: #B0B0B0; border: none; font-size: 16px; font-weight: bold; } QPushButton:hover { background: #404040; color: #FFFFFF; border-radius: 3px; }");
+    auto* btnMin = new QPushButton();
+    btnMin->setIcon(IconHelper::getIcon("minimize", "#B0B0B0"));
+    btnMin->setFixedSize(28, 28);
+    btnMin->setIconSize(QSize(18, 18));
+    btnMin->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } "
+                          "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
+                          "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); }");
     connect(btnMin, &QPushButton::clicked, this, &TimePasteWindow::showMinimized);
     titleLayout->addWidget(btnMin);
 
-    auto* btnClose = new QPushButton("✕");
-    btnClose->setFixedSize(30, 25);
-    btnClose->setStyleSheet("QPushButton { background: transparent; color: #B0B0B0; border: none; font-size: 16px; } QPushButton:hover { background: #E81123; color: #FFFFFF; border-radius: 3px; }");
+    auto* btnClose = new QPushButton();
+    btnClose->setIcon(IconHelper::getIcon("close", "#B0B0B0"));
+    btnClose->setFixedSize(28, 28);
+    btnClose->setIconSize(QSize(18, 18));
+    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } "
+                            "QPushButton:hover { background-color: #e74c3c; } "
+                            "QPushButton:pressed { background-color: #c0392b; }");
     connect(btnClose, &QPushButton::clicked, this, &TimePasteWindow::hide);
     titleLayout->addWidget(btnClose);
 
@@ -63,7 +75,7 @@ void TimePasteWindow::initUI() {
 
     // 2. Content
     auto* content = new QWidget();
-    content->setStyleSheet("background-color: #2D2D2D; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;");
+    content->setStyleSheet("background-color: transparent;");
     auto* layout = new QVBoxLayout(content);
     layout->setContentsMargins(20, 10, 20, 20);
     layout->setSpacing(10);
@@ -112,7 +124,7 @@ QString TimePasteWindow::getRadioStyle() {
 
 void TimePasteWindow::updateDateTime() {
     QDateTime now = QDateTime::currentDateTime();
-    m_dateLabel->setText(now.toString("yyyy年MM月dd日"));
+    m_dateLabel->setText(now.toString("yyyy-MM-dd"));
     m_timeLabel->setText(now.toString("HH:mm:ss"));
 }
 
@@ -126,39 +138,86 @@ void TimePasteWindow::onDigitPressed(int digit) {
         target = target.addSecs(digit * 60);
     
     QString timeStr = target.toString("HH:mm");
-    QApplication::clipboard()->setText(timeStr);
-    
+
+    // 异步延迟处理，确保剪贴板设置和模拟粘贴不阻塞主线程/钩子回调
+    QTimer::singleShot(50, this, [timeStr]() {
+        QApplication::clipboard()->setText(timeStr);
+        
 #ifdef Q_OS_WIN
-    INPUT inputs[4];
-    memset(inputs, 0, sizeof(inputs));
+        // 1. 显式释放所有 8 个修饰键 (L/R Ctrl, Shift, Alt, Win)
+        INPUT releaseInputs[8];
+        memset(releaseInputs, 0, sizeof(releaseInputs));
+        BYTE keys[] = { VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN };
+        for (int i = 0; i < 8; ++i) {
+            releaseInputs[i].type = INPUT_KEYBOARD;
+            releaseInputs[i].ki.wVk = keys[i];
+            releaseInputs[i].ki.dwFlags = KEYEVENTF_KEYUP;
+        }
+        SendInput(8, releaseInputs, sizeof(INPUT));
 
-    inputs[0].type = INPUT_KEYBOARD;
-    inputs[0].ki.wVk = VK_LCONTROL;
-    inputs[1].type = INPUT_KEYBOARD;
-    inputs[1].ki.wVk = 'V';
-    inputs[2].type = INPUT_KEYBOARD;
-    inputs[2].ki.wVk = 'V';
-    inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
-    inputs[3].type = INPUT_KEYBOARD;
-    inputs[3].ki.wVk = VK_LCONTROL;
-    inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+        // 2. 发送 Ctrl + V (带扫描码以提高兼容性)
+        INPUT inputs[4];
+        memset(inputs, 0, sizeof(inputs));
 
-    SendInput(4, inputs, sizeof(INPUT));
+        // Ctrl 按下
+        inputs[0].type = INPUT_KEYBOARD;
+        inputs[0].ki.wVk = VK_LCONTROL;
+        inputs[0].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
+
+        // V 按下
+        inputs[1].type = INPUT_KEYBOARD;
+        inputs[1].ki.wVk = 'V';
+        inputs[1].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
+
+        // V 抬起
+        inputs[2].type = INPUT_KEYBOARD;
+        inputs[2].ki.wVk = 'V';
+        inputs[2].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
+        inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+
+        // Ctrl 抬起
+        inputs[3].type = INPUT_KEYBOARD;
+        inputs[3].ki.wVk = VK_LCONTROL;
+        inputs[3].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
+        inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+
+        SendInput(4, inputs, sizeof(INPUT));
 #endif
+    });
 }
 
 void TimePasteWindow::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::LeftButton && event->pos().y() <= 35) {
         m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
         event->accept();
     }
 }
 
+void TimePasteWindow::mouseReleaseEvent(QMouseEvent* event) {
+    Q_UNUSED(event);
+    m_dragPos = QPoint();
+}
+
 void TimePasteWindow::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() & Qt::LeftButton) {
+    if (event->buttons() & Qt::LeftButton && !m_dragPos.isNull()) {
         move(event->globalPosition().toPoint() - m_dragPos);
         event->accept();
     }
+}
+
+void TimePasteWindow::paintEvent(QPaintEvent* event) {
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    // 绘制主体
+    QRectF bodyRect = QRectF(rect()).adjusted(15, 15, -15, -15);
+    QPainterPath path;
+    path.addRoundedRect(bodyRect, 12, 12);
+
+    painter.fillPath(path, QColor(30, 30, 30, 250));
+    painter.setPen(QColor(51, 51, 51)); // #333
+    painter.drawPath(path);
 }
 
 void TimePasteWindow::showEvent(QShowEvent* event) {
