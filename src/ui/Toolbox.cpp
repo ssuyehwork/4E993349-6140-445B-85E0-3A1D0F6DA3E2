@@ -15,7 +15,11 @@
 #include <QRandomGenerator>
 #include <QRadioButton>
 #include <QButtonGroup>
+#include <QTextEdit>
+#include <QMimeData>
+#include <QBuffer>
 #include "../core/Utils.h"
+#include "../core/OCRManager.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -36,6 +40,10 @@ Toolbox::Toolbox(QWidget* parent) : QDialog(parent) {
     QWidget* pwdTab = new QWidget();
     initPasswordGenTab(pwdTab);
     m_tabs->addTab(pwdTab, IconHelper::getIcon("lock", "#aaaaaa"), " 密码生成");
+
+    QWidget* ocrTab = new QWidget();
+    initOCRTab(ocrTab);
+    m_tabs->addTab(ocrTab, IconHelper::getIcon("edit", "#aaaaaa"), " 文字识别");
 
     layout->addWidget(m_tabs);
 
@@ -204,5 +212,55 @@ void Toolbox::initPasswordGenTab(QWidget* tab) {
 
     connect(btnGen, &QPushButton::clicked, generate);
     layout->addWidget(btnGen);
+    layout->addStretch();
+}
+
+void Toolbox::initOCRTab(QWidget* tab) {
+    QVBoxLayout* layout = new QVBoxLayout(tab);
+    layout->setContentsMargins(20, 20, 20, 20);
+    layout->setSpacing(12);
+
+    QLabel* info = new QLabel("📝 图片文字识别 (OCR)");
+    info->setStyleSheet("font-weight: bold; color: #4a90e2;");
+    layout->addWidget(info);
+
+    QPushButton* btnPaste = new QPushButton(" 从剪贴板识别图片");
+    btnPaste->setIcon(IconHelper::getIcon("copy", "#ffffff"));
+    btnPaste->setFixedHeight(40);
+    btnPaste->setStyleSheet("QPushButton { background: #4a90e2; color: white; font-weight: bold; border-radius: 6px; } QPushButton:hover { background: #357abd; }");
+    layout->addWidget(btnPaste);
+
+    m_ocrResult = new QTextEdit();
+    m_ocrResult->setPlaceholderText("识别结果将显示在这里...");
+    m_ocrResult->setStyleSheet("background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #eee; font-size: 14px; padding: 10px;");
+    layout->addWidget(m_ocrResult);
+
+    QPushButton* btnCopy = new QPushButton(" 复制结果");
+    btnCopy->setIcon(IconHelper::getIcon("copy", "#ffffff"));
+    btnCopy->setFixedHeight(32);
+    btnCopy->setStyleSheet("QPushButton { background: #333; border: 1px solid #444; border-radius: 4px; color: #ddd; } QPushButton:hover { background: #3e3e42; }");
+    layout->addWidget(btnCopy);
+
+    connect(btnPaste, &QPushButton::clicked, [this]() {
+        const QMimeData* mime = QApplication::clipboard()->mimeData();
+        if (mime->hasImage()) {
+            QImage img = qvariant_cast<QImage>(mime->imageData());
+            m_ocrResult->setPlainText("正在识别中，请稍候...");
+            OCRManager::instance().recognizeAsync(img, 9999); // 使用特殊 ID 表示来自工具箱
+        } else {
+            m_ocrResult->setPlainText("剪贴板中没有图片！");
+        }
+    });
+
+    connect(&OCRManager::instance(), &OCRManager::recognitionFinished, [this](const QString& text, int contextId) {
+        if (contextId == 9999) {
+            m_ocrResult->setPlainText(text);
+        }
+    });
+
+    connect(btnCopy, &QPushButton::clicked, [this]() {
+        QApplication::clipboard()->setText(m_ocrResult->toPlainText());
+    });
+
     layout->addStretch();
 }

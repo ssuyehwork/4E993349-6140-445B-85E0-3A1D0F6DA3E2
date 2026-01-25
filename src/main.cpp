@@ -12,6 +12,7 @@
 #include "core/DatabaseManager.h"
 #include "core/HotkeyManager.h"
 #include "core/ClipboardMonitor.h"
+#include "core/OCRManager.h"
 #include "ui/MainWindow.h"
 #include "ui/FloatingBall.h"
 #include "ui/QuickWindow.h"
@@ -116,7 +117,11 @@ int main(int argc, char *argv[]) {
     
     QObject::connect(&HotkeyManager::instance(), &HotkeyManager::hotkeyPressed, [&](int id){
         if (id == 1) {
-            quickWin->showCentered();
+            if (quickWin->isVisible() && quickWin->isActiveWindow()) {
+                quickWin->hide();
+            } else {
+                quickWin->showCentered();
+            }
         } else if (id == 2) {
             // 收藏最后一条灵感
             auto notes = DatabaseManager::instance().getAllNotes();
@@ -130,15 +135,29 @@ int main(int argc, char *argv[]) {
             auto* tool = new ScreenshotTool();
             tool->setAttribute(Qt::WA_DeleteOnClose);
             QObject::connect(tool, &ScreenshotTool::screenshotCaptured, [=](const QImage& img){
+                // 1. 保存到剪贴板
+                QApplication::clipboard()->setImage(img);
+
+                // 2. 保存到数据库
                 QByteArray ba;
                 QBuffer buffer(&ba);
                 buffer.open(QIODevice::WriteOnly);
                 img.save(&buffer, "PNG");
 
                 QString title = "[截屏] " + QDateTime::currentDateTime().toString("MMdd_HHmm");
-                DatabaseManager::instance().addNoteAsync(title, "[Image Data]", QStringList() << "截屏", "", -1, "image", ba);
+                int noteId = DatabaseManager::instance().addNote(title, "[正在进行文字识别...]", QStringList() << "截屏", "", -1, "image", ba);
+
+                // 3. 触发 OCR
+                OCRManager::instance().recognizeAsync(img, noteId);
             });
             tool->show();
+        }
+    });
+
+    // 监听 OCR 完成信号并更新笔记内容 (排除工具箱特有的 ID 9999)
+    QObject::connect(&OCRManager::instance(), &OCRManager::recognitionFinished, [](const QString& text, int noteId){
+        if (noteId > 0 && noteId != 9999) {
+            DatabaseManager::instance().updateNoteState(noteId, "content", text);
         }
     });
 

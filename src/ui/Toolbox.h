@@ -17,10 +17,12 @@ protected:
 private:
     void initTimePasteTab(QWidget* tab);
     void initPasswordGenTab(QWidget* tab);
+    void initOCRTab(QWidget* tab);
     void onDigitPressed(int digit);
 
     int m_timeMode = 0; // 0: 退, 1: 进
     QTabWidget* m_tabs;
+    QTextEdit* m_ocrResult;
 };
 
 #endif // TOOLBOX_H
