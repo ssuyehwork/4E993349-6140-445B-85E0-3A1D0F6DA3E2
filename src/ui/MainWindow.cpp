@@ -352,7 +352,7 @@ void MainWindow::initUI() {
                         auto* dlg = new CategoryPasswordDialog("修改密码", this);
                         QString currentHint;
                         auto cats = DatabaseManager::instance().getAllCategories();
-                        for(const auto& c : cats) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
+                        for(const auto& c : std::as_const(cats)) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
                         dlg->setInitialData(currentHint);
                         connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
                             DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
@@ -875,7 +875,7 @@ void MainWindow::refreshData() {
             isLocked = true;
             QString hint;
             auto cats = DatabaseManager::instance().getAllCategories();
-            for(const auto& c : cats) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
+            for(const auto& c : std::as_const(cats)) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
             m_lockWidget->setCategory(catId, hint);
         }
     }

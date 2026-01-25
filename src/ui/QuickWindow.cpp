@@ -216,7 +216,7 @@ QuickWindow::QuickWindow(QWidget* parent)
         // 如果当前正在查看某个分类，同步更新其高亮色
         if (m_currentFilterType == "category" && m_currentFilterValue != -1) {
             auto categories = DatabaseManager::instance().getAllCategories();
-            for (const auto& cat : categories) {
+            for (const auto& cat : std::as_const(categories)) {
                 if (cat["id"].toInt() == m_currentFilterValue) {
                     m_currentCategoryColor = cat["color"].toString();
                     if (m_currentCategoryColor.isEmpty()) m_currentCategoryColor = "#4a90e2";
@@ -749,7 +749,7 @@ void QuickWindow::refreshData() {
             isLocked = true;
             QString hint;
             auto cats = DatabaseManager::instance().getAllCategories();
-            for(const auto& c : cats) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
+            for(const auto& c : std::as_const(cats)) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
             m_lockWidget->setCategory(catId, hint);
         }
     }
@@ -1216,10 +1216,10 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
     QVariantList recentCats = settings.value("recentCategories").toList();
     auto allCategories = DatabaseManager::instance().getAllCategories();
     QMap<int, QVariantMap> catMap;
-    for (const auto& cat : allCategories) catMap[cat["id"].toInt()] = cat;
+    for (const auto& cat : std::as_const(allCategories)) catMap[cat["id"].toInt()] = cat;
 
     int count = 0;
-    for (const auto& v : recentCats) {
+    for (const auto& v : std::as_const(recentCats)) {
         if (count >= 15) break;
         int cid = v.toInt();
         if (catMap.contains(cid)) {
@@ -1385,7 +1385,7 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                     auto* dlg = new CategoryPasswordDialog("修改密码", this);
                     QString currentHint;
                     auto cats = DatabaseManager::instance().getAllCategories();
-                    for(const auto& c : cats) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
+                    for(const auto& c : std::as_const(cats)) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
                     dlg->setInitialData(currentHint);
                     connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
                         DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
