@@ -38,6 +38,133 @@
 #include <QRandomGenerator>
 #include <QStyledItemDelegate>
 #include <QPainter>
+#include <QPropertyAnimation>
+#include <QGraphicsOpacityEffect>
+
+
+// --- AppLockWidget 实现 (Eagle 风格启动锁) ---
+class AppLockWidget : public QWidget {
+    Q_OBJECT
+public:
+    AppLockWidget(const QString& correctPassword, QWidget* parent = nullptr)
+        : QWidget(parent), m_correctPassword(correctPassword) {
+        setObjectName("AppLockWidget");
+        setFocusPolicy(Qt::StrongFocus);
+        setAttribute(Qt::WA_StyledBackground);
+
+        auto* layout = new QVBoxLayout(this);
+        layout->setAlignment(Qt::AlignCenter);
+        layout->setSpacing(20);
+
+        // 背景色
+        setStyleSheet("QWidget#AppLockWidget { background-color: #1C1C1C; border-radius: 10px; }");
+
+        // 1. 锁图标
+        auto* lockIcon = new QLabel();
+        lockIcon->setPixmap(IconHelper::getIcon("lock", "#444444").pixmap(64, 64));
+        lockIcon->setAlignment(Qt::AlignCenter);
+        layout->addWidget(lockIcon);
+
+        // 2. 标题文字
+        auto* titleLabel = new QLabel("已锁定");
+        titleLabel->setStyleSheet("color: #EEEEEE; font-size: 18px; font-weight: bold;");
+        titleLabel->setAlignment(Qt::AlignCenter);
+        layout->addWidget(titleLabel);
+
+        // 3. 密码提示文字
+        QSettings settings("RapidNotes", "QuickWindow");
+        QString hint = settings.value("appPasswordHint", "请输入启动密码").toString();
+        auto* hintLabel = new QLabel(hint);
+        hintLabel->setStyleSheet("color: #666666; font-size: 12px;");
+        hintLabel->setAlignment(Qt::AlignCenter);
+        layout->addWidget(hintLabel);
+
+        // 4. 密码输入框
+        m_pwdEdit = new QLineEdit();
+        m_pwdEdit->setEchoMode(QLineEdit::Password);
+        m_pwdEdit->setPlaceholderText("Password");
+        m_pwdEdit->setFixedWidth(240);
+        m_pwdEdit->setFixedHeight(36);
+        m_pwdEdit->setAlignment(Qt::AlignCenter);
+        m_pwdEdit->setStyleSheet(
+            "QLineEdit {"
+            "  background-color: #2A2A2A; border: 1px solid #333; border-radius: 6px;"
+            "  color: white; font-size: 14px;"
+            "}"
+            "QLineEdit:focus { border: 1px solid #3A90FF; }"
+        );
+        connect(m_pwdEdit, &QLineEdit::returnPressed, this, &AppLockWidget::handleVerify);
+        layout->addWidget(m_pwdEdit, 0, Qt::AlignHCenter);
+
+        // 5. 退出程序按钮
+        auto* quitBtn = new QPushButton("退出程序");
+        quitBtn->setCursor(Qt::PointingHandCursor);
+        quitBtn->setStyleSheet("QPushButton { color: #888; border: none; background: transparent; font-size: 12px; } "
+                               "QPushButton:hover { color: #BBB; text-decoration: underline; }");
+        connect(quitBtn, &QPushButton::clicked, []() { QApplication::quit(); });
+        layout->addWidget(quitBtn, 0, Qt::AlignHCenter);
+
+        // 初始焦点
+        m_pwdEdit->setFocus();
+    }
+
+protected:
+    void keyPressEvent(QKeyEvent* event) override {
+        if (event->key() == Qt::Key_Escape) {
+            QApplication::quit();
+        }
+        QWidget::keyPressEvent(event);
+    }
+
+private slots:
+    void handleVerify() {
+        if (m_pwdEdit->text() == m_correctPassword) {
+            startFadeOut();
+        } else {
+            startShake();
+        }
+    }
+
+    void startFadeOut() {
+        auto* opacityEffect = new QGraphicsOpacityEffect(this);
+        setGraphicsEffect(opacityEffect);
+        auto* animation = new QPropertyAnimation(opacityEffect, "opacity");
+        animation->setDuration(300);
+        animation->setStartValue(1.0);
+        animation->setEndValue(0.0);
+        animation->setEasingCurve(QEasingCurve::OutCubic);
+        connect(animation, &QPropertyAnimation::finished, this, [this]() {
+            emit unlocked();
+            this->deleteLater();
+        });
+        animation->start(QAbstractAnimation::DeleteWhenStopped);
+    }
+
+    void startShake() {
+        m_pwdEdit->clear();
+        auto* anim = new QPropertyAnimation(m_pwdEdit, "pos");
+        anim->setDuration(400);
+        anim->setLoopCount(1);
+
+        QPoint pos = m_pwdEdit->pos();
+        anim->setKeyValueAt(0, pos);
+        anim->setKeyValueAt(0.1, pos + QPoint(-10, 0));
+        anim->setKeyValueAt(0.3, pos + QPoint(10, 0));
+        anim->setKeyValueAt(0.5, pos + QPoint(-10, 0));
+        anim->setKeyValueAt(0.7, pos + QPoint(10, 0));
+        anim->setKeyValueAt(0.9, pos + QPoint(-10, 0));
+        anim->setKeyValueAt(1, pos);
+
+        anim->start(QAbstractAnimation::DeleteWhenStopped);
+    }
+
+signals:
+    void unlocked();
+
+private:
+    QLineEdit* m_pwdEdit;
+    QString m_correctPassword;
+};
 
 
 // 定义调整大小的边缘触发区域宽度 (与边距一致)
@@ -497,6 +624,25 @@ void QuickWindow::initUI() {
     setupShortcuts();
     restoreState();
     refreshData();
+    setupAppLock();
+}
+
+void QuickWindow::setupAppLock() {
+    QSettings settings("RapidNotes", "QuickWindow");
+    QString appPwd = settings.value("appPassword").toString();
+    if (!appPwd.isEmpty()) {
+        auto* lock = new AppLockWidget(appPwd, this);
+        m_appLockWidget = lock;
+        lock->resize(this->size());
+
+        connect(lock, &AppLockWidget::unlocked, this, [this]() {
+            m_appLockWidget = nullptr;
+            m_searchEdit->setFocus();
+        });
+
+        lock->show();
+        lock->raise();
+    }
 }
 
 void QuickWindow::saveState() {
@@ -1461,8 +1607,18 @@ void QuickWindow::dropEvent(QDropEvent* event) {
 }
 
 void QuickWindow::hideEvent(QHideEvent* event) {
+    if (m_appLockWidget) {
+        QApplication::quit();
+    }
     saveState();
     QWidget::hideEvent(event);
+}
+
+void QuickWindow::resizeEvent(QResizeEvent* event) {
+    if (m_appLockWidget) {
+        m_appLockWidget->resize(this->size());
+    }
+    QWidget::resizeEvent(event);
 }
 
 void QuickWindow::keyPressEvent(QKeyEvent* event) {
@@ -1538,3 +1694,5 @@ void DittoListView::startDrag(Qt::DropActions supportedActions) {
     // 许多外部应用（特别是网页浏览器）需要明确的 Copy 握手信号。
     drag->exec(Qt::CopyAction | Qt::MoveAction, Qt::CopyAction);
 }
+
+#include "QuickWindow.moc"
