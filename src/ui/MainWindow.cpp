@@ -340,18 +340,26 @@ void MainWindow::initUI() {
                 dlg->raise();
             });
             pwdMenu->addAction("修改", [this, catId]() {
-                auto* dlg = new CategoryPasswordDialog("修改密码", this);
-                QString currentHint;
-                auto cats = DatabaseManager::instance().getAllCategories();
-                for(const auto& c : cats) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
-                dlg->setInitialData(currentHint);
-                connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
-                    DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
-                    refreshData();
+                auto* verifyDlg = new FramelessInputDialog("验证旧密码", "请输入当前密码:", "", this);
+                connect(verifyDlg, &FramelessInputDialog::accepted, [this, catId, verifyDlg]() {
+                    if (DatabaseManager::instance().verifyCategoryPassword(catId, verifyDlg->text())) {
+                        auto* dlg = new CategoryPasswordDialog("修改密码", this);
+                        QString currentHint;
+                        auto cats = DatabaseManager::instance().getAllCategories();
+                        for(const auto& c : cats) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
+                        dlg->setInitialData(currentHint);
+                        connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
+                            DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
+                            refreshData();
+                        });
+                        dlg->show();
+                        dlg->activateWindow();
+                        dlg->raise();
+                    } else {
+                        QMessageBox::warning(this, "错误", "旧密码验证失败");
+                    }
                 });
-                dlg->show();
-                dlg->activateWindow();
-                dlg->raise();
+                verifyDlg->show();
             });
             pwdMenu->addAction("移除", [this, catId]() {
                 auto* dlg = new FramelessInputDialog("验证密码", "请输入当前密码以移除保护:", "", this);
@@ -970,6 +978,10 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
                 DatabaseManager::instance().softDeleteNotes(ids);
                 refreshData();
             }
+            return true;
+        }
+        if (keyEvent->key() == Qt::Key_Space) {
+            doPreview();
             return true;
         }
     }

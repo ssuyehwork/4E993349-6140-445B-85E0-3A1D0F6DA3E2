@@ -43,8 +43,11 @@ QuickToolbar::QuickToolbar(QWidget* parent) : QWidget(parent) {
 
     addSeparator();
     
-    m_btnStayTop = addBtn("pin", "保持置顶", nullptr, true);
-    connect(m_btnStayTop, &QPushButton::toggled, this, &QuickToolbar::toggleStayOnTop);
+    m_btnStayTop = addBtn("pin_tilted", "保持置顶", nullptr, true);
+    connect(m_btnStayTop, &QPushButton::toggled, this, [this](bool checked){
+        m_btnStayTop->setIcon(IconHelper::getIcon(checked ? "pin_vertical" : "pin_tilted", checked ? "#ffffff" : "#aaaaaa"));
+        emit toggleStayOnTop(checked);
+    });
     
     addBtn("eye", "显示/隐藏侧边栏", &QuickToolbar::toggleSidebar);
     addBtn("refresh", "刷新", &QuickToolbar::refreshRequested);

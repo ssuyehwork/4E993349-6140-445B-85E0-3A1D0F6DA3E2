@@ -177,12 +177,15 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     layout->addSpacing(4);
 
     m_btnStayOnTop = new QPushButton();
-    m_btnStayOnTop->setIcon(IconHelper::getIcon("pin", "#aaaaaa", 20));
+    m_btnStayOnTop->setIcon(IconHelper::getIcon("pin_tilted", "#aaaaaa", 20));
     m_btnStayOnTop->setIconSize(QSize(20, 20));
     m_btnStayOnTop->setToolTip("始终最前 (自动置顶)");
     m_btnStayOnTop->setCheckable(true);
     m_btnStayOnTop->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #f1c40f; }");
-    connect(m_btnStayOnTop, &QPushButton::toggled, this, &HeaderBar::stayOnTopRequested);
+    connect(m_btnStayOnTop, &QPushButton::toggled, this, [this](bool checked){
+        m_btnStayOnTop->setIcon(IconHelper::getIcon(checked ? "pin_vertical" : "pin_tilted", checked ? "#ffffff" : "#aaaaaa", 20));
+        emit stayOnTopRequested(checked);
+    });
     layout->addWidget(m_btnStayOnTop);
 
     // 5. Window Controls

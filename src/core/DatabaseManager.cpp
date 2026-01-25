@@ -7,6 +7,7 @@
 #include <QFile>
 #include <QDir>
 #include <QCryptographicHash>
+#include <QRandomGenerator>
 
 DatabaseManager& DatabaseManager::instance() {
     static DatabaseManager inst;
@@ -663,6 +664,23 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
     QString whereClause = "WHERE is_deleted = 0 ";
     QVariantList params;
 
+    // 安全过滤：排除所有锁定分类的数据（除非正在查看该特定分类且已通过 UI 层的锁定检查）
+    if (filterType != "category" && filterType != "trash") {
+        QSqlQuery catQuery(m_db);
+        catQuery.exec("SELECT id FROM categories WHERE password IS NOT NULL AND password != ''");
+        QList<int> lockedIds;
+        while (catQuery.next()) {
+            int cid = catQuery.value(0).toInt();
+            if (!m_unlockedCategories.contains(cid)) lockedIds.append(cid);
+        }
+        if (!lockedIds.isEmpty()) {
+            QStringList placeholders;
+            for (int i = 0; i < lockedIds.size(); ++i) placeholders << "?";
+            whereClause += QString("AND (category_id IS NULL OR category_id NOT IN (%1)) ").arg(placeholders.join(","));
+            for (int id : lockedIds) params << id;
+        }
+    }
+
     if (filterType == "category") {
         if (filterValue.toInt() == -1) whereClause += "AND category_id IS NULL ";
         else {
@@ -715,6 +733,23 @@ int DatabaseManager::getNotesCount(const QString& keyword, const QString& filter
     QString whereClause = "WHERE is_deleted = 0 ";
     QVariantList params;
 
+    // 安全过滤：排除所有锁定分类的数据
+    if (filterType != "category" && filterType != "trash") {
+        QSqlQuery catQuery(m_db);
+        catQuery.exec("SELECT id FROM categories WHERE password IS NOT NULL AND password != ''");
+        QList<int> lockedIds;
+        while (catQuery.next()) {
+            int cid = catQuery.value(0).toInt();
+            if (!m_unlockedCategories.contains(cid)) lockedIds.append(cid);
+        }
+        if (!lockedIds.isEmpty()) {
+            QStringList placeholders;
+            for (int i = 0; i < lockedIds.size(); ++i) placeholders << "?";
+            whereClause += QString("AND (category_id IS NULL OR category_id NOT IN (%1)) ").arg(placeholders.join(","));
+            for (int id : lockedIds) params << id;
+        }
+    }
+
     if (filterType == "category") {
         if (filterValue.toInt() == -1) whereClause += "AND category_id IS NULL ";
         else {
@@ -752,8 +787,25 @@ QList<QVariantMap> DatabaseManager::getAllNotes() {
     QList<QVariantMap> results;
     if (!m_db.isOpen()) return results;
 
+    // 获取锁定分类 ID
+    QSqlQuery catQuery(m_db);
+    catQuery.exec("SELECT id FROM categories WHERE password IS NOT NULL AND password != ''");
+    QList<int> lockedIds;
+    while (catQuery.next()) {
+        int cid = catQuery.value(0).toInt();
+        if (!m_unlockedCategories.contains(cid)) lockedIds.append(cid);
+    }
+
+    QString sql = "SELECT * FROM notes WHERE is_deleted = 0 ";
+    if (!lockedIds.isEmpty()) {
+        QStringList ids;
+        for (int id : lockedIds) ids << QString::number(id);
+        sql += QString("AND (category_id IS NULL OR category_id NOT IN (%1)) ").arg(ids.join(","));
+    }
+    sql += "ORDER BY is_pinned DESC, updated_at DESC";
+
     QSqlQuery query(m_db);
-    if (query.exec("SELECT * FROM notes WHERE is_deleted = 0 ORDER BY is_pinned DESC, updated_at DESC")) {
+    if (query.exec(sql)) {
         while (query.next()) {
             QVariantMap map;
             QSqlRecord rec = query.record();
