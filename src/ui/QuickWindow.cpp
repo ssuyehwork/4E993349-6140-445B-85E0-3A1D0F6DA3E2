@@ -57,7 +57,8 @@ public:
         layout->setSpacing(20);
 
         // 背景色
-        setStyleSheet("QWidget#AppLockWidget { background-color: #1C1C1C; border-radius: 10px; }");
+        setStyleSheet("QWidget#AppLockWidget { background-color: #1C1C1C; border-radius: 10px; } "
+                      "QLabel { background: transparent; border: none; }");
 
         // 1. 锁图标
         auto* lockIcon = new QLabel();
