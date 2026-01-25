@@ -241,25 +241,31 @@ void Toolbox::initOCRTab(QWidget* tab) {
     btnCopy->setStyleSheet("QPushButton { background: #333; border: 1px solid #444; border-radius: 4px; color: #ddd; } QPushButton:hover { background: #3e3e42; }");
     layout->addWidget(btnCopy);
 
-    connect(btnPaste, &QPushButton::clicked, [this]() {
+    connect(btnPaste, &QPushButton::clicked, this, [this]() {
         const QMimeData* mime = QApplication::clipboard()->mimeData();
-        if (mime->hasImage()) {
+        if (mime && mime->hasImage()) {
             QImage img = qvariant_cast<QImage>(mime->imageData());
-            m_ocrResult->setPlainText("正在识别中，请稍候...");
-            OCRManager::instance().recognizeAsync(img, 9999); // 使用特殊 ID 表示来自工具箱
+            if (!img.isNull()) {
+                m_ocrResult->setPlainText("正在识别中，请稍候...");
+                OCRManager::instance().recognizeAsync(img, 9999); // 使用特殊 ID 表示来自工具箱
+            } else {
+                m_ocrResult->setPlainText("获取图片数据失败！");
+            }
         } else {
             m_ocrResult->setPlainText("剪贴板中没有图片！");
         }
     });
 
-    connect(&OCRManager::instance(), &OCRManager::recognitionFinished, [this](const QString& text, int contextId) {
-        if (contextId == 9999) {
+    connect(&OCRManager::instance(), &OCRManager::recognitionFinished, this, [this](const QString& text, int contextId) {
+        if (contextId == 9999 && m_ocrResult) {
             m_ocrResult->setPlainText(text);
         }
     });
 
-    connect(btnCopy, &QPushButton::clicked, [this]() {
-        QApplication::clipboard()->setText(m_ocrResult->toPlainText());
+    connect(btnCopy, &QPushButton::clicked, this, [this]() {
+        if (m_ocrResult) {
+            QApplication::clipboard()->setText(m_ocrResult->toPlainText());
+        }
     });
 
     layout->addStretch();
