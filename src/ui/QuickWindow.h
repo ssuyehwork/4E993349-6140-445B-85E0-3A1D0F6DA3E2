@@ -38,7 +38,7 @@ class QuickWindow : public QWidget {
     Q_OBJECT
 public:
     explicit QuickWindow(QWidget* parent = nullptr);
-    void showCentered();
+    void showAuto();
     void saveState();
     void restoreState();
 
@@ -63,6 +63,7 @@ protected:
     void hideEvent(QHideEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
+    void moveEvent(QMoveEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:

@@ -13,7 +13,7 @@
 #include <QSettings>
 
 FloatingBall::FloatingBall(QWidget* parent) 
-    : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool) 
+    : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool | Qt::X11BypassWindowManagerHint)
 {
     setAttribute(Qt::WA_TranslucentBackground);
     setAcceptDrops(true);

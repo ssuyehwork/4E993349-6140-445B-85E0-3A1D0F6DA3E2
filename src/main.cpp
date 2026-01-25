@@ -74,7 +74,7 @@ int main(int argc, char *argv[]) {
 
     // 4. 初始化快速记录窗口与工具箱及其功能子窗口
     QuickWindow* quickWin = new QuickWindow();
-    quickWin->showCentered(); // 默认启动显示极速窗口
+    quickWin->showAuto(); // 默认启动显示极速窗口
     
     Toolbox* toolbox = new Toolbox();
     TimePasteWindow* timePasteWin = new TimePasteWindow();
@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
     // 统一显示主窗口的逻辑，处理启动锁定状态
     auto showMainWindow = [=]() {
         if (quickWin->isLocked()) {
-            quickWin->showCentered();
+            quickWin->showAuto();
             return;
         }
         if (mainWin->isVisible()) {
@@ -141,7 +141,7 @@ int main(int argc, char *argv[]) {
             if (quickWin->isVisible() && quickWin->isActiveWindow()) {
                 quickWin->hide();
             } else {
-                quickWin->showCentered();
+                quickWin->showAuto();
             }
         } else if (id == 2) {
             // 收藏最后一条灵感
@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
         if (conn->waitForReadyRead(500)) {
             QByteArray data = conn->readAll();
             if (data == "SHOW") {
-                quickWin->showCentered();
+                quickWin->showAuto();
             }
             conn->disconnectFromServer();
         }
@@ -196,15 +196,15 @@ int main(int argc, char *argv[]) {
 
     SystemTray* tray = new SystemTray(&a);
     QObject::connect(tray, &SystemTray::showMainWindow, showMainWindow);
-    QObject::connect(tray, &SystemTray::showQuickWindow, quickWin, &QuickWindow::showCentered);
+    QObject::connect(tray, &SystemTray::showQuickWindow, quickWin, &QuickWindow::showAuto);
     QObject::connect(tray, &SystemTray::quitApp, &a, &QApplication::quit);
     tray->show();
 
     QObject::connect(ball, &FloatingBall::doubleClicked, [&](){
-        quickWin->showCentered();
+        quickWin->showAuto();
     });
     QObject::connect(ball, &FloatingBall::requestMainWindow, showMainWindow);
-    QObject::connect(ball, &FloatingBall::requestQuickWindow, quickWin, &QuickWindow::showCentered);
+    QObject::connect(ball, &FloatingBall::requestQuickWindow, quickWin, &QuickWindow::showAuto);
     QObject::connect(ball, &FloatingBall::requestNewIdea, [=](){
         NoteEditWindow* win = new NoteEditWindow();
         QObject::connect(win, &NoteEditWindow::noteSaved, quickWin, &QuickWindow::refreshData);

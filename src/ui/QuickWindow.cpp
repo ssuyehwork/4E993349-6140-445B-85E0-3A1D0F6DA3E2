@@ -1536,7 +1536,7 @@ void QuickWindow::doMoveToCategory(int catId) {
     refreshData();
 }
 
-void QuickWindow::showCentered() {
+void QuickWindow::showAuto() {
 #ifdef Q_OS_WIN
     HWND myHwnd = (HWND)winId();
     HWND current = GetForegroundWindow();
@@ -1552,13 +1552,25 @@ void QuickWindow::showCentered() {
         }
     }
 #endif
-    QScreen *screen = QGuiApplication::primaryScreen();
-    if (screen) {
-        QRect screenGeom = screen->geometry();
-        move(screenGeom.center() - rect().center());
+
+    // 仅在从未保存过位置时执行居中逻辑
+    QSettings settings("RapidNotes", "QuickWindow");
+    if (!settings.contains("geometry")) {
+        QScreen *screen = QGuiApplication::primaryScreen();
+        if (screen) {
+            QRect screenGeom = screen->geometry();
+            move(screenGeom.center() - rect().center());
+        }
     }
+
     show();
+    raise();
     activateWindow();
+
+#ifdef Q_OS_WIN
+    SetForegroundWindow((HWND)winId());
+#endif
+
     m_searchEdit->setFocus();
     m_searchEdit->selectAll();
 }
@@ -1703,6 +1715,12 @@ void QuickWindow::resizeEvent(QResizeEvent* event) {
         m_appLockWidget->resize(this->size());
     }
     QWidget::resizeEvent(event);
+    saveState();
+}
+
+void QuickWindow::moveEvent(QMoveEvent* event) {
+    QWidget::moveEvent(event);
+    saveState();
 }
 
 void QuickWindow::keyPressEvent(QKeyEvent* event) {
