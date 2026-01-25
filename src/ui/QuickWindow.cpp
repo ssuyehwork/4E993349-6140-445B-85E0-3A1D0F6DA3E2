@@ -27,6 +27,9 @@
 #include <QImage>
 #include <QMap>
 #include <QFileInfo>
+#include <QLineEdit>
+#include <QTextEdit>
+#include <QPlainTextEdit>
 #include <QInputDialog>
 #include <QColorDialog>
 #include <QMessageBox>
@@ -878,6 +881,14 @@ void QuickWindow::doSetRating(int rating) {
 }
 
 void QuickWindow::doPreview() {
+    // 保护：如果焦点在搜索框或其他输入框，空格键应保留其原始功能
+    QWidget* focusWidget = QApplication::focusWidget();
+    if (focusWidget && (qobject_cast<QLineEdit*>(focusWidget) || 
+                        qobject_cast<QTextEdit*>(focusWidget) ||
+                        qobject_cast<QPlainTextEdit*>(focusWidget))) {
+        return;
+    }
+
     if (m_quickPreview->isVisible()) {
         m_quickPreview->hide();
         return;

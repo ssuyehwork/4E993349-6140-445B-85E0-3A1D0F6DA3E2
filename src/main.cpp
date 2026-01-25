@@ -6,16 +6,22 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QFileInfo>
+#include <QBuffer>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include "core/DatabaseManager.h"
 #include "core/HotkeyManager.h"
 #include "core/ClipboardMonitor.h"
+#include "core/OCRManager.h"
 #include "ui/MainWindow.h"
 #include "ui/FloatingBall.h"
 #include "ui/QuickWindow.h"
 #include "ui/SystemTray.h"
 #include "ui/Toolbox.h"
+#include "ui/TimePasteWindow.h"
+#include "ui/PasswordGeneratorWindow.h"
+#include "ui/OCRWindow.h"
+#include "ui/ScreenshotTool.h"
 #include "core/KeyboardHook.h"
 
 int main(int argc, char *argv[]) {
@@ -63,32 +69,40 @@ int main(int argc, char *argv[]) {
     FloatingBall* ball = new FloatingBall();
     ball->show();
 
-    // 4. 初始化快速记录窗口与工具箱
+    // 4. 初始化快速记录窗口与工具箱及其功能子窗口
     QuickWindow* quickWin = new QuickWindow();
     quickWin->showCentered(); // 默认启动显示极速窗口
+    
     Toolbox* toolbox = new Toolbox();
+    TimePasteWindow* timePasteWin = new TimePasteWindow();
+    PasswordGeneratorWindow* passwordGenWin = new PasswordGeneratorWindow();
+    OCRWindow* ocrWin = new OCRWindow();
 
-    auto toggleToolbox = [toolbox](QWidget* parentWin) {
-        if (toolbox->isVisible()) {
-            toolbox->hide();
+    auto toggleWindow = [](QWidget* win, QWidget* parentWin = nullptr) {
+        if (win->isVisible()) {
+            win->hide();
         } else {
             if (parentWin) {
-                // 如果是快速窗口唤起，停靠在左侧
                 if (parentWin->objectName() == "QuickWindow") {
-                    toolbox->move(parentWin->x() - toolbox->width() - 10, parentWin->y());
+                    win->move(parentWin->x() - win->width() - 10, parentWin->y());
                 } else {
-                    toolbox->move(parentWin->geometry().center() - toolbox->rect().center());
+                    win->move(parentWin->geometry().center() - win->rect().center());
                 }
             }
-            toolbox->show();
-            toolbox->raise();
-            toolbox->activateWindow();
+            win->show();
+            win->raise();
+            win->activateWindow();
         }
     };
 
     quickWin->setObjectName("QuickWindow");
-    QObject::connect(quickWin, &QuickWindow::toolboxRequested, [=](){ toggleToolbox(quickWin); });
-    QObject::connect(mainWin, &MainWindow::toolboxRequested, [=](){ toggleToolbox(mainWin); });
+    QObject::connect(quickWin, &QuickWindow::toolboxRequested, [=](){ toggleWindow(toolbox, quickWin); });
+    QObject::connect(mainWin, &MainWindow::toolboxRequested, [=](){ toggleWindow(toolbox, mainWin); });
+
+    // 连接工具箱按钮信号
+    QObject::connect(toolbox, &Toolbox::showTimePasteRequested, [=](){ toggleWindow(timePasteWin); });
+    QObject::connect(toolbox, &Toolbox::showPasswordGeneratorRequested, [=](){ toggleWindow(passwordGenWin); });
+    QObject::connect(toolbox, &Toolbox::showOCRRequested, [=](){ toggleWindow(ocrWin); });
 
     // 处理主窗口切换信号
     QObject::connect(quickWin, &QuickWindow::toggleMainWindowRequested, [=](){
@@ -109,10 +123,16 @@ int main(int argc, char *argv[]) {
     HotkeyManager::instance().registerHotkey(1, 0x0001, 0x20);
     // Ctrl+Shift+E (0x0002 = MOD_CONTROL, 0x0004 = MOD_SHIFT, 0x45 = 'E')
     HotkeyManager::instance().registerHotkey(2, 0x0002 | 0x0004, 0x45);
+    // Ctrl+Alt+A (0x0002 = MOD_CONTROL, 0x0001 = MOD_ALT, 0x41 = 'A')
+    HotkeyManager::instance().registerHotkey(3, 0x0002 | 0x0001, 0x41);
     
     QObject::connect(&HotkeyManager::instance(), &HotkeyManager::hotkeyPressed, [&](int id){
         if (id == 1) {
-            quickWin->showCentered();
+            if (quickWin->isVisible() && quickWin->isActiveWindow()) {
+                quickWin->hide();
+            } else {
+                quickWin->showCentered();
+            }
         } else if (id == 2) {
             // 收藏最后一条灵感
             auto notes = DatabaseManager::instance().getAllNotes();
@@ -121,6 +141,34 @@ int main(int argc, char *argv[]) {
                 DatabaseManager::instance().updateNoteState(lastId, "is_favorite", 1);
                 qDebug() << "[Main] 已收藏最新灵感 ID:" << lastId;
             }
+        } else if (id == 3) {
+            // 截屏功能
+            auto* tool = new ScreenshotTool();
+            tool->setAttribute(Qt::WA_DeleteOnClose);
+            QObject::connect(tool, &ScreenshotTool::screenshotCaptured, [=](const QImage& img){
+                // 1. 保存到剪贴板
+                QApplication::clipboard()->setImage(img);
+
+                // 2. 保存到数据库
+                QByteArray ba;
+                QBuffer buffer(&ba);
+                buffer.open(QIODevice::WriteOnly);
+                img.save(&buffer, "PNG");
+                
+                QString title = "[截屏] " + QDateTime::currentDateTime().toString("MMdd_HHmm");
+                int noteId = DatabaseManager::instance().addNote(title, "[正在进行文字识别...]", QStringList() << "截屏", "", -1, "image", ba);
+                
+                // 3. 触发 OCR
+                OCRManager::instance().recognizeAsync(img, noteId);
+            });
+            tool->show();
+        }
+    });
+
+    // 监听 OCR 完成信号并更新笔记内容 (排除工具箱特有的 ID 9999)
+    QObject::connect(&OCRManager::instance(), &OCRManager::recognitionFinished, [](const QString& text, int noteId){
+        if (noteId > 0 && noteId != 9999) {
+            DatabaseManager::instance().updateNoteState(noteId, "content", text);
         }
     });
 

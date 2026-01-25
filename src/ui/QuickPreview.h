@@ -109,13 +109,6 @@ public:
         
         resize(900, 700);
 
-        // 使用 QAction 绑定快捷键，比 QShortcut 在复杂焦点环境下更稳定
-        // 注意：Space 由父窗口的 WindowShortcut 统一管理 toggle 逻辑
-        QAction* escAction = new QAction(this);
-        escAction->setShortcut(QKeySequence(Qt::Key_Escape));
-        escAction->setShortcutContext(Qt::WindowShortcut);
-        connect(escAction, &QAction::triggered, this, &QuickPreview::hide);
-        addAction(escAction);
     }
 
     void showPreview(int noteId, const QString& title, const QString& content, const QPoint& pos) {
@@ -169,6 +162,16 @@ protected:
             else showMaximized();
             event->accept();
         }
+    }
+
+protected:
+    void keyPressEvent(QKeyEvent* event) override {
+        if (event->key() == Qt::Key_Space || event->key() == Qt::Key_Escape) {
+            hide();
+            event->accept();
+            return;
+        }
+        QWidget::keyPressEvent(event);
     }
 
 private:

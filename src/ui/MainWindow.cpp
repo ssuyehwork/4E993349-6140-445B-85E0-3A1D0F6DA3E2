@@ -18,6 +18,10 @@
 #include <QSet>
 #include <QSettings>
 #include <QRandomGenerator>
+#include <QLineEdit>
+#include <QTextEdit>
+#include <QApplication>
+#include <QPlainTextEdit>
 #include "CleanListView.h"
 #include "FramelessDialog.h"
 #include <functional>
@@ -640,6 +644,13 @@ void MainWindow::initUI() {
     connect(actionRefresh, &QAction::triggered, this, &MainWindow::refreshData);
     addAction(actionRefresh);
 
+    // 使用 QAction 统一绑定空格键，支持 Toggle 逻辑且优先级更高
+    auto* actionSpace = new QAction(this);
+    actionSpace->setShortcut(QKeySequence(Qt::Key_Space));
+    actionSpace->setShortcutContext(Qt::WindowShortcut);
+    connect(actionSpace, &QAction::triggered, this, &MainWindow::doPreview);
+    addAction(actionSpace);
+
     splitter->setStretchFactor(0, 1); 
     splitter->setStretchFactor(1, 2); 
     splitter->setStretchFactor(2, 8); 
@@ -843,23 +854,7 @@ void MainWindow::onSelectionChanged(const QItemSelection& selected, const QItemS
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     if (watched == m_noteList && event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
-        if (keyEvent->key() == Qt::Key_Space && !keyEvent->isAutoRepeat()) {
-            QModelIndex index = m_noteList->currentIndex();
-            if (index.isValid()) {
-                int id = index.data(NoteModel::IdRole).toInt();
-                QVariantMap note = DatabaseManager::instance().getNoteById(id);
-                QPoint globalPos = m_noteList->mapToGlobal(m_noteList->rect().center()) - QPoint(250, 300);
-                m_quickPreview->showPreview(
-                    id,
-                    note["title"].toString(), 
-                    note["content"].toString(), 
-                    note["item_type"].toString(),
-                    note["data_blob"].toByteArray(),
-                    globalPos
-                );
-                return true;
-            }
-        } else if (keyEvent->key() == Qt::Key_Delete) {
+        if (keyEvent->key() == Qt::Key_Delete) {
             // 处理删除快捷键
             QModelIndexList indices = m_noteList->selectionModel()->selectedIndexes();
             if (indices.isEmpty()) return true;
@@ -992,4 +987,35 @@ void MainWindow::restoreLayout() {
     if (splitter && settings.contains("splitterState")) {
         splitter->restoreState(settings.value("splitterState").toByteArray());
     }
+}
+
+void MainWindow::doPreview() {
+    // 保护：如果焦点在输入框，空格键应保留其原始打字功能
+    QWidget* focusWidget = QApplication::focusWidget();
+    if (focusWidget && (qobject_cast<QLineEdit*>(focusWidget) || 
+                        qobject_cast<QTextEdit*>(focusWidget) ||
+                        qobject_cast<QPlainTextEdit*>(focusWidget))) {
+        // 允许空格键在输入框中输入
+        return;
+    }
+
+    if (m_quickPreview->isVisible()) {
+        m_quickPreview->hide();
+        return;
+    }
+    QModelIndex index = m_noteList->currentIndex();
+    if (!index.isValid()) return;
+    int id = index.data(NoteModel::IdRole).toInt();
+    QVariantMap note = DatabaseManager::instance().getNoteById(id);
+    QPoint globalPos = m_noteList->mapToGlobal(m_noteList->rect().center()) - QPoint(250, 300);
+    m_quickPreview->showPreview(
+        id,
+        note["title"].toString(), 
+        note["content"].toString(), 
+        note["item_type"].toString(),
+        note["data_blob"].toByteArray(),
+        globalPos
+    );
+    m_quickPreview->raise();
+    m_quickPreview->activateWindow();
 }

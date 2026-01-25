@@ -38,6 +38,7 @@ private slots:
     void onNoteAdded(const QVariantMap& note);
     
     void refreshData();
+    void doPreview();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;

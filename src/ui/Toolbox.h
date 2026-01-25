@@ -1,26 +1,31 @@
 #ifndef TOOLBOX_H
 #define TOOLBOX_H
 
-#include <QDialog>
-#include <QTabWidget>
+#include <QWidget>
+#include <QPushButton>
+#include <QVBoxLayout>
+#include <QPoint>
 
-class Toolbox : public QDialog {
+class Toolbox : public QWidget {
     Q_OBJECT
 public:
     explicit Toolbox(QWidget* parent = nullptr);
     ~Toolbox();
 
+signals:
+    void showTimePasteRequested();
+    void showPasswordGeneratorRequested();
+    void showOCRRequested();
+
 protected:
-    void showEvent(QShowEvent* event) override;
-    void hideEvent(QHideEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
 
 private:
-    void initTimePasteTab(QWidget* tab);
-    void initPasswordGenTab(QWidget* tab);
-    void onDigitPressed(int digit);
+    void initUI();
+    QPushButton* createToolButton(const QString& text);
 
-    int m_timeMode = 0; // 0: 退, 1: 进
-    QTabWidget* m_tabs;
+    QPoint m_dragPos;
 };
 
 #endif // TOOLBOX_H
