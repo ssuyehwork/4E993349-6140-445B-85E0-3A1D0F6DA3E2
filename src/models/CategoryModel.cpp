@@ -62,7 +62,12 @@ void CategoryModel::refresh() {
             item->setData(id, IdRole);
             item->setData(cat["color"], ColorRole);
             item->setData(name, NameRole);
-            item->setIcon(IconHelper::getIcon("circle_filled", cat["color"].toString()));
+            
+            if (DatabaseManager::instance().isCategoryLocked(id)) {
+                item->setIcon(IconHelper::getIcon("lock", "#aaaaaa"));
+            } else {
+                item->setIcon(IconHelper::getIcon("circle_filled", cat["color"].toString()));
+            }
             itemMap[cat["id"].toInt()] = item;
         }
 

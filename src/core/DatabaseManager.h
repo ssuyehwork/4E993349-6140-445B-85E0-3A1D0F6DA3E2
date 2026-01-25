@@ -10,6 +10,7 @@
 #include <QVariantList>
 #include <QRecursiveMutex>
 #include <QStringList>
+#include <QSet>
 
 class DatabaseManager : public QObject {
     Q_OBJECT
@@ -43,6 +44,14 @@ public:
     QList<QVariantMap> getAllCategories();
     bool emptyTrash();
     bool restoreAllFromTrash();
+
+    // 分类密码保护
+    bool setCategoryPassword(int id, const QString& password, const QString& hint);
+    bool removeCategoryPassword(int id);
+    bool verifyCategoryPassword(int id, const QString& password);
+    bool isCategoryLocked(int id);
+    void lockCategory(int id);
+    void unlockCategory(int id);
 
     // 预设标签
     bool setCategoryPresetTags(int catId, const QString& tags);
@@ -87,6 +96,8 @@ private:
     QSqlDatabase m_db;
     QString m_dbPath; 
     QRecursiveMutex m_mutex;
+
+    QSet<int> m_unlockedCategories; // 仅存储当前会话已解锁的分类 ID
 };
 
 #endif // DATABASEMANAGER_H

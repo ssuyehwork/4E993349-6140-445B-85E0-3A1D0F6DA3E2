@@ -15,6 +15,7 @@
 #include "QuickPreview.h"
 #include "DropTreeView.h"
 #include "FilterPanel.h"
+#include "CategoryLockWidget.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -60,6 +61,7 @@ private:
     QWidget* m_filterWrapper;
     
     Editor* m_editor;
+    CategoryLockWidget* m_lockWidget;
 
     QString m_currentKeyword;
     QString m_currentFilterType = "all";
