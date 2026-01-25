@@ -8,7 +8,6 @@
 #include <QPushButton>
 #include <QPainter>
 #include <QPainterPath>
-#include <QThread>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -27,7 +26,8 @@ TimePasteWindow::TimePasteWindow(QWidget* parent) : QWidget(parent) {
     m_timer->start(100);
     updateDateTime();
 
-    connect(&KeyboardHook::instance(), &KeyboardHook::digitPressed, this, &TimePasteWindow::onDigitPressed);
+    // 使用 QueuedConnection 确保钩子回调立即返回，避免阻塞导致按键泄漏
+    connect(&KeyboardHook::instance(), &KeyboardHook::digitPressed, this, &TimePasteWindow::onDigitPressed, Qt::QueuedConnection);
 }
 
 TimePasteWindow::~TimePasteWindow() {
@@ -129,51 +129,52 @@ void TimePasteWindow::onDigitPressed(int digit) {
         target = target.addSecs(digit * 60);
     
     QString timeStr = target.toString("HH:mm");
-    QApplication::clipboard()->setText(timeStr);
-    
+
+    // 异步延迟处理，确保剪贴板设置和模拟粘贴不阻塞主线程/钩子回调
+    QTimer::singleShot(50, this, [timeStr]() {
+        QApplication::clipboard()->setText(timeStr);
+
 #ifdef Q_OS_WIN
-    // 模拟 Python 版的 50ms 延迟
-    QThread::msleep(50);
+        // 1. 显式释放所有 8 个修饰键 (L/R Ctrl, Shift, Alt, Win)
+        INPUT releaseInputs[8];
+        memset(releaseInputs, 0, sizeof(releaseInputs));
+        BYTE keys[] = { VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN };
+        for (int i = 0; i < 8; ++i) {
+            releaseInputs[i].type = INPUT_KEYBOARD;
+            releaseInputs[i].ki.wVk = keys[i];
+            releaseInputs[i].ki.dwFlags = KEYEVENTF_KEYUP;
+        }
+        SendInput(8, releaseInputs, sizeof(INPUT));
 
-    // 1. 显式释放所有 8 个修饰键 (L/R Ctrl, Shift, Alt, Win)
-    INPUT releaseInputs[8];
-    memset(releaseInputs, 0, sizeof(releaseInputs));
-    BYTE keys[] = { VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN };
-    for (int i = 0; i < 8; ++i) {
-        releaseInputs[i].type = INPUT_KEYBOARD;
-        releaseInputs[i].ki.wVk = keys[i];
-        releaseInputs[i].ki.dwFlags = KEYEVENTF_KEYUP;
-    }
-    SendInput(8, releaseInputs, sizeof(INPUT));
+        // 2. 发送 Ctrl + V (带扫描码以提高兼容性)
+        INPUT inputs[4];
+        memset(inputs, 0, sizeof(inputs));
 
-    // 2. 发送 Ctrl + V (带扫描码以提高兼容性)
-    INPUT inputs[4];
-    memset(inputs, 0, sizeof(inputs));
+        // Ctrl 按下
+        inputs[0].type = INPUT_KEYBOARD;
+        inputs[0].ki.wVk = VK_LCONTROL;
+        inputs[0].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
 
-    // Ctrl 按下
-    inputs[0].type = INPUT_KEYBOARD;
-    inputs[0].ki.wVk = VK_LCONTROL;
-    inputs[0].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
+        // V 按下
+        inputs[1].type = INPUT_KEYBOARD;
+        inputs[1].ki.wVk = 'V';
+        inputs[1].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
 
-    // V 按下
-    inputs[1].type = INPUT_KEYBOARD;
-    inputs[1].ki.wVk = 'V';
-    inputs[1].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
+        // V 抬起
+        inputs[2].type = INPUT_KEYBOARD;
+        inputs[2].ki.wVk = 'V';
+        inputs[2].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
+        inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
 
-    // V 抬起
-    inputs[2].type = INPUT_KEYBOARD;
-    inputs[2].ki.wVk = 'V';
-    inputs[2].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
-    inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+        // Ctrl 抬起
+        inputs[3].type = INPUT_KEYBOARD;
+        inputs[3].ki.wVk = VK_LCONTROL;
+        inputs[3].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
+        inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
 
-    // Ctrl 抬起
-    inputs[3].type = INPUT_KEYBOARD;
-    inputs[3].ki.wVk = VK_LCONTROL;
-    inputs[3].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
-    inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
-
-    SendInput(4, inputs, sizeof(INPUT));
+        SendInput(4, inputs, sizeof(INPUT));
 #endif
+    });
 }
 
 void TimePasteWindow::mousePressEvent(QMouseEvent* event) {
