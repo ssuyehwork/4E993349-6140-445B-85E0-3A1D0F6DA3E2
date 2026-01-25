@@ -102,7 +102,6 @@ void MetadataPanel::initUI() {
         "}"
     );
     container->setAttribute(Qt::WA_StyledBackground, true);
-    container->setAutoFillBackground(true);
 
     auto* shadow = new QGraphicsDropShadowEffect(this);
     shadow->setBlurRadius(10);
