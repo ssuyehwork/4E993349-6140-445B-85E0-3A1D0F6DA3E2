@@ -37,6 +37,7 @@ class QuickWindow : public QWidget {
     Q_OBJECT
 public:
     explicit QuickWindow(QWidget* parent = nullptr);
+    static QString masterPassword();
     void showCentered();
     void setDatabaseLocked(bool locked);
     void saveState();

@@ -14,40 +14,40 @@ CategoryLockWidget::CategoryLockWidget(QWidget* parent) : QWidget(parent) {
     layout->setAlignment(Qt::AlignCenter);
     layout->setSpacing(8);
 
-    // 1. 锁图标 (对齐图 3，增大至 64x64)
+    // 1. 锁图标 (1:1 还原图 3，增大至 100x100)
     auto* lockIcon = new QLabel();
-    lockIcon->setPixmap(IconHelper::getIcon("lock", "#555555").pixmap(64, 64));
+    lockIcon->setPixmap(IconHelper::getIcon("lock", "#444444").pixmap(100, 100));
     lockIcon->setAlignment(Qt::AlignCenter);
     layout->addWidget(lockIcon);
 
-    layout->addSpacing(10);
+    layout->addSpacing(15);
 
-    // 2. 动态标题 (对齐图 3: "<Name> 已锁定")
+    // 2. 动态标题 (1:1 还原图 3: "<Name> 已锁定")
     m_titleLabel = new QLabel("已锁定");
-    m_titleLabel->setStyleSheet("color: #DDDDDD; font-size: 16px; font-weight: bold; background: transparent;");
+    m_titleLabel->setStyleSheet("color: #FFFFFF; font-size: 18px; font-weight: bold; background: transparent;");
     m_titleLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(m_titleLabel);
 
-    // 3. 密码提示 (精简至 12px)
+    // 3. 密码提示 (1:1 还原图 3)
     m_hintLabel = new QLabel("密码提示: ");
-    m_hintLabel->setStyleSheet("color: #777777; font-size: 12px; background: transparent;");
+    m_hintLabel->setStyleSheet("color: #888888; font-size: 13px; background: transparent;");
     m_hintLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(m_hintLabel);
 
     layout->addSpacing(2);
 
-    // 4. 密码输入框 (收紧至 180px)
+    // 4. 密码输入框 (1:1 还原图 3 比例)
     m_pwdEdit = new QLineEdit();
     m_pwdEdit->setPlaceholderText("输入密码");
     m_pwdEdit->setEchoMode(QLineEdit::Password);
-    m_pwdEdit->setFixedWidth(180);
-    m_pwdEdit->setFixedHeight(28);
+    m_pwdEdit->setFixedWidth(220);
+    m_pwdEdit->setFixedHeight(32);
     m_pwdEdit->setStyleSheet(
         "QLineEdit {"
-        "  background-color: #121212; border: 1px solid #333; border-radius: 4px;"
-        "  padding: 0 8px; color: white; font-size: 12px;"
+        "  background-color: #121212; border: 1px solid #333; border-radius: 6px;"
+        "  padding: 0 10px; color: white; font-size: 13px;"
         "}"
-        "QLineEdit:focus { border: 1px solid #3a90ff; }"
+        "QLineEdit:focus { border: 1px solid #3a90ff; background-color: #0a0a0a; }"
     );
     connect(m_pwdEdit, &QLineEdit::returnPressed, this, &CategoryLockWidget::onVerify);
     layout->addWidget(m_pwdEdit, 0, Qt::AlignHCenter);

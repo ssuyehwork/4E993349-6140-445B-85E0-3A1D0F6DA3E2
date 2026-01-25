@@ -19,17 +19,17 @@ DatabaseLockWidget::DatabaseLockWidget(QWidget* parent) : QWidget(parent) {
     layout->setAlignment(Qt::AlignCenter);
     layout->setSpacing(15);
 
-    // 1. 大锁图标
+    // 1. 大锁图标 (1:1 还原图 3)
     auto* lockIcon = new QLabel();
-    lockIcon->setPixmap(IconHelper::getIcon("lock", "#4a90e2").pixmap(80, 80));
+    lockIcon->setPixmap(IconHelper::getIcon("lock", "#444444").pixmap(120, 120));
     lockIcon->setAlignment(Qt::AlignCenter);
     layout->addWidget(lockIcon);
 
-    layout->addSpacing(10);
+    layout->addSpacing(20);
 
-    // 2. 标题
-    auto* titleLabel = new QLabel("灵感库已安全锁定");
-    titleLabel->setStyleSheet("color: white; font-size: 20px; font-weight: bold;");
+    // 2. 标题 (1:1 还原图 3)
+    auto* titleLabel = new QLabel("RapidNotes 已锁定");
+    titleLabel->setStyleSheet("color: white; font-size: 22px; font-weight: bold;");
     titleLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(titleLabel);
 
@@ -41,18 +41,18 @@ DatabaseLockWidget::DatabaseLockWidget(QWidget* parent) : QWidget(parent) {
 
     layout->addSpacing(10);
 
-    // 4. 密码框
+    // 4. 密码框 (1:1 还原图 3)
     m_pwdEdit = new QLineEdit();
-    m_pwdEdit->setPlaceholderText("主密码");
+    m_pwdEdit->setPlaceholderText("输入密码");
     m_pwdEdit->setEchoMode(QLineEdit::Password);
-    m_pwdEdit->setFixedWidth(240);
+    m_pwdEdit->setFixedWidth(260);
     m_pwdEdit->setFixedHeight(36);
     m_pwdEdit->setStyleSheet(
         "QLineEdit {"
-        "  background-color: #252526; border: 1px solid #444; border-radius: 6px;"
-        "  padding: 0 12px; color: white; font-size: 14px;"
+        "  background-color: #121212; border: 1px solid #444; border-radius: 8px;"
+        "  padding: 0 15px; color: white; font-size: 14px;"
         "}"
-        "QLineEdit:focus { border: 1px solid #4a90ff; }"
+        "QLineEdit:focus { border: 1px solid #3a90ff; background-color: #0a0a0a; }"
     );
     connect(m_pwdEdit, &QLineEdit::returnPressed, this, &DatabaseLockWidget::onVerify);
     layout->addWidget(m_pwdEdit, 0, Qt::AlignHCenter);

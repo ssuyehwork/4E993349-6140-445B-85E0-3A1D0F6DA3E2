@@ -16,7 +16,6 @@
 #include "core/ClipboardMonitor.h"
 #include "core/OCRManager.h"
 #include "ui/MainWindow.h"
-#include "ui/DatabaseLockDialog.h"
 #include "ui/FloatingBall.h"
 #include "ui/QuickWindow.h"
 #include "ui/SystemTray.h"
@@ -74,21 +73,9 @@ int main(int argc, char *argv[]) {
 
     bool dbInitiallyLocked = QFile::exists(encPath);
     if (dbInitiallyLocked) {
-        // 已锁定，主进程先不初始化 DB，等待 UI 触发解密
+        // 已锁定，主进程先不初始化 DB，等待 UI 触发解密 (密码在 QuickWindow.cpp 中硬编码)
         qDebug() << "[Main] 数据库已加密，进入待解锁状态...";
     } else {
-        // 未锁定，检查是否要引导设置密码
-        if (!QFile::exists(oldDbPath)) {
-            if (QMessageBox::question(nullptr, "安全提醒", "是否为数据库启用全量加密锁定？\n启用后，没有主密码将无法通过任何工具读取数据。") == QMessageBox::Yes) {
-                DatabaseLockDialog dlg(DatabaseLockDialog::SetPassword);
-                if (dlg.exec() == QDialog::Accepted) {
-                    masterPassword = dlg.password();
-                    // 此时还只是明文，将在退出时自动加密，或者我们可以立即执行一次初始化并加密
-                    // 这里简化逻辑：记录密码，后续 init 会使用
-                }
-            }
-        }
-
         // 初始化明文库
         if (!DatabaseManager::instance().init(oldDbPath)) {
             QMessageBox::critical(nullptr, "启动失败", "无法初始化数据库。");
@@ -96,18 +83,24 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // 注册退出时的重加密逻辑
-    QObject::connect(&a, &QApplication::aboutToQuit, [&]() {
+    // 注册退出时的重加密逻辑 (使用 QuickWindow.cpp 中硬编码的密码)
+    QObject::connect(&a, &QApplication::aboutToQuit, [=]() {
         qDebug() << "[Main] 正在退出，执行数据库回密...";
         DatabaseManager::instance().close();
-        if (!masterPassword.isEmpty()) {
-            if (FileCryptoHelper::encryptFile(dbPath, encPath, masterPassword)) {
+
+        QString appDir = QCoreApplication::applicationDirPath();
+        QString dbPath = QDir::tempPath() + "/.rn_vault_cache.db";
+        // 如果临时库不存在（可能是未加密模式），使用默认库
+        if (!QFile::exists(dbPath)) dbPath = appDir + "/notes.db";
+
+        QString encPath = appDir + "/notes.db.enc";
+        QString masterPwd = QuickWindow::masterPassword();
+
+        if (QFile::exists(dbPath)) {
+            if (FileCryptoHelper::encryptFile(dbPath, encPath, masterPwd)) {
                 FileCryptoHelper::secureDelete(dbPath);
                 qDebug() << "[Main] 数据库已安全锁定";
             }
-        } else {
-            // 如果从未设置过主密码，直接删除明文临时文件（逻辑保护）
-            // FileCryptoHelper::secureDelete(dbPath);
         }
     });
 
@@ -115,35 +108,29 @@ int main(int argc, char *argv[]) {
     MainWindow* mainWin = new MainWindow();
     QuickWindow* quickWin = new QuickWindow();
 
-    // 3. 关联解锁逻辑
-    auto doUnlock = [&](const QString& pwd) {
-        QString dbPath = QDir::tempPath() + "/.rn_vault_cache.db";
-        QString encPath = QCoreApplication::applicationDirPath() + "/notes.db.enc";
+    // 3. 极速窗口负责处理核心解锁逻辑 (密码在 QuickWindow.cpp 中硬编码)
+    QObject::connect(mainWin->m_dbLockWidget, &DatabaseLockWidget::unlocked, [=](const QString& pwd){
+        // 主窗口仅作为触发器，将输入传给极速窗口统一处理
+        emit quickWin->m_dbLockWidget->unlocked(pwd);
+    });
 
-        if (FileCryptoHelper::decryptFile(encPath, dbPath, pwd)) {
-            if (DatabaseManager::instance().init(dbPath)) {
-                masterPassword = pwd;
-                mainWin->setDatabaseLocked(false);
-                quickWin->setDatabaseLocked(false);
-                mainWin->refreshData();
-                quickWin->refreshData();
-                qDebug() << "[Main] 数据库解锁成功";
-                return;
-            }
-        }
-
-        mainWin->m_dbLockWidget->showError("主密码错误或数据库损坏，请重试");
-        quickWin->m_dbLockWidget->showError("主密码错误或数据库损坏，请重试");
-    };
-
-    QObject::connect(mainWin->m_dbLockWidget, &DatabaseLockWidget::unlocked, doUnlock);
-    QObject::connect(quickWin->m_dbLockWidget, &DatabaseLockWidget::unlocked, doUnlock);
     QObject::connect(mainWin->m_dbLockWidget, &DatabaseLockWidget::quitRequested, &a, &QApplication::quit);
     QObject::connect(quickWin->m_dbLockWidget, &DatabaseLockWidget::quitRequested, &a, &QApplication::quit);
+
+    // 监听数据库初始化成功信号，同步主窗口
+    QObject::connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, [=](){
+        if (mainWin->m_dbLockWidget->isVisible() && DatabaseManager::instance().isOpen()) {
+            mainWin->setDatabaseLocked(false);
+            mainWin->refreshData();
+        }
+    });
 
     if (dbInitiallyLocked) {
         mainWin->setDatabaseLocked(true);
         quickWin->setDatabaseLocked(true);
+    } else {
+        // 如果未加密，直接尝试初始化默认路径
+        DatabaseManager::instance().init(appDir + "/notes.db");
     }
 
     // 4. 初始化悬浮球

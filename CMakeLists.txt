@@ -33,8 +33,6 @@ set(SOURCES
     src/ui/QuickPreview.h
     src/ui/HeaderBar.cpp
     src/ui/MetadataPanel.cpp
-    src/ui/DatabaseLockDialog.h
-    src/ui/DatabaseLockDialog.cpp
     src/ui/DatabaseLockWidget.h
     src/ui/DatabaseLockWidget.cpp
     src/ui/CategoryPasswordDialog.h

@@ -38,7 +38,14 @@
 #include <QRandomGenerator>
 #include <QStyledItemDelegate>
 #include <QPainter>
+#include "../core/FileCryptoHelper.h"
 
+// 【硬编码主密码】在此设定您喜欢的访问密码
+static const QString APP_MASTER_PASSWORD = "123";
+
+QString QuickWindow::masterPassword() {
+    return APP_MASTER_PASSWORD;
+}
 
 // 定义调整大小的边缘触发区域宽度 (与边距一致)
 #define RESIZE_MARGIN 10 
@@ -186,6 +193,35 @@ void QuickWindow::initUI() {
     m_dbLockWidget->setVisible(false);
     // 将主锁屏放在最外层容器中，覆盖所有内容
     containerLayout->addWidget(m_dbLockWidget);
+
+    // 处理全局主密码解锁
+    connect(m_dbLockWidget, &DatabaseLockWidget::unlocked, this, [this](const QString& pwd){
+        if (pwd == APP_MASTER_PASSWORD) {
+            // 解密并初始化数据库
+            QString appDir = QCoreApplication::applicationDirPath();
+            QString encPath = appDir + "/notes.db.enc";
+            QString dbPath = QDir::tempPath() + "/.rn_vault_cache.db";
+
+            bool success = true;
+            if (QFile::exists(encPath)) {
+                success = FileCryptoHelper::decryptFile(encPath, dbPath, APP_MASTER_PASSWORD);
+            } else {
+                // 如果没有加密文件，可能是明文启动或新库
+                dbPath = appDir + "/notes.db";
+            }
+
+            if (success && DatabaseManager::instance().init(dbPath)) {
+                setDatabaseLocked(false);
+                refreshSidebar();
+                refreshData();
+                qDebug() << "[QuickWindow] 解锁成功";
+            } else {
+                m_dbLockWidget->showError("数据库解密或初始化失败");
+            }
+        } else {
+            m_dbLockWidget->showError("访问密码错误，请重新输入");
+        }
+    });
 
     connect(m_lockWidget, &CategoryLockWidget::unlocked, this, [this](){
         refreshData();
