@@ -1,7 +1,6 @@
 #include "Toolbox.h"
 #include <QMouseEvent>
 #include <QGraphicsDropShadowEffect>
-#include <QLabel>
 
 Toolbox::Toolbox(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::Tool);
@@ -35,11 +34,6 @@ void Toolbox::initUI() {
     auto* contentLayout = new QVBoxLayout(container);
     contentLayout->setContentsMargins(20, 20, 20, 20);
     contentLayout->setSpacing(15);
-
-    // Title label (not in Python's ToolboxWindow but good for C++)
-    auto* titleLabel = new QLabel("工具箱入口");
-    titleLabel->setStyleSheet("color: #888; font-size: 12px; font-weight: bold; margin-bottom: 5px;");
-    contentLayout->addWidget(titleLabel);
 
     auto* btnTime = createToolButton("时间输出");
     connect(btnTime, &QPushButton::clicked, this, &Toolbox::showTimePasteRequested);
