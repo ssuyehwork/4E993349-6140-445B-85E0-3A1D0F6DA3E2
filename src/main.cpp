@@ -22,6 +22,7 @@
 #include "ui/PasswordGeneratorWindow.h"
 #include "ui/OCRWindow.h"
 #include "ui/ScreenshotTool.h"
+#include "ui/SettingsWindow.h"
 #include "core/KeyboardHook.h"
 
 int main(int argc, char *argv[]) {
@@ -197,6 +198,11 @@ int main(int argc, char *argv[]) {
     SystemTray* tray = new SystemTray(&a);
     QObject::connect(tray, &SystemTray::showMainWindow, showMainWindow);
     QObject::connect(tray, &SystemTray::showQuickWindow, quickWin, &QuickWindow::showAuto);
+    QObject::connect(tray, &SystemTray::showSettings, [=](){
+        SettingsWindow* settingsWin = new SettingsWindow();
+        settingsWin->setAttribute(Qt::WA_DeleteOnClose);
+        settingsWin->show();
+    });
     QObject::connect(tray, &SystemTray::quitApp, &a, &QApplication::quit);
     tray->show();
 

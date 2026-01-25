@@ -25,6 +25,7 @@
 #include "CleanListView.h"
 #include "FramelessDialog.h"
 #include "CategoryPasswordDialog.h"
+#include "SettingsWindow.h"
 #include <functional>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindowHint) {
@@ -89,6 +90,7 @@ void MainWindow::initUI() {
         m_sideBar->setVisible(!m_sideBar->isVisible());
     });
     connect(m_header, &HeaderBar::toolboxRequested, this, &MainWindow::toolboxRequested);
+    connect(m_header, &HeaderBar::toolboxContextMenuRequested, this, &MainWindow::showToolboxMenu);
     connect(m_header, &HeaderBar::metadataToggled, this, [this](bool checked){
         m_metaPanel->setVisible(checked);
     });
@@ -1101,6 +1103,39 @@ void MainWindow::restoreLayout() {
     if (splitter && settings.contains("splitterState")) {
         splitter->restoreState(settings.value("splitterState").toByteArray());
     }
+
+    QSettings globalSettings("RapidNotes", "QuickWindow");
+    m_autoCategorizeClipboard = globalSettings.value("autoCategorizeClipboard", false).toBool();
+}
+
+void MainWindow::showToolboxMenu(const QPoint& pos) {
+    // 每次打开前刷新设置，确保与 QuickWindow 同步
+    QSettings globalSettings("RapidNotes", "QuickWindow");
+    m_autoCategorizeClipboard = globalSettings.value("autoCategorizeClipboard", false).toBool();
+
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                       "QMenu::item { padding: 6px 10px 6px 28px; border-radius: 3px; } "
+                       "QMenu::item:selected { background-color: #4a90e2; color: white; }");
+
+    QAction* autoCatAction = menu.addAction("剪贴板自动归档到当前分类");
+    autoCatAction->setCheckable(true);
+    autoCatAction->setChecked(m_autoCategorizeClipboard);
+    connect(autoCatAction, &QAction::triggered, [this](bool checked){
+        m_autoCategorizeClipboard = checked;
+        QSettings settings("RapidNotes", "QuickWindow");
+        settings.setValue("autoCategorizeClipboard", m_autoCategorizeClipboard);
+        QToolTip::showText(QCursor::pos(), m_autoCategorizeClipboard ? "✅ 剪贴板自动归档已开启" : "❌ 剪贴板自动归档已关闭", this);
+    });
+
+    menu.addSeparator();
+
+    menu.addAction(IconHelper::getIcon("settings", "#aaaaaa"), "更多设置...", [this]() {
+        auto* dlg = new SettingsWindow(this);
+        dlg->exec();
+    });
+
+    menu.exec(pos);
 }
 
 void MainWindow::doPreview() {

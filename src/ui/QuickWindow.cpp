@@ -35,6 +35,7 @@
 #include <QMessageBox>
 #include "FramelessDialog.h"
 #include "CategoryPasswordDialog.h"
+#include "SettingsWindow.h"
 #include <QRandomGenerator>
 #include <QStyledItemDelegate>
 #include <QPainter>
@@ -1451,67 +1452,10 @@ void QuickWindow::showToolboxMenu(const QPoint& pos) {
 
     menu.addSeparator();
     
-    QSettings settings("RapidNotes", "QuickWindow");
-    bool hasAppPwd = !settings.value("appPassword").toString().isEmpty();
-
-    if (!hasAppPwd) {
-        menu.addAction(IconHelper::getIcon("lock", "#aaaaaa"), "设置启动密码", [this]() {
-            auto* dlg = new CategoryPasswordDialog("设置启动密码", this);
-            if (dlg->exec() == QDialog::Accepted) {
-                if (dlg->password() == dlg->confirmPassword()) {
-                    QSettings s("RapidNotes", "QuickWindow");
-                    s.setValue("appPassword", dlg->password());
-                    s.setValue("appPasswordHint", dlg->passwordHint());
-                    QMessageBox::information(this, "成功", "启动密码已设置，下次启动时生效。");
-                } else {
-                    QMessageBox::warning(this, "错误", "两次输入的密码不一致。");
-                }
-            }
-            dlg->deleteLater();
-        });
-    } else {
-        menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "修改启动密码", [this]() {
-            QSettings s("RapidNotes", "QuickWindow");
-            // Need to verify old password first for safety
-            auto* verifyDlg = new FramelessInputDialog("身份验证", "请输入当前启动密码:", "", this);
-            verifyDlg->setEchoMode(QLineEdit::Password);
-            if (verifyDlg->exec() == QDialog::Accepted) {
-                if (verifyDlg->text() == s.value("appPassword").toString()) {
-                    auto* dlg = new CategoryPasswordDialog("修改启动密码", this);
-                    dlg->setInitialData(s.value("appPasswordHint").toString());
-                    if (dlg->exec() == QDialog::Accepted) {
-                        if (dlg->password() == dlg->confirmPassword()) {
-                            s.setValue("appPassword", dlg->password());
-                            s.setValue("appPasswordHint", dlg->passwordHint());
-                            QMessageBox::information(this, "成功", "启动密码已更新。");
-                        } else {
-                            QMessageBox::warning(this, "错误", "两次输入的密码不一致。");
-                        }
-                    }
-                    dlg->deleteLater();
-                } else {
-                    QMessageBox::warning(this, "错误", "密码错误，无法修改。");
-                }
-            }
-            verifyDlg->deleteLater();
-        });
-
-        menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "移除启动密码", [this]() {
-            auto* verifyDlg = new FramelessInputDialog("身份验证", "请输入启动密码以移除保护:", "", this);
-            verifyDlg->setEchoMode(QLineEdit::Password);
-            if (verifyDlg->exec() == QDialog::Accepted) {
-                QSettings s("RapidNotes", "QuickWindow");
-                if (verifyDlg->text() == s.value("appPassword").toString()) {
-                    s.remove("appPassword");
-                    s.remove("appPasswordHint");
-                    QMessageBox::information(this, "成功", "启动密码已移除。");
-                } else {
-                    QMessageBox::warning(this, "错误", "密码错误，操作取消。");
-                }
-            }
-            verifyDlg->deleteLater();
-        });
-    }
+    menu.addAction(IconHelper::getIcon("settings", "#aaaaaa"), "更多设置...", [this]() {
+        auto* dlg = new SettingsWindow(this);
+        dlg->exec();
+    });
 
     menu.exec(QCursor::pos());
 }

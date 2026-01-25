@@ -40,6 +40,7 @@ private slots:
     
     void refreshData();
     void doPreview();
+    void showToolboxMenu(const QPoint& pos);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -69,6 +70,7 @@ private:
     QVariant m_currentFilterValue = -1;
     int m_currentPage = 1;
     int m_pageSize = 50;
+    bool m_autoCategorizeClipboard = false;
 };
 
 #endif // MAINWINDOW_H

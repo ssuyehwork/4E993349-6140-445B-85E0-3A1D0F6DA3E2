@@ -18,6 +18,7 @@ signals:
     void toggleSidebar();
     void pageChanged(int page);
     void toolboxRequested();
+    void toolboxContextMenuRequested(const QPoint& pos);
     void metadataToggled(bool checked);
     void refreshRequested();
     void filterRequested();
