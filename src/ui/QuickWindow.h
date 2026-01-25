@@ -76,6 +76,7 @@ private:
 public:
     QString currentCategoryColor() const { return m_currentCategoryColor; }
     bool isAutoCategorizeEnabled() const { return m_autoCategorizeClipboard; }
+    bool isLocked() const { return m_appLockWidget != nullptr; }
     int getCurrentCategoryId() const { return (m_currentFilterType == "category") ? m_currentFilterValue.toInt() : -1; }
 
     // 快捷键处理函数
