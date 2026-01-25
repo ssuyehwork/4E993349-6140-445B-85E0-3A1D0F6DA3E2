@@ -117,8 +117,9 @@ void MainWindow::initUI() {
     auto* sidebarWrapperLayout = new QVBoxLayout(sidebarWrapper);
     sidebarWrapperLayout->setContentsMargins(0, 0, 0, 0); // 彻底消除偏移边距，由全局 Layout 和 Splitter 控制
 
-    auto* sidebarContainer = new QWidget();
+    auto* sidebarContainer = new QFrame();
     sidebarContainer->setObjectName("SidebarContainer");
+    sidebarContainer->setAttribute(Qt::WA_StyledBackground, true);
     sidebarContainer->setStyleSheet(
         "#SidebarContainer {"
         "  background-color: #1e1e1e;"
@@ -416,9 +417,10 @@ void MainWindow::initUI() {
     });
 
     // 3. 中间列表卡片容器
-    auto* listContainer = new QWidget();
+    auto* listContainer = new QFrame();
     listContainer->setMinimumWidth(230); // 对齐 MetadataPanel
     listContainer->setObjectName("ListContainer");
+    listContainer->setAttribute(Qt::WA_StyledBackground, true);
     listContainer->setStyleSheet(
         "#ListContainer {"
         "  background-color: #1e1e1e;"
@@ -525,8 +527,9 @@ void MainWindow::initUI() {
     rightLayout->setSpacing(5); 
 
     // 4.1 编辑器容器 (Card)
-    auto* editorContainer = new QWidget();
+    auto* editorContainer = new QFrame();
     editorContainer->setObjectName("EditorContainer");
+    editorContainer->setAttribute(Qt::WA_StyledBackground, true);
     editorContainer->setStyleSheet(
         "#EditorContainer {"
         "  background-color: #1e1e1e;"
@@ -645,8 +648,9 @@ void MainWindow::initUI() {
     auto* filterWrapperLayout = new QVBoxLayout(m_filterWrapper);
     filterWrapperLayout->setContentsMargins(0, 0, 0, 0); 
 
-    auto* filterContainer = new QWidget();
+    auto* filterContainer = new QFrame();
     filterContainer->setObjectName("FilterContainer");
+    filterContainer->setAttribute(Qt::WA_StyledBackground, true);
     filterContainer->setStyleSheet(
         "#FilterContainer {"
         "  background-color: #1e1e1e;"

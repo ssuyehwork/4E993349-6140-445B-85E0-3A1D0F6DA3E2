@@ -92,7 +92,7 @@ void MetadataPanel::initUI() {
     mainLayout->setContentsMargins(0, 0, 0, 0); // 移除外部边距，由 MainWindow 的 Splitter 统一控制
 
     // 内部卡片容器
-    auto* container = new QWidget(this);
+    auto* container = new QFrame(this);
     container->setObjectName("MetadataContainer");
     container->setStyleSheet(
         "#MetadataContainer {"
