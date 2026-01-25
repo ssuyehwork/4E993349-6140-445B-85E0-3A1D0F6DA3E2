@@ -182,7 +182,7 @@ private:
 #define RESIZE_MARGIN 10 
 
 QuickWindow::QuickWindow(QWidget* parent) 
-    : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) 
+    : QWidget(parent, Qt::FramelessWindowHint)
 {
     setAcceptDrops(true);
     setAttribute(Qt::WA_TranslucentBackground);
@@ -661,8 +661,7 @@ void QuickWindow::saveState() {
     settings.setValue("geometry", saveGeometry());
     settings.setValue("splitter", m_splitter->saveState());
     settings.setValue("sidebarHidden", m_systemTree->parentWidget()->isHidden());
-    // settings.setValue("stayOnTop", m_toolbar->isStayOnTop()); // Old
-    settings.setValue("stayOnTop", (windowFlags() & Qt::WindowStaysOnTopHint) ? true : false);
+    settings.setValue("stayOnTop", m_isStayOnTop);
     settings.setValue("autoCategorizeClipboard", m_autoCategorizeClipboard);
 }
 
@@ -675,7 +674,16 @@ void QuickWindow::restoreState() {
         m_splitter->restoreState(settings.value("splitter").toByteArray());
     }
     if (settings.contains("sidebarHidden")) {
-        m_systemTree->parentWidget()->setHidden(settings.value("sidebarHidden").toBool());
+        bool hidden = settings.value("sidebarHidden").toBool();
+        m_systemTree->parentWidget()->setHidden(hidden);
+
+        // 同步刷新眼睛图标状态
+        auto* btnSidebar = findChild<QPushButton*>("btnSidebar");
+        if (btnSidebar) {
+            bool visible = !hidden;
+            btnSidebar->setChecked(visible);
+            btnSidebar->setIcon(IconHelper::getIcon("eye", visible ? "#ffffff" : "#aaaaaa"));
+        }
     }
     if (settings.contains("stayOnTop")) {
         toggleStayOnTop(settings.value("stayOnTop").toBool());
@@ -706,7 +714,7 @@ void QuickWindow::setupShortcuts() {
     
     // Alt+D Toggle Stay on Top
     new QShortcut(QKeySequence("Alt+D"), this, [this](){ 
-        toggleStayOnTop(!(windowFlags() & Qt::WindowStaysOnTopHint)); 
+        toggleStayOnTop(!m_isStayOnTop);
     });
     
     new QShortcut(QKeySequence("Alt+W"), this, [this](){ emit toggleMainWindowRequested(); });
@@ -1097,6 +1105,7 @@ void QuickWindow::doPreview() {
 }
 
 void QuickWindow::toggleStayOnTop(bool checked) {
+    m_isStayOnTop = checked;
 #ifdef Q_OS_WIN
     HWND hwnd = (HWND)winId();
     if (checked) {

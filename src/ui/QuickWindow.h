@@ -122,6 +122,7 @@ public:
     QVariant m_currentFilterValue = -1;
     QString m_currentCategoryColor = "#4a90e2"; // 默认蓝色
     bool m_autoCategorizeClipboard = false;
+    bool m_isStayOnTop = false;
 
 #ifdef Q_OS_WIN
     HWND m_lastActiveHwnd = nullptr;
