@@ -3,6 +3,7 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QTimer>
 
 CategoryPasswordDialog::CategoryPasswordDialog(const QString& title, QWidget* parent)
     : FramelessDialog(title, parent)
