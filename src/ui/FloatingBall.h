@@ -19,6 +19,7 @@ class FloatingBall : public QWidget {
 
 public:
     explicit FloatingBall(QWidget* parent = nullptr);
+    static QIcon generateBallIcon();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -56,11 +57,13 @@ private:
 
     QColor m_color1 = QColor("#4FACFE");
     QColor m_color2 = QColor("#00F2FE");
+    QString m_skinName = "default";
 
 signals:
     void doubleClicked();
     void requestMainWindow();
     void requestQuickWindow();
+    void requestNewIdea();
 };
 
 #endif // FLOATINGBALL_H

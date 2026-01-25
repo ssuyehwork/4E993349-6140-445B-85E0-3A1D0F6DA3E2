@@ -69,6 +69,9 @@ int main(int argc, char *argv[]) {
     FloatingBall* ball = new FloatingBall();
     ball->show();
 
+    // 设置全局应用图标
+    a.setWindowIcon(FloatingBall::generateBallIcon());
+
     // 4. 初始化快速记录窗口与工具箱及其功能子窗口
     QuickWindow* quickWin = new QuickWindow();
     quickWin->showCentered(); // 默认启动显示极速窗口
@@ -202,6 +205,11 @@ int main(int argc, char *argv[]) {
     });
     QObject::connect(ball, &FloatingBall::requestMainWindow, showMainWindow);
     QObject::connect(ball, &FloatingBall::requestQuickWindow, quickWin, &QuickWindow::showCentered);
+    QObject::connect(ball, &FloatingBall::requestNewIdea, [=](){
+        NoteEditWindow* win = new NoteEditWindow();
+        QObject::connect(win, &NoteEditWindow::noteSaved, quickWin, &QuickWindow::refreshData);
+        win->show();
+    });
 
     // 8. 监听剪贴板 (智能标题与自动分类)
     QObject::connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, 

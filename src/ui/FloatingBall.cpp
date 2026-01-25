@@ -54,21 +54,42 @@ void FloatingBall::paintEvent(QPaintEvent* event) {
         painter.drawEllipse(p.pos, 3, 3);
     }
 
-    // 2. 绘制阴影/外发光
-    painter.setBrush(QColor(0, 0, 0, 60));
-    painter.setPen(Qt::NoPen);
-    painter.drawEllipse(rect().adjusted(4, 4, -2, -2));
+    if (m_skinName == "open") {
+        // 绘制“摊开手稿”特别外观 (模仿 WritingAnimation 的书本)
+        painter.save();
+        painter.translate(rect().center());
+        painter.scale(0.5, 0.5);
 
-    // 3. 绘制球体
-    QLinearGradient gradient(0, 0, width(), height());
-    gradient.setColorAt(0, m_color1);
-    gradient.setColorAt(1, m_color2);
-    painter.setBrush(gradient);
-    painter.drawEllipse(rect().adjusted(6, 6, -6, -6));
-    
-    // 绘制图标感
-    painter.setPen(QPen(Qt::white, 2));
-    painter.drawEllipse(rect().center(), 8, 8);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor("#f5f0e1"));
+        painter.drawRoundedRect(QRectF(-22, -32, 56, 76), 3, 3);
+
+        QLinearGradient grad(-28, -38, 28, 38);
+        grad.setColorAt(0, QColor("#5a3c32"));
+        grad.setColorAt(1, QColor("#321e19"));
+        painter.setBrush(grad);
+        painter.drawRoundedRect(QRectF(-28, -38, 56, 76), 3, 3);
+
+        painter.setBrush(QColor("#78141e"));
+        painter.drawRect(QRectF(13, -38, 8, 76));
+        painter.restore();
+    } else {
+        // 2. 绘制阴影/外发光
+        painter.setBrush(QColor(0, 0, 0, 60));
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(rect().adjusted(4, 4, -2, -2));
+
+        // 3. 绘制球体
+        QLinearGradient gradient(0, 0, width(), height());
+        gradient.setColorAt(0, m_color1);
+        gradient.setColorAt(1, m_color2);
+        painter.setBrush(gradient);
+        painter.drawEllipse(rect().adjusted(6, 6, -6, -6));
+
+        // 绘制图标感
+        painter.setPen(QPen(Qt::white, 2));
+        painter.drawEllipse(rect().center(), 8, 8);
+    }
 }
 
 void FloatingBall::mousePressEvent(QMouseEvent* event) {
@@ -120,20 +141,27 @@ void FloatingBall::leaveEvent(QEvent* event) {
 
 void FloatingBall::contextMenuEvent(QContextMenuEvent* event) {
     QMenu menu(this);
-    menu.setStyleSheet("QMenu { background-color: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px; } QMenu::item { padding: 5px 20px; } QMenu::item:selected { background: #333; }");
+    menu.setStyleSheet(
+        "QMenu { background-color: #2b2b2b; color: #f0f0f0; border: 1px solid #444; border-radius: 5px; padding: 5px; } "
+        "QMenu::item { padding: 6px 15px 6px 5px; border-radius: 3px; } "
+        "QMenu::item:selected { background-color: #5D4037; color: #fff; } "
+        "QMenu::separator { background-color: #444; height: 1px; margin: 4px 0; }"
+    );
 
     QMenu* skinMenu = menu.addMenu(IconHelper::getIcon("palette", "#aaaaaa"), "切换外观");
-    skinMenu->addAction("摩卡·勃艮第", [this](){ switchSkin("mocha"); });
-    skinMenu->addAction("经典黑金", [this](){ switchSkin("classic"); });
-    skinMenu->addAction("皇家蓝", [this](){ switchSkin("royal"); });
-    skinMenu->addAction("抹茶绿", [this](){ switchSkin("matcha"); });
+    skinMenu->addAction(IconHelper::getIcon("coffee", "#BCAAA4"), "摩卡·勃艮第", [this](){ switchSkin("mocha"); });
+    skinMenu->addAction(IconHelper::getIcon("grid", "#90A4AE"), "经典黑金", [this](){ switchSkin("classic"); });
+    skinMenu->addAction(IconHelper::getIcon("book", "#9FA8DA"), "皇家蓝", [this](){ switchSkin("royal"); });
+    skinMenu->addAction(IconHelper::getIcon("leaf", "#A5D6A7"), "抹茶绿", [this](){ switchSkin("matcha"); });
+    skinMenu->addAction(IconHelper::getIcon("book_open", "#FFCC80"), "摊开手稿", [this](){ switchSkin("open"); });
     skinMenu->addAction("默认天蓝", [this](){ switchSkin("default"); });
 
     menu.addSeparator();
-    QAction* actQuick = menu.addAction(IconHelper::getIcon("zap", "#aaaaaa"), "打开快速笔记", this, &FloatingBall::requestQuickWindow);
-    QAction* actMain = menu.addAction(IconHelper::getIcon("monitor", "#aaaaaa"), "打开主界面", this, &FloatingBall::requestMainWindow);
+    menu.addAction(IconHelper::getIcon("zap", "#aaaaaa"), "打开快速笔记", this, &FloatingBall::requestQuickWindow);
+    menu.addAction(IconHelper::getIcon("monitor", "#aaaaaa"), "打开主界面", this, &FloatingBall::requestMainWindow);
+    menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建灵感", this, &FloatingBall::requestNewIdea);
     menu.addSeparator();
-    QAction* actQuit = menu.addAction(IconHelper::getIcon("power", "#aaaaaa"), "退出程序", [](){ qApp->quit(); });
+    menu.addAction(IconHelper::getIcon("power", "#aaaaaa"), "退出程序", [](){ qApp->quit(); });
     
     menu.exec(event->globalPos());
 }
@@ -159,11 +187,24 @@ void FloatingBall::dropEvent(QDropEvent* event) {
     event->acceptProposedAction();
 }
 
+QIcon FloatingBall::generateBallIcon() {
+    FloatingBall temp(nullptr);
+    temp.setAttribute(Qt::WA_DontShowOnScreen);
+    temp.m_particles.clear();
+
+    QPixmap pixmap(temp.size());
+    pixmap.fill(Qt::transparent);
+    temp.render(&pixmap);
+    return QIcon(pixmap);
+}
+
 void FloatingBall::switchSkin(const QString& name) {
+    m_skinName = name;
     if (name == "mocha") { m_color1 = QColor("#5D4037"); m_color2 = QColor("#8D6E63"); }
     else if (name == "classic") { m_color1 = QColor("#212121"); m_color2 = QColor("#FFD700"); }
     else if (name == "royal") { m_color1 = QColor("#1A237E"); m_color2 = QColor("#3F51B5"); }
     else if (name == "matcha") { m_color1 = QColor("#1B5E20"); m_color2 = QColor("#4CAF50"); }
+    else if (name == "open") { /* handled in paintEvent */ }
     else { m_color1 = QColor("#4FACFE"); m_color2 = QColor("#00F2FE"); }
     update();
 }
