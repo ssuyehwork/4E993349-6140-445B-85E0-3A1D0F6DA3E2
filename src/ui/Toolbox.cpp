@@ -25,7 +25,7 @@ void Toolbox::initUI() {
 
     auto* container = new QFrame();
     container->setObjectName("ToolboxContainer");
-    container->setStyleSheet("#ToolboxContainer { background-color: #2D2D2D; border-radius: 12px; border: 1px solid #444; }");
+    container->setStyleSheet("#ToolboxContainer { background-color: #1E1E1E; border-radius: 12px; border: 1px solid #333; }");
     rootLayout->addWidget(container);
 
     auto* shadow = new QGraphicsDropShadowEffect(this);
@@ -47,22 +47,19 @@ void Toolbox::initUI() {
     titleHeader->setStyleSheet("QFrame#ToolboxTitleBar { background: transparent; border: none; }");
     auto* titleLayout = new QHBoxLayout(titleHeader);
     titleLayout->setContentsMargins(10, 0, 5, 0);
-    titleLayout->setSpacing(0);
+    titleLayout->setSpacing(4);
 
-    auto* titleLabel = new QLabel("工具箱");
-    titleLabel->setStyleSheet("color: #888; font-size: 12px; font-weight: bold; background: transparent; border: none;");
-    titleLayout->addWidget(titleLabel);
     titleLayout->addStretch();
 
     auto* btnPin = new QPushButton();
     btnPin->setObjectName("btnPin");
-    btnPin->setFixedSize(32, 32);
-    btnPin->setIconSize(QSize(20, 20));
+    btnPin->setFixedSize(28, 28);
+    btnPin->setIconSize(QSize(18, 18));
     btnPin->setCheckable(true);
     btnPin->setChecked(true);
     m_isStayOnTop = true;
     btnPin->setIcon(IconHelper::getIcon("pin_vertical", "#ffffff"));
-    btnPin->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 5px; } "
+    btnPin->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 4px; } "
                           "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
                           "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); } "
                           "QPushButton:checked { background-color: #0078d4; }");
@@ -71,10 +68,10 @@ void Toolbox::initUI() {
     titleLayout->addWidget(btnPin);
 
     auto* btnClose = new QPushButton();
-    btnClose->setFixedSize(32, 32);
-    btnClose->setIconSize(QSize(20, 20));
+    btnClose->setFixedSize(28, 28);
+    btnClose->setIconSize(QSize(18, 18));
     btnClose->setIcon(IconHelper::getIcon("close", "#888888"));
-    btnClose->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 5px; } "
+    btnClose->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 4px; } "
                             "QPushButton:hover { background-color: #e74c3c; } "
                             "QPushButton:pressed { background-color: #c0392b; }");
     btnClose->setToolTip("关闭");

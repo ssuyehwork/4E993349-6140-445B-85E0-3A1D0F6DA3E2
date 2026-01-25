@@ -27,7 +27,7 @@ void PasswordGeneratorWindow::initUI() {
 
     auto* container = new QFrame();
     container->setObjectName("Container");
-    container->setStyleSheet("#Container { background-color: #1E1E1E; border-radius: 16px; border: 2px solid #606060; }");
+    container->setStyleSheet("#Container { background-color: #1E1E1E; border-radius: 12px; border: 1px solid #333; }");
     mainLayout->addWidget(container);
 
     auto* shadow = new QGraphicsDropShadowEffect(this);
@@ -83,9 +83,9 @@ QWidget* PasswordGeneratorWindow::createTitleBar() {
 
     auto* closeBtn = new QPushButton();
     closeBtn->setIcon(IconHelper::getIcon("close", "#888888"));
-    closeBtn->setFixedSize(32, 32);
-    closeBtn->setIconSize(QSize(20, 20));
-    closeBtn->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 5px; } "
+    closeBtn->setFixedSize(28, 28);
+    closeBtn->setIconSize(QSize(18, 18));
+    closeBtn->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 4px; } "
                             "QPushButton:hover { background-color: #e74c3c; } "
                             "QPushButton:pressed { background-color: #c0392b; }");
     connect(closeBtn, &QPushButton::clicked, this, &PasswordGeneratorWindow::hide);

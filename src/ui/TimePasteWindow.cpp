@@ -44,6 +44,7 @@ void TimePasteWindow::initUI() {
     titleBar->setStyleSheet("background-color: transparent;");
     auto* titleLayout = new QHBoxLayout(titleBar);
     titleLayout->setContentsMargins(15, 5, 10, 5);
+    titleLayout->setSpacing(4);
 
     auto* titleLabel = new QLabel("时间输出工具");
     titleLabel->setStyleSheet("color: #B0B0B0; font-size: 13px;");
@@ -52,9 +53,9 @@ void TimePasteWindow::initUI() {
 
     auto* btnMin = new QPushButton();
     btnMin->setIcon(IconHelper::getIcon("minimize", "#B0B0B0"));
-    btnMin->setFixedSize(32, 32);
-    btnMin->setIconSize(QSize(20, 20));
-    btnMin->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 5px; } "
+    btnMin->setFixedSize(28, 28);
+    btnMin->setIconSize(QSize(18, 18));
+    btnMin->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } "
                           "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
                           "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); }");
     connect(btnMin, &QPushButton::clicked, this, &TimePasteWindow::showMinimized);
@@ -62,9 +63,9 @@ void TimePasteWindow::initUI() {
 
     auto* btnClose = new QPushButton();
     btnClose->setIcon(IconHelper::getIcon("close", "#B0B0B0"));
-    btnClose->setFixedSize(32, 32);
-    btnClose->setIconSize(QSize(20, 20));
-    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 5px; } "
+    btnClose->setFixedSize(28, 28);
+    btnClose->setIconSize(QSize(18, 18));
+    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } "
                             "QPushButton:hover { background-color: #e74c3c; } "
                             "QPushButton:pressed { background-color: #c0392b; }");
     connect(btnClose, &QPushButton::clicked, this, &TimePasteWindow::hide);
@@ -209,14 +210,13 @@ void TimePasteWindow::paintEvent(QPaintEvent* event) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
-    // 绘制阴影（模拟效果，因为已经有了 margins，通常配合 QGraphicsDropShadowEffect 使用更佳，
-    // 但既然 Python 版是 paintEvent 绘制，我们在这里绘制主体）
+    // 绘制主体
     QRectF bodyRect = QRectF(rect()).adjusted(15, 15, -15, -15);
     QPainterPath path;
-    path.addRoundedRect(bodyRect, 15, 15);
+    path.addRoundedRect(bodyRect, 12, 12);
 
     painter.fillPath(path, QColor(30, 30, 30, 250));
-    painter.setPen(QColor(60, 60, 60));
+    painter.setPen(QColor(51, 51, 51)); // #333
     painter.drawPath(path);
 }
 

@@ -42,18 +42,19 @@ void OCRWindow::initUI() {
     contentLayout->setContentsMargins(20, 20, 20, 20);
     contentLayout->setSpacing(12);
 
-    // Title Bar (within content layout for simplicity or use same pattern as others)
+    // Title Bar
     auto* titleHeader = new QHBoxLayout();
+    titleHeader->setSpacing(4);
     auto* titleLabel = new QLabel("📝 图片文字识别 (OCR)");
-    titleLabel->setStyleSheet("font-weight: bold; color: #4a90e2; font-size: 14px;");
+    titleLabel->setStyleSheet("font-weight: bold; color: #4a90e2; font-size: 13px;");
     titleHeader->addWidget(titleLabel);
     titleHeader->addStretch();
     
     auto* closeBtn = new QPushButton();
     closeBtn->setIcon(IconHelper::getIcon("close", "#888888"));
-    closeBtn->setFixedSize(32, 32);
-    closeBtn->setIconSize(QSize(20, 20));
-    closeBtn->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 5px; } "
+    closeBtn->setFixedSize(28, 28);
+    closeBtn->setIconSize(QSize(18, 18));
+    closeBtn->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 4px; } "
                             "QPushButton:hover { background-color: #e74c3c; } "
                             "QPushButton:pressed { background-color: #c0392b; }");
     connect(closeBtn, &QPushButton::clicked, this, &OCRWindow::hide);
