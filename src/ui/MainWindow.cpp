@@ -31,6 +31,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindo
     setWindowTitle("极速灵感 (RapidNotes) - 开发版");
     resize(1200, 800);
     initUI();
+    restoreLayout(); // 必须在 refreshData 之前恢复过滤器状态
     refreshData();
 
     // 【关键修改】区分两种信号
@@ -40,8 +41,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindo
     // 2. 全量刷新：修改、删除、分类变化（锁定状态）时才刷新全表
     connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, this, &MainWindow::refreshData);
     connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, this, &MainWindow::refreshData);
-
-    restoreLayout(); // 恢复布局
 }
 
 void MainWindow::initUI() {
@@ -515,6 +514,11 @@ void MainWindow::initUI() {
     });
     listContentLayout->addWidget(m_lockWidget);
 
+    // 全局主锁屏
+    m_dbLockWidget = new DatabaseLockWidget(centralWidget);
+    m_dbLockWidget->setVisible(false);
+    mainLayout->addWidget(m_dbLockWidget);
+
     listContainerLayout->addWidget(listContent);
     splitter->addWidget(listContainer);
     
@@ -756,8 +760,22 @@ void MainWindow::onNoteAdded(const QVariantMap& note) {
     m_noteList->scrollToTop();
 }
 
+void MainWindow::setDatabaseLocked(bool locked) {
+    m_dbLockWidget->setVisible(locked);
+    // 隐藏其他顶级组件
+    m_header->setVisible(!locked);
+    // 寻找 contentWidget
+    for(int i=0; i<centralWidget()->layout()->count(); ++i) {
+        QWidget* w = centralWidget()->layout()->itemAt(i)->widget();
+        if (w && w != m_dbLockWidget && w != m_header) w->setVisible(!locked);
+    }
+}
+
 void MainWindow::refreshData() {
-    // 保存当前选中项状态以供恢复
+    // 如果数据库尚未打开（锁定状态），跳过刷新
+    if (!DatabaseManager::instance().isOpen()) return;
+
+    // 保存当前选中项状态以供恢复 (支持启动恢复)
     QString selectedType;
     QVariant selectedValue;
     QModelIndex currentIdx = m_sideBar->currentIndex();
@@ -768,6 +786,15 @@ void MainWindow::refreshData() {
         } else {
             selectedValue = currentIdx.data(CategoryModel::NameRole);
         }
+    } else if (!m_currentFilterType.isEmpty()) {
+        selectedType = m_currentFilterType;
+        selectedValue = (m_currentFilterType == "category") ? m_currentFilterValue : m_currentFilterType;
+        // 映射系统分区的显示名称以对齐 Model
+        if (selectedType == "bookmark") selectedValue = "收藏";
+        else if (selectedType == "trash") selectedValue = "回收站";
+        else if (selectedType == "today") selectedValue = "今日灵感";
+        else if (selectedType == "untagged") selectedValue = "未打标签";
+        else if (selectedType == "uncategorized") selectedValue = "未分类";
     }
 
     QSet<QString> expandedPaths;
@@ -864,10 +891,16 @@ void MainWindow::refreshData() {
         int catId = m_currentFilterValue.toInt();
         if (DatabaseManager::instance().isCategoryLocked(catId)) {
             isLocked = true;
-            QString hint;
+            QString hint, name;
             auto cats = DatabaseManager::instance().getAllCategories();
-            for(const auto& c : cats) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
-            m_lockWidget->setCategory(catId, hint);
+            for(const auto& c : cats) {
+                if(c["id"].toInt() == catId) {
+                    hint = c["password_hint"].toString();
+                    name = c["name"].toString();
+                    break;
+                }
+            }
+            m_lockWidget->setCategory(catId, name, hint);
         }
     }
 
@@ -1080,8 +1113,11 @@ void MainWindow::saveLayout() {
     
     QSplitter* splitter = findChild<QSplitter*>();
     if (splitter) {
-            settings.setValue("splitterState", splitter->saveState());
+        settings.setValue("splitterState", splitter->saveState());
     }
+
+    settings.setValue("filterType", m_currentFilterType);
+    settings.setValue("filterValue", m_currentFilterValue);
 }
 
 void MainWindow::restoreLayout() {
@@ -1096,6 +1132,11 @@ void MainWindow::restoreLayout() {
     QSplitter* splitter = findChild<QSplitter*>();
     if (splitter && settings.contains("splitterState")) {
         splitter->restoreState(settings.value("splitterState").toByteArray());
+    }
+
+    if (settings.contains("filterType")) {
+        m_currentFilterType = settings.value("filterType").toString();
+        m_currentFilterValue = settings.value("filterValue");
     }
 }
 

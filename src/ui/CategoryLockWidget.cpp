@@ -14,21 +14,23 @@ CategoryLockWidget::CategoryLockWidget(QWidget* parent) : QWidget(parent) {
     layout->setAlignment(Qt::AlignCenter);
     layout->setSpacing(8);
 
-    // 1. 锁图标 (精简至 32x32)
+    // 1. 锁图标 (对齐图 3，增大至 64x64)
     auto* lockIcon = new QLabel();
-    lockIcon->setPixmap(IconHelper::getIcon("lock", "#555555").pixmap(32, 32));
+    lockIcon->setPixmap(IconHelper::getIcon("lock", "#555555").pixmap(64, 64));
     lockIcon->setAlignment(Qt::AlignCenter);
     layout->addWidget(lockIcon);
 
-    // 2. 提示文字 (精简至 13px)
-    auto* titleLabel = new QLabel("输入密码查看内容");
-    titleLabel->setStyleSheet("color: #999999; font-size: 13px; font-weight: bold; background: transparent;");
-    titleLabel->setAlignment(Qt::AlignCenter);
-    layout->addWidget(titleLabel);
+    layout->addSpacing(10);
 
-    // 3. 密码提示 (精简至 11px)
+    // 2. 动态标题 (对齐图 3: "<Name> 已锁定")
+    m_titleLabel = new QLabel("已锁定");
+    m_titleLabel->setStyleSheet("color: #DDDDDD; font-size: 16px; font-weight: bold; background: transparent;");
+    m_titleLabel->setAlignment(Qt::AlignCenter);
+    layout->addWidget(m_titleLabel);
+
+    // 3. 密码提示 (精简至 12px)
     m_hintLabel = new QLabel("密码提示: ");
-    m_hintLabel->setStyleSheet("color: #555555; font-size: 11px; background: transparent;");
+    m_hintLabel->setStyleSheet("color: #777777; font-size: 12px; background: transparent;");
     m_hintLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(m_hintLabel);
 
@@ -56,10 +58,11 @@ CategoryLockWidget::CategoryLockWidget(QWidget* parent) : QWidget(parent) {
     setStyleSheet("background: transparent;");
 }
 
-void CategoryLockWidget::setCategory(int id, const QString& hint) {
+void CategoryLockWidget::setCategory(int id, const QString& name, const QString& hint) {
     if (m_catId == id && isVisible()) return; // 关键修复：防止因数据刷新导致的输入框重置
 
     m_catId = id;
+    m_titleLabel->setText(QString("%1 已锁定").arg(name));
     m_hintLabel->setText(QString("密码提示: %1").arg(hint.isEmpty() ? "无" : hint));
     m_pwdEdit->clear();
     m_pwdEdit->setFocus();

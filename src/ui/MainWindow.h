@@ -14,6 +14,7 @@
 #include "MetadataPanel.h"
 #include "QuickPreview.h"
 #include "DropTreeView.h"
+#include "DatabaseLockWidget.h"
 #include "FilterPanel.h"
 #include "CategoryLockWidget.h"
 
@@ -40,6 +41,10 @@ private slots:
     
     void refreshData();
     void doPreview();
+
+public:
+    void setDatabaseLocked(bool locked);
+    DatabaseLockWidget* m_dbLockWidget;
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;

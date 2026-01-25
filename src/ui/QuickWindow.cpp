@@ -182,6 +182,11 @@ void QuickWindow::initUI() {
     m_lockWidget->setVisible(false);
     centerLayout->addWidget(m_lockWidget);
 
+    m_dbLockWidget = new DatabaseLockWidget(container);
+    m_dbLockWidget->setVisible(false);
+    // 将主锁屏放在最外层容器中，覆盖所有内容
+    containerLayout->addWidget(m_dbLockWidget);
+
     connect(m_lockWidget, &CategoryLockWidget::unlocked, this, [this](){
         refreshData();
     });
@@ -503,6 +508,7 @@ void QuickWindow::initUI() {
 
     setupShortcuts();
     restoreState();
+    refreshSidebar();
     refreshData();
 }
 
@@ -514,6 +520,8 @@ void QuickWindow::saveState() {
     // settings.setValue("stayOnTop", m_toolbar->isStayOnTop()); // Old
     settings.setValue("stayOnTop", (windowFlags() & Qt::WindowStaysOnTopHint) ? true : false);
     settings.setValue("autoCategorizeClipboard", m_autoCategorizeClipboard);
+    settings.setValue("filterType", m_currentFilterType);
+    settings.setValue("filterValue", m_currentFilterValue);
 }
 
 void QuickWindow::restoreState() {
@@ -532,6 +540,10 @@ void QuickWindow::restoreState() {
     }
     if (settings.contains("autoCategorizeClipboard")) {
         m_autoCategorizeClipboard = settings.value("autoCategorizeClipboard").toBool();
+    }
+    if (settings.contains("filterType")) {
+        m_currentFilterType = settings.value("filterType").toString();
+        m_currentFilterValue = settings.value("filterValue");
     }
 }
 
@@ -572,7 +584,21 @@ void QuickWindow::setupShortcuts() {
     
 }
 
+void QuickWindow::setDatabaseLocked(bool locked) {
+    m_dbLockWidget->setVisible(locked);
+    // 如果数据库锁定，隐藏左侧内容和工具栏（如果有必要）
+    // 寻找 leftContent 和 customToolbar
+    QWidget* leftContent = findChild<QWidget*>("leftContent");
+    if (leftContent) leftContent->setVisible(!locked);
+
+    // 工具栏中除了“关闭”按钮外其他都可以隐藏，或者全部隐藏让 dbLockWidget 处理退出
+    // 这里简单处理：直接显示锁屏，隐藏其他
+}
+
 void QuickWindow::refreshData() {
+    // 如果数据库尚未初始化（锁定状态），跳过刷新
+    if (!DatabaseManager::instance().isOpen()) return;
+
     QString keyword = m_searchEdit->text();
     
     int totalCount = DatabaseManager::instance().getNotesCount(keyword, m_currentFilterType, m_currentFilterValue);
@@ -588,10 +614,16 @@ void QuickWindow::refreshData() {
         int catId = m_currentFilterValue.toInt();
         if (DatabaseManager::instance().isCategoryLocked(catId)) {
             isLocked = true;
-            QString hint;
+            QString hint, name;
             auto cats = DatabaseManager::instance().getAllCategories();
-            for(const auto& c : cats) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
-            m_lockWidget->setCategory(catId, hint);
+            for(const auto& c : cats) {
+                if(c["id"].toInt() == catId) {
+                    hint = c["password_hint"].toString();
+                    name = c["name"].toString();
+                    break;
+                }
+            }
+            m_lockWidget->setCategory(catId, name, hint);
         }
     }
 
@@ -618,7 +650,7 @@ void QuickWindow::updatePartitionStatus(const QString& name) {
 }
 
 void QuickWindow::refreshSidebar() {
-    // 保存选中状态
+    // 保存选中状态 (优先使用当前选中项，若无则使用记录的过滤类型以支持启动恢复)
     QString selectedType;
     QVariant selectedValue;
     QModelIndex sysIdx = m_systemTree->currentIndex();
@@ -630,6 +662,15 @@ void QuickWindow::refreshSidebar() {
     } else if (partIdx.isValid()) {
         selectedType = partIdx.data(CategoryModel::TypeRole).toString();
         selectedValue = partIdx.data(CategoryModel::IdRole);
+    } else if (!m_currentFilterType.isEmpty()) {
+        selectedType = m_currentFilterType;
+        selectedValue = (m_currentFilterType == "category") ? m_currentFilterValue : m_currentFilterType;
+        // 如果是特殊系统分区，Name 和 Type 往往一致或相关，这里逻辑需对齐
+        if (selectedType == "bookmark") selectedValue = "收藏";
+        else if (selectedType == "trash") selectedValue = "回收站";
+        else if (selectedType == "today") selectedValue = "今日灵感";
+        else if (selectedType == "untagged") selectedValue = "未打标签";
+        else if (selectedType == "uncategorized") selectedValue = "未分类";
     }
 
     m_systemModel->refresh();

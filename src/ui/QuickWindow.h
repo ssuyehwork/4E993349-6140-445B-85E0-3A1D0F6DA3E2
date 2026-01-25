@@ -17,6 +17,7 @@
 #include "QuickToolbar.h"
 #include "DropTreeView.h"
 #include "CategoryLockWidget.h"
+#include "DatabaseLockWidget.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -37,6 +38,7 @@ class QuickWindow : public QWidget {
 public:
     explicit QuickWindow(QWidget* parent = nullptr);
     void showCentered();
+    void setDatabaseLocked(bool locked);
     void saveState();
     void restoreState();
 
@@ -96,6 +98,7 @@ public:
     SearchLineEdit* m_searchEdit;
     QListView* m_listView;
     CategoryLockWidget* m_lockWidget;
+    DatabaseLockWidget* m_dbLockWidget;
     NoteModel* m_model;
     QuickPreview* m_quickPreview;
     

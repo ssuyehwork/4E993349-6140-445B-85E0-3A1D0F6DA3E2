@@ -11,7 +11,7 @@ class CategoryLockWidget : public QWidget {
 public:
     explicit CategoryLockWidget(QWidget* parent = nullptr);
 
-    void setCategory(int id, const QString& hint);
+    void setCategory(int id, const QString& name, const QString& hint);
     void clearInput();
 
 signals:
@@ -22,6 +22,7 @@ private slots:
 
 private:
     int m_catId = -1;
+    QLabel* m_titleLabel;
     QLabel* m_hintLabel;
     QLineEdit* m_pwdEdit;
 };
