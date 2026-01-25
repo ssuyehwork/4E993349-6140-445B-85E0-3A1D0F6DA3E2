@@ -563,13 +563,6 @@ void QuickWindow::setupShortcuts() {
         new QShortcut(QKeySequence(QString("Ctrl+%1").arg(i)), this, [this, i](){ doSetRating(i); });
     }
     
-    // 使用 QAction 绑定快捷键，确保在列表/侧边栏焦点下依然能全局触发
-    // 注意：这里使用 WindowShortcut 处理 Space，它会同时负责开启和关闭预览
-    QAction* spaceAction = new QAction(this);
-    spaceAction->setShortcut(QKeySequence(Qt::Key_Space));
-    spaceAction->setShortcutContext(Qt::WindowShortcut);
-    connect(spaceAction, &QAction::triggered, this, &QuickWindow::doPreview);
-    addAction(spaceAction);
 }
 
 void QuickWindow::refreshData() {
@@ -1454,6 +1447,10 @@ void QuickWindow::hideEvent(QHideEvent* event) {
 void QuickWindow::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_Escape) {
         hide();
+        return;
+    }
+    if (event->key() == Qt::Key_Space) {
+        doPreview();
         return;
     }
     QWidget::keyPressEvent(event);

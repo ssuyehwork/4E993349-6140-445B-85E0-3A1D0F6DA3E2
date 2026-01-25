@@ -10,40 +10,40 @@ CategoryLockWidget::CategoryLockWidget(QWidget* parent) : QWidget(parent) {
 
     auto* container = new QWidget();
     auto* layout = new QVBoxLayout(container);
-    layout->setContentsMargins(20, 20, 20, 20);
+    layout->setContentsMargins(10, 10, 10, 10);
     layout->setAlignment(Qt::AlignCenter);
-    layout->setSpacing(10);
+    layout->setSpacing(8);
 
-    // 1. 锁图标 (缩小至 48x48)
+    // 1. 锁图标 (精简至 32x32)
     auto* lockIcon = new QLabel();
-    lockIcon->setPixmap(IconHelper::getIcon("lock", "#666666").pixmap(48, 48));
+    lockIcon->setPixmap(IconHelper::getIcon("lock", "#555555").pixmap(32, 32));
     lockIcon->setAlignment(Qt::AlignCenter);
     layout->addWidget(lockIcon);
 
-    // 2. 提示文字 (缩小至 14px)
+    // 2. 提示文字 (精简至 13px)
     auto* titleLabel = new QLabel("输入密码查看内容");
-    titleLabel->setStyleSheet("color: #cccccc; font-size: 14px; font-weight: bold; background: transparent;");
+    titleLabel->setStyleSheet("color: #999999; font-size: 13px; font-weight: bold; background: transparent;");
     titleLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(titleLabel);
 
-    // 3. 密码提示
+    // 3. 密码提示 (精简至 11px)
     m_hintLabel = new QLabel("密码提示: ");
-    m_hintLabel->setStyleSheet("color: #666666; font-size: 12px; background: transparent;");
+    m_hintLabel->setStyleSheet("color: #555555; font-size: 11px; background: transparent;");
     m_hintLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(m_hintLabel);
 
-    layout->addSpacing(5);
+    layout->addSpacing(2);
 
-    // 4. 密码输入框 (缩小至 220px)
+    // 4. 密码输入框 (收紧至 180px)
     m_pwdEdit = new QLineEdit();
     m_pwdEdit->setPlaceholderText("输入密码");
     m_pwdEdit->setEchoMode(QLineEdit::Password);
-    m_pwdEdit->setFixedWidth(220);
-    m_pwdEdit->setFixedHeight(32);
+    m_pwdEdit->setFixedWidth(180);
+    m_pwdEdit->setFixedHeight(28);
     m_pwdEdit->setStyleSheet(
         "QLineEdit {"
         "  background-color: #121212; border: 1px solid #333; border-radius: 4px;"
-        "  padding: 0 10px; color: white; font-size: 13px;"
+        "  padding: 0 8px; color: white; font-size: 12px;"
         "}"
         "QLineEdit:focus { border: 1px solid #3a90ff; }"
     );
@@ -52,12 +52,13 @@ CategoryLockWidget::CategoryLockWidget(QWidget* parent) : QWidget(parent) {
 
     mainLayout->addWidget(container);
 
-    // 整体背景与边框 (改用轻量样式，避免重度阴影产生的断崖感)
-    setStyleSheet("CategoryLockWidget { background-color: #1e1e1e; }");
-    setAttribute(Qt::WA_StyledBackground);
+    // 移除强制背景色，使其自然融合到父容器 (#1e1e1e) 中
+    setStyleSheet("background: transparent;");
 }
 
 void CategoryLockWidget::setCategory(int id, const QString& hint) {
+    if (m_catId == id && isVisible()) return; // 关键修复：防止因数据刷新导致的输入框重置
+
     m_catId = id;
     m_hintLabel->setText(QString("密码提示: %1").arg(hint.isEmpty() ? "无" : hint));
     m_pwdEdit->clear();

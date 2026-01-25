@@ -704,12 +704,6 @@ void MainWindow::initUI() {
     });
     addAction(actionLockCat);
 
-    // 使用 QAction 统一绑定空格键，支持 Toggle 逻辑且优先级更高
-    auto* actionSpace = new QAction(this);
-    actionSpace->setShortcut(QKeySequence(Qt::Key_Space));
-    actionSpace->setShortcutContext(Qt::WindowShortcut);
-    connect(actionSpace, &QAction::triggered, this, &MainWindow::doPreview);
-    addAction(actionSpace);
 
     splitter->setStretchFactor(0, 1); 
     splitter->setStretchFactor(1, 2); 
@@ -930,6 +924,14 @@ void MainWindow::onSelectionChanged(const QItemSelection& selected, const QItemS
     } else {
         m_metaPanel->setMultipleNotes(indices.size());
     }
+}
+
+void MainWindow::keyPressEvent(QKeyEvent* event) {
+    if (event->key() == Qt::Key_Space) {
+        doPreview();
+        return;
+    }
+    QMainWindow::keyPressEvent(event);
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {

@@ -43,6 +43,7 @@ private slots:
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
 
 private:
