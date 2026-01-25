@@ -1,57 +1,53 @@
 #include "FileCryptoHelper.h"
-#include <openssl/evp.h>
-#include <openssl/aes.h>
-#include <openssl/rand.h>
-#include <openssl/err.h>
+#include "AES.h"
 #include <QDebug>
 #include <QFileInfo>
+#include <QCryptographicHash>
+#include <QRandomGenerator>
 
 #define SALT_SIZE 16
 #define IV_SIZE 16
 #define KEY_SIZE 32
-#define PBKDF2_ITERATIONS 10000
+#define PBKDF2_ITERATIONS 5000 // 减少迭代次数以适应内置实现性能
+
+// 简单的 PBKDF2 替代方案：利用 Qt 自带哈希链式派生密钥
+static QByteArray deriveKeyInternal(const QString& password, const QByteArray& salt) {
+    QByteArray key = password.toUtf8();
+    for (int i = 0; i < PBKDF2_ITERATIONS; ++i) {
+        key = QCryptographicHash::hash(key + salt, QCryptographicHash::Sha256);
+    }
+    return key;
+}
 
 bool FileCryptoHelper::encryptFile(const QString& sourcePath, const QString& destPath, const QString& password) {
     QFile src(sourcePath);
     if (!src.open(QIODevice::ReadOnly)) return false;
+    QByteArray srcData = src.readAll();
+    src.close();
 
+    // 1. 生成随机盐和 IV
+    QByteArray salt(SALT_SIZE, 0);
+    QByteArray iv(IV_SIZE, 0);
+    for(int i=0; i<SALT_SIZE; ++i) salt[i] = (char)QRandomGenerator::global()->bounded(256);
+    for(int i=0; i<IV_SIZE; ++i) iv[i] = (char)QRandomGenerator::global()->bounded(256);
+
+    // 2. 派生密钥
+    QByteArray key = deriveKeyInternal(password, salt);
+
+    // 3. 执行加密
+    AES aes(AES::AES_256);
+    std::vector<uint8_t> input(srcData.begin(), srcData.end());
+    std::vector<uint8_t> keyVec(key.begin(), key.end());
+    std::vector<uint8_t> ivVec(iv.begin(), iv.end());
+
+    std::vector<uint8_t> encrypted = aes.encryptCBC(input, keyVec, ivVec);
+
+    // 4. 写入文件：Salt + IV + EncryptedData
     QFile dest(destPath);
     if (!dest.open(QIODevice::WriteOnly)) return false;
-
-    // 1. 生成盐值
-    unsigned char salt[SALT_SIZE];
-    RAND_bytes(salt, SALT_SIZE);
-    dest.write((const char*)salt, SALT_SIZE);
-
-    // 2. 生成 IV
-    unsigned char iv[IV_SIZE];
-    RAND_bytes(iv, IV_SIZE);
-    dest.write((const char*)iv, IV_SIZE);
-
-    // 3. 派生密钥
-    unsigned char key[KEY_SIZE];
-    PKCS5_PBKDF2_HMAC(password.toStdString().c_str(), password.length(),
-                      salt, SALT_SIZE, PBKDF2_ITERATIONS, EVP_sha256(), KEY_SIZE, key);
-
-    // 4. 初始化加密环境
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv);
-
-    // 5. 分块加密
-    unsigned char inBuf[4096];
-    unsigned char outBuf[4096 + AES_BLOCK_SIZE];
-    int inLen, outLen;
-
-    while ((inLen = src.read((char*)inBuf, sizeof(inBuf))) > 0) {
-        EVP_EncryptUpdate(ctx, outBuf, &outLen, inBuf, inLen);
-        dest.write((const char*)outBuf, outLen);
-    }
-
-    EVP_EncryptFinal_ex(ctx, outBuf, &outLen);
-    dest.write((const char*)outBuf, outLen);
-
-    EVP_CIPHER_CTX_free(ctx);
-    src.close();
+    dest.write(salt);
+    dest.write(iv);
+    dest.write((const char*)encrypted.data(), encrypted.size());
     dest.close();
 
     return true;
@@ -61,51 +57,29 @@ bool FileCryptoHelper::decryptFile(const QString& sourcePath, const QString& des
     QFile src(sourcePath);
     if (!src.open(QIODevice::ReadOnly)) return false;
 
-    // 1. 读取盐值
-    unsigned char salt[SALT_SIZE];
-    if (src.read((char*)salt, SALT_SIZE) != SALT_SIZE) return false;
+    QByteArray salt = src.read(SALT_SIZE);
+    QByteArray iv = src.read(IV_SIZE);
+    QByteArray encryptedData = src.readAll();
+    src.close();
 
-    // 2. 读取 IV
-    unsigned char iv[IV_SIZE];
-    if (src.read((char*)iv, IV_SIZE) != IV_SIZE) return false;
+    if (salt.size() != SALT_SIZE || iv.size() != IV_SIZE) return false;
 
-    // 3. 派生密钥
-    unsigned char key[KEY_SIZE];
-    PKCS5_PBKDF2_HMAC(password.toStdString().c_str(), password.length(),
-                      salt, SALT_SIZE, PBKDF2_ITERATIONS, EVP_sha256(), KEY_SIZE, key);
+    // 1. 派生密钥
+    QByteArray key = deriveKeyInternal(password, salt);
 
+    // 2. 执行解密
+    AES aes(AES::AES_256);
+    std::vector<uint8_t> input(encryptedData.begin(), encryptedData.end());
+    std::vector<uint8_t> keyVec(key.begin(), key.end());
+    std::vector<uint8_t> ivVec(iv.begin(), iv.end());
+
+    std::vector<uint8_t> decrypted = aes.decryptCBC(input, keyVec, ivVec);
+    if (decrypted.empty()) return false;
+
+    // 3. 验证并保存
     QFile dest(destPath);
     if (!dest.open(QIODevice::WriteOnly)) return false;
-
-    // 4. 初始化解密环境
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv);
-
-    // 5. 分块解密
-    unsigned char inBuf[4096 + AES_BLOCK_SIZE];
-    unsigned char outBuf[4096 + AES_BLOCK_SIZE * 2];
-    int inLen, outLen;
-
-    while ((inLen = src.read((char*)inBuf, sizeof(inBuf))) > 0) {
-        if (!EVP_DecryptUpdate(ctx, outBuf, &outLen, inBuf, inLen)) {
-            EVP_CIPHER_CTX_free(ctx);
-            dest.close();
-            QFile::remove(destPath);
-            return false; // 密码错误或数据损坏
-        }
-        dest.write((const char*)outBuf, outLen);
-    }
-
-    if (!EVP_DecryptFinal_ex(ctx, outBuf, &outLen)) {
-        EVP_CIPHER_CTX_free(ctx);
-        dest.close();
-        QFile::remove(destPath);
-        return false; // 密码错误
-    }
-    dest.write((const char*)outBuf, outLen);
-
-    EVP_CIPHER_CTX_free(ctx);
-    src.close();
+    dest.write((const char*)decrypted.data(), decrypted.size());
     dest.close();
 
     return true;
@@ -117,10 +91,9 @@ bool FileCryptoHelper::secureDelete(const QString& filePath) {
 
     qint64 size = QFileInfo(filePath).size();
     if (file.open(QIODevice::WriteOnly)) {
-        // 简单覆盖一次随机数据
         QByteArray junk(4096, 0);
         for (qint64 i = 0; i < size; i += junk.size()) {
-            RAND_bytes((unsigned char*)junk.data(), junk.size());
+            for(int j=0; j<junk.size(); ++j) junk[j] = (char)QRandomGenerator::global()->bounded(256);
             file.write(junk);
         }
         file.flush();

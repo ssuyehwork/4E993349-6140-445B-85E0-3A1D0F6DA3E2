@@ -10,13 +10,13 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Sql Network Concurrent Svg)
-find_package(OpenSSL REQUIRED)
 
 # 源代码列表 - 确保 NoteEditWindow 相关的两个文件都在这里
 set(SOURCES
     src/main.cpp
     src/core/DatabaseManager.cpp
     src/core/FileCryptoHelper.cpp
+    src/core/AES.cpp
     src/core/HotkeyManager.cpp
     src/core/ClipboardMonitor.cpp
     src/core/KeyboardHook.cpp
@@ -75,8 +75,6 @@ target_link_libraries(RapidNotes PRIVATE
     Qt6::Network
     Qt6::Concurrent
     Qt6::Svg
-    OpenSSL::SSL
-    OpenSSL::Crypto
 )
 
 if(WIN32)
