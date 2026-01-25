@@ -1158,6 +1158,8 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                 }
             });
             dlg->show();
+            dlg->activateWindow();
+            dlg->raise();
         });
         menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建子分区", [this, catId]() {
             auto* dlg = new FramelessInputDialog("新建子分区", "区名称:", "", this);
@@ -1169,6 +1171,8 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                 }
             });
             dlg->show();
+            dlg->activateWindow();
+            dlg->raise();
         });
         menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名", [this, catId, currentName]() {
             auto* dlg = new FramelessInputDialog("重命名", "新名称:", currentName, this);
@@ -1180,6 +1184,8 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                 }
             });
             dlg->show();
+            dlg->activateWindow();
+            dlg->raise();
         });
         menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "删除", [this, catId]() {
             auto* dlg = new FramelessMessageBox("确认删除", "确定要删除此分类吗？内容将移至未分类。", this);
@@ -1201,6 +1207,8 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                 refreshSidebar();
             });
             dlg->show();
+            dlg->activateWindow();
+            dlg->raise();
         });
         pwdMenu->addAction("修改", [this, catId]() {
             auto* dlg = new CategoryPasswordDialog("修改密码", this);
@@ -1213,6 +1221,8 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                 refreshSidebar();
             });
             dlg->show();
+            dlg->activateWindow();
+            dlg->raise();
         });
         pwdMenu->addAction("移除", [this, catId]() {
             auto* dlg = new FramelessInputDialog("验证密码", "请输入当前密码以移除保护:", "", this);

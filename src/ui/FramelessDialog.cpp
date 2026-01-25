@@ -2,6 +2,7 @@
 #include "IconHelper.h"
 #include <QGraphicsDropShadowEffect>
 #include <QMouseEvent>
+#include <QTimer>
 #include <QPainter>
 #include <QPen>
 
@@ -117,6 +118,11 @@ FramelessInputDialog::FramelessInputDialog(const QString& title, const QString& 
 
     m_edit->setFocus();
     m_edit->selectAll();
+}
+
+void FramelessInputDialog::showEvent(QShowEvent* event) {
+    FramelessDialog::showEvent(event);
+    QTimer::singleShot(0, m_edit, qOverload<>(&QWidget::setFocus));
 }
 
 // ----------------------------------------------------------------------------

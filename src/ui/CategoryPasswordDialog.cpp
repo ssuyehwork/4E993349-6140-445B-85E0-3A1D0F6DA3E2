@@ -74,8 +74,12 @@ CategoryPasswordDialog::CategoryPasswordDialog(const QString& title, QWidget* pa
         accept();
     });
     layout->addWidget(btnSave);
+}
 
-    m_pwdEdit->setFocus();
+void CategoryPasswordDialog::showEvent(QShowEvent* event) {
+    FramelessDialog::showEvent(event);
+    // 使用 QTimer 确保在窗口完全显示后获取焦点
+    QTimer::singleShot(0, m_pwdEdit, qOverload<>(&QWidget::setFocus));
 }
 
 void CategoryPasswordDialog::setInitialData(const QString& hint) {

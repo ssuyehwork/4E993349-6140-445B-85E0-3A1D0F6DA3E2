@@ -223,6 +223,8 @@ void MainWindow::initUI() {
                     }
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             menu.exec(m_sideBar->mapToGlobal(pos));
             return;
@@ -270,6 +272,8 @@ void MainWindow::initUI() {
                     DatabaseManager::instance().setCategoryPresetTags(catId, dlg->text());
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             menu.addSeparator();
             menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建分组", [this]() {
@@ -282,6 +286,8 @@ void MainWindow::initUI() {
                     }
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             menu.addAction(IconHelper::getIcon("add", "#3498db"), "新建子分区", [this, catId]() {
                 auto* dlg = new FramelessInputDialog("新建子分区", "区名称:", "", this);
@@ -293,6 +299,8 @@ void MainWindow::initUI() {
                     }
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "重命名分类", [this, catId, currentName]() {
                 auto* dlg = new FramelessInputDialog("重命名分类", "新名称:", currentName, this);
@@ -304,6 +312,8 @@ void MainWindow::initUI() {
                     }
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "删除分类", [this, catId]() {
                 auto* dlg = new FramelessMessageBox("确认删除", "确定要删除此分类吗？内容将移至未分类。", this);
@@ -325,6 +335,8 @@ void MainWindow::initUI() {
                     refreshData();
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             pwdMenu->addAction("修改", [this, catId]() {
                 auto* dlg = new CategoryPasswordDialog("修改密码", this);
@@ -337,6 +349,8 @@ void MainWindow::initUI() {
                     refreshData();
                 });
                 dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
             pwdMenu->addAction("移除", [this, catId]() {
                 auto* dlg = new FramelessInputDialog("验证密码", "请输入当前密码以移除保护:", "", this);
