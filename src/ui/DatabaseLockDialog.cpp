@@ -5,12 +5,11 @@
 #include <QMessageBox>
 
 DatabaseLockDialog::DatabaseLockDialog(Mode mode, QWidget* parent)
-    : FramelessDialog(parent), m_mode(mode)
+    : FramelessDialog(mode == Login ? "数据库已锁定" : "设置数据库主密码", parent), m_mode(mode)
 {
-    setWindowTitle(mode == Login ? "数据库已锁定" : "设置数据库主密码");
     setFixedSize(350, mode == Login ? 220 : 280);
 
-    auto* mainLayout = new QVBoxLayout(m_contentWidget);
+    auto* mainLayout = new QVBoxLayout(m_contentArea);
     mainLayout->setContentsMargins(30, 20, 30, 20);
     mainLayout->setSpacing(15);
 
