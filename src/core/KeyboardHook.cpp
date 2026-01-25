@@ -50,9 +50,11 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
             if (pKey->vkCode >= 0x30 && pKey->vkCode <= 0x39) {
                 if (isKeyDown) {
                     int digit = pKey->vkCode - 0x30;
+                    qDebug() << "Digit pressed:" << digit;
                     emit KeyboardHook::instance().digitPressed(digit);
                 }
-                return 1; // 无论是按下还是弹起都拦截，确保不泄露数字
+                // 按下和弹起都拦截，确保完整的按键周期被处理，避免按键泄漏
+                return 1;
             }
         }
     }
