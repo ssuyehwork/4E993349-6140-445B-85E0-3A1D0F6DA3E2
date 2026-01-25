@@ -10,7 +10,7 @@
 #include <QContextMenuEvent>
 #include <QDragEnterEvent>
 #include <QDropEvent>
-#include <QtMath>
+#include <QSettings>
 
 FloatingBall::FloatingBall(QWidget* parent) 
     : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool) 
@@ -318,9 +318,9 @@ void FloatingBall::updateParticles() {
             float tipLen = 35.0f;
             Particle p;
             p.pos = QPointF(width()/2.0f + m_penX - qSin(rad)*tipLen, height()/2.0f + m_penY + qCos(rad)*tipLen);
-            p.velocity = QPointF(QRandomGenerator::global()->bounded(-0.5, 0.5), QRandomGenerator::global()->bounded(0.5, 1.5));
+            p.velocity = QPointF(QRandomGenerator::global()->generateDouble() - 0.5, QRandomGenerator::global()->generateDouble() + 0.5);
             p.life = 1.0;
-            p.size = QRandomGenerator::global()->bounded(1.0, 3.0);
+            p.size = 1.0f + QRandomGenerator::global()->generateDouble() * 2.0f;
             p.color = QColor::fromHsv(QRandomGenerator::global()->bounded(360), 150, 255);
             m_particles.append(p);
         }
