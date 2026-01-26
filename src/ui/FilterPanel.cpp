@@ -22,6 +22,7 @@ void FilterPanel::initUI() {
 
     // 标题栏
     m_header = new QWidget();
+    m_header->setObjectName("FilterHeader");
     m_header->setAttribute(Qt::WA_StyledBackground, true);
     m_header->setFixedHeight(32);
     m_header->setStyleSheet(

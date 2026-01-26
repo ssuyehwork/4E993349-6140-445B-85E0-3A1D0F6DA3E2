@@ -120,6 +120,7 @@ void MetadataPanel::initUI() {
 
     // 1. 顶部标题栏 (锁定 32px，标准配色)
     auto* titleBar = new QWidget();
+    titleBar->setObjectName("MetadataHeader");
     titleBar->setFixedHeight(32);
     titleBar->setStyleSheet(
         "background-color: #252526; "

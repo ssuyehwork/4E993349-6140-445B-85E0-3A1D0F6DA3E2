@@ -148,6 +148,7 @@ void MainWindow::initUI() {
     sidebarWrapperLayout->setContentsMargins(0, 0, 0, 0); // 彻底消除偏移边距，由全局 Layout 和 Splitter 控制
 
     auto* sidebarContainer = new QFrame();
+    sidebarContainer->setMinimumWidth(230);
     sidebarContainer->setObjectName("SidebarContainer");
     sidebarContainer->setAttribute(Qt::WA_StyledBackground, true);
     sidebarContainer->setStyleSheet(
@@ -192,22 +193,18 @@ void MainWindow::initUI() {
     sidebarHeaderLayout->addStretch();
     
     sidebarHeader->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(sidebarHeader, &QWidget::customContextMenuRequested, this, [this, sidebarContainer, splitter](const QPoint& pos){
+    connect(sidebarHeader, &QWidget::customContextMenuRequested, this, [this, sidebarContainer, splitter, sidebarHeader](const QPoint& pos){
         QMenu menu;
         menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item { padding: 5px 20px; } QMenu::item:selected { background-color: #3E3E42; }");
+        menu.addAction("向左移动", [this, sidebarContainer, splitter](){
+            int index = splitter->indexOf(sidebarContainer);
+            if (index > 0) splitter->insertWidget(index - 1, sidebarContainer);
+        });
         menu.addAction("向右移动", [this, sidebarContainer, splitter](){
             int index = splitter->indexOf(sidebarContainer);
-            if (index < splitter->count() - 1) {
-                splitter->insertWidget(index + 1, sidebarContainer); 
-            }
+            if (index < splitter->count() - 1) splitter->insertWidget(index + 1, sidebarContainer);
         });
-         menu.addAction("向左移动", [this, sidebarContainer, splitter](){
-            int index = splitter->indexOf(sidebarContainer);
-            if (index > 0) {
-                splitter->insertWidget(index - 1, sidebarContainer);
-            }
-        });
-        menu.exec(sidebarContainer->mapToGlobal(pos));
+        menu.exec(sidebarHeader->mapToGlobal(pos));
     });
     
     sidebarContainerLayout->addWidget(sidebarHeader);
@@ -560,15 +557,7 @@ void MainWindow::initUI() {
     listContainerLayout->addWidget(listContent);
     splitter->addWidget(listContainer);
     
-    // 4. 右侧内容组合 (水平对齐编辑器与元数据)
-    QWidget* rightContainer = new QWidget();
-    rightContainer->setAttribute(Qt::WA_StyledBackground, true);
-    rightContainer->setStyleSheet("background: transparent; border: none;");
-    QHBoxLayout* rightLayout = new QHBoxLayout(rightContainer);
-    rightLayout->setContentsMargins(0, 0, 0, 0);
-    rightLayout->setSpacing(5); 
-
-    // 4.1 编辑器容器 (Card)
+    // 4. 编辑器容器 (Card) - 独立出来
     auto* editorContainer = new QFrame();
     editorContainer->setMinimumWidth(230);
     editorContainer->setObjectName("EditorContainer");
@@ -629,16 +618,16 @@ void MainWindow::initUI() {
     editorHeaderLayout->addWidget(editLockBtn);
     
     editorHeader->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(editorHeader, &QWidget::customContextMenuRequested, this, [this, rightContainer, splitter, editorHeader](const QPoint& pos){
+    connect(editorHeader, &QWidget::customContextMenuRequested, this, [this, editorContainer, splitter, editorHeader](const QPoint& pos){
         QMenu menu;
         menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item { padding: 5px 20px; } QMenu::item:selected { background-color: #3E3E42; }");
-        menu.addAction("向左移动", [this, rightContainer, splitter](){
-            int index = splitter->indexOf(rightContainer);
-            if (index > 0) splitter->insertWidget(index - 1, rightContainer);
+        menu.addAction("向左移动", [this, editorContainer, splitter](){
+            int index = splitter->indexOf(editorContainer);
+            if (index > 0) splitter->insertWidget(index - 1, editorContainer);
         });
-        menu.addAction("向右移动", [this, rightContainer, splitter](){
-            int index = splitter->indexOf(rightContainer);
-            if (index < splitter->count() - 1) splitter->insertWidget(index + 1, rightContainer);
+        menu.addAction("向右移动", [this, editorContainer, splitter](){
+            int index = splitter->indexOf(editorContainer);
+            if (index < splitter->count() - 1) splitter->insertWidget(index + 1, editorContainer);
         });
         menu.exec(editorHeader->mapToGlobal(pos));
     });
@@ -669,9 +658,13 @@ void MainWindow::initUI() {
     
     editorContentLayout->addWidget(m_editor);
     editorContainerLayout->addWidget(editorContent);
-    rightLayout->addWidget(editorContainer, 4); 
 
+    // 直接放入 Splitter
+    splitter->addWidget(editorContainer);
+
+    // 5. 元数据面板 - 独立出来
     m_metaPanel = new MetadataPanel(this);
+    m_metaPanel->setMinimumWidth(230);
     m_metaPanel->setVisible(true);
     connect(m_metaPanel, &MetadataPanel::noteUpdated, this, &MainWindow::refreshData);
     connect(m_metaPanel, &MetadataPanel::closed, this, [this](){
@@ -686,17 +679,31 @@ void MainWindow::initUI() {
         }
         refreshData();
     });
-    rightLayout->addWidget(m_metaPanel, 1);
 
-    splitter->addWidget(rightContainer);
+    // 给元数据面板添加右键移动菜单
+    auto* metaHeader = m_metaPanel->findChild<QWidget*>("MetadataHeader");
+    if (metaHeader) {
+        metaHeader->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(metaHeader, &QWidget::customContextMenuRequested, this, [this, splitter, metaHeader](const QPoint& pos){
+            QMenu menu;
+            menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item { padding: 5px 20px; } QMenu::item:selected { background-color: #3E3E42; }");
+            menu.addAction("向左移动", [this, splitter](){
+                int index = splitter->indexOf(m_metaPanel);
+                if (index > 0) splitter->insertWidget(index - 1, m_metaPanel);
+            });
+            menu.addAction("向右移动", [this, splitter](){
+                int index = splitter->indexOf(m_metaPanel);
+                if (index < splitter->count() - 1) splitter->insertWidget(index + 1, m_metaPanel);
+            });
+            menu.exec(metaHeader->mapToGlobal(pos));
+        });
+    }
 
-    // 4. 高级筛选器卡片容器
-    m_filterWrapper = new QWidget();
-    m_filterWrapper->setMinimumWidth(230);
-    auto* filterWrapperLayout = new QVBoxLayout(m_filterWrapper);
-    filterWrapperLayout->setContentsMargins(0, 0, 0, 0); 
+    splitter->addWidget(m_metaPanel);
 
+    // 6. 高级筛选器卡片容器
     auto* filterContainer = new QFrame();
+    filterContainer->setMinimumWidth(230);
     filterContainer->setObjectName("FilterContainer");
     filterContainer->setAttribute(Qt::WA_StyledBackground, true);
     filterContainer->setStyleSheet(
@@ -716,13 +723,32 @@ void MainWindow::initUI() {
     filterShadow->setYOffset(4);
     filterShadow->setColor(QColor(0, 0, 0, 150));
     filterContainer->setGraphicsEffect(filterShadow);
-    
-    // Add context menu to filterContainer (wrapper) to allow moving
-    filterContainer->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(filterContainer, &QWidget::customContextMenuRequested, this, [this, filterContainer, splitter](const QPoint& pos){
-        // Only show if clicking top area (header simulation)
-        if (filterContainer->mapFromGlobal(QCursor::pos()).y() > 40) return; 
 
+    auto* filterContainerLayout = new QVBoxLayout(filterContainer);
+    filterContainerLayout->setContentsMargins(0, 0, 0, 0);
+    filterContainerLayout->setSpacing(0);
+
+    // 筛选器标题栏
+    auto* filterHeader = new QWidget();
+    filterHeader->setFixedHeight(32);
+    filterHeader->setStyleSheet(
+        "background-color: #252526; "
+        "border-top-left-radius: 12px; "
+        "border-top-right-radius: 12px; "
+        "border-bottom: 1px solid #333;"
+    );
+    auto* filterHeaderLayout = new QHBoxLayout(filterHeader);
+    filterHeaderLayout->setContentsMargins(15, 0, 15, 0);
+    auto* fiIcon = new QLabel();
+    fiIcon->setPixmap(IconHelper::getIcon("filter", "#f1c40f").pixmap(18, 18));
+    filterHeaderLayout->addWidget(fiIcon);
+    auto* fiTitle = new QLabel("高级筛选");
+    fiTitle->setStyleSheet("color: #f1c40f; font-size: 13px; font-weight: bold; background: transparent; border: none;");
+    filterHeaderLayout->addWidget(fiTitle);
+    filterHeaderLayout->addStretch();
+
+    filterHeader->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(filterHeader, &QWidget::customContextMenuRequested, this, [this, filterContainer, splitter, filterHeader](const QPoint& pos){
         QMenu menu;
         menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item { padding: 5px 20px; } QMenu::item:selected { background-color: #3E3E42; }");
         menu.addAction("向左移动", [this, filterContainer, splitter](){
@@ -733,20 +759,25 @@ void MainWindow::initUI() {
             int index = splitter->indexOf(filterContainer);
             if (index < splitter->count() - 1) splitter->insertWidget(index + 1, filterContainer);
         });
-        menu.exec(QCursor::pos());
+        menu.exec(filterHeader->mapToGlobal(pos));
     });
 
-    auto* fLayout = new QVBoxLayout(filterContainer);
-    fLayout->setContentsMargins(0, 0, 0, 0); 
+    filterContainerLayout->addWidget(filterHeader);
+
+    // 内容容器
+    auto* filterContent = new QWidget();
+    filterContent->setAttribute(Qt::WA_StyledBackground, true);
+    filterContent->setStyleSheet("background: transparent; border: none;");
+    auto* filterContentLayout = new QVBoxLayout(filterContent);
+    filterContentLayout->setContentsMargins(10, 10, 10, 10);
 
     m_filterPanel = new FilterPanel(this);
     m_filterPanel->setStyleSheet("background: transparent; border: none;");
     connect(m_filterPanel, &FilterPanel::filterChanged, this, &MainWindow::refreshData);
-    fLayout->addWidget(m_filterPanel);
+    filterContentLayout->addWidget(m_filterPanel);
+    filterContainerLayout->addWidget(filterContent);
 
-    // 直接放入 Splitter
     m_filterWrapper = filterContainer;
-    m_filterWrapper->setMinimumWidth(230);
     m_filterWrapper->setVisible(true);
     m_header->setFilterActive(true);
     splitter->addWidget(m_filterWrapper);
@@ -794,10 +825,11 @@ void MainWindow::initUI() {
     splitter->setStretchFactor(0, 1); 
     splitter->setStretchFactor(1, 2); 
     splitter->setStretchFactor(2, 8); 
-    splitter->setStretchFactor(3, 0); 
+    splitter->setStretchFactor(3, 1);
+    splitter->setStretchFactor(4, 1);
     
-    // 显式设置初始大小比例 (设置 NoteList 为 202)
-    splitter->setSizes({220, 230, 800, 230});
+    // 显式设置初始大小比例
+    splitter->setSizes({230, 230, 600, 230, 230});
 
     contentLayout->addWidget(splitter);
     mainLayout->addWidget(contentWidget);
