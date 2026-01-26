@@ -570,6 +570,7 @@ void MainWindow::initUI() {
 
     // 4.1 编辑器容器 (Card)
     auto* editorContainer = new QFrame();
+    editorContainer->setMinimumWidth(230);
     editorContainer->setObjectName("EditorContainer");
     editorContainer->setAttribute(Qt::WA_StyledBackground, true);
     editorContainer->setStyleSheet(
