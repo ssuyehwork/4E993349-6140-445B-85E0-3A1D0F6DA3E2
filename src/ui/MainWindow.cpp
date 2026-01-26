@@ -697,10 +697,22 @@ void MainWindow::initUI() {
     for (const auto& color : hColors) {
         QPushButton* hBtn = new QPushButton();
         hBtn->setFixedSize(18, 18);
-        hBtn->setStyleSheet(QString("QPushButton { background-color: %1; border-radius: 9px; margin: 2px; } QPushButton:hover { border: 1px solid white; }").arg(color));
+        hBtn->setStyleSheet(QString("QPushButton { background-color: %1; border-radius: 4px; margin: 2px; } QPushButton:hover { border: 1px solid white; }").arg(color));
         connect(hBtn, &QPushButton::clicked, [this, color](){ m_editor->highlightSelection(QColor(color)); });
         toolBarLayout->addWidget(hBtn);
     }
+
+    // 清除高亮按钮
+    QPushButton* btnNoColor = new QPushButton();
+    btnNoColor->setIcon(IconHelper::getIcon("no_color", "#aaaaaa", 14));
+    btnNoColor->setIconSize(QSize(14, 14));
+    btnNoColor->setFixedSize(22, 22);
+    btnNoColor->setToolTip("清除高亮");
+    btnNoColor->setStyleSheet("QPushButton { background: transparent; border: 1px solid #444; border-radius: 4px; margin-left: 4px; } "
+                              "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); border-color: #888; }");
+    btnNoColor->setCursor(Qt::PointingHandCursor);
+    connect(btnNoColor, &QPushButton::clicked, [this](){ m_editor->highlightSelection(Qt::transparent); });
+    toolBarLayout->addWidget(btnNoColor);
 
     toolBarLayout->addStretch();
 
