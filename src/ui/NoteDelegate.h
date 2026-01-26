@@ -32,10 +32,12 @@ public:
         bool isPinned = index.data(NoteModel::PinnedRole).toBool();
         
         // 2. 处理选中状态和背景 (更精致的配色与阴影感)
-        // 外部布局已预留 15px 边距，内部不再缩进
-        QRect rect = option.rect.adjusted(0, 0, 0, -4); // 仅保留底部间隔视觉
         bool isSelected = (option.state & QStyle::State_Selected);
         
+        // 【关键修复】使用 QRectF 并根据笔宽调整，确保 2px 边框完全在 option.rect 内部绘制，消除选中残留伪影
+        qreal penWidth = isSelected ? 2.0 : 1.0;
+        QRectF rect = QRectF(option.rect).adjusted(penWidth/2.0, penWidth/2.0, -penWidth/2.0, -4.0 - penWidth/2.0);
+
         // 获取笔记自身的颜色标记作为背景
         QString colorHex = index.data(NoteModel::ColorRole).toString();
         QColor noteColor = colorHex.isEmpty() ? QColor("#1a1a1b") : QColor(colorHex);
@@ -54,7 +56,7 @@ public:
             painter->drawRoundedRect(rect.translated(0, 2), 8, 8);
         }
 
-        painter->setPen(QPen(borderColor, isSelected ? 2 : 1));
+        painter->setPen(QPen(borderColor, penWidth));
         painter->setBrush(bgColor);
         painter->drawPath(path);
 
@@ -62,7 +64,7 @@ public:
         painter->setPen(Qt::white);
         QFont titleFont("Microsoft YaHei", 10, QFont::Bold);
         painter->setFont(titleFont);
-        QRect titleRect = rect.adjusted(12, 10, -35, -70);
+        QRectF titleRect = rect.adjusted(12, 10, -35, -70);
         painter->drawText(titleRect, Qt::AlignLeft | Qt::AlignTop, painter->fontMetrics().elidedText(title, Qt::ElideRight, titleRect.width()));
 
         // 4. 绘制置顶/星级标识
@@ -74,13 +76,13 @@ public:
         // 5. 绘制内容预览 (强制纯白：确保在任何背景下都有最高清晰度)
         painter->setPen(Qt::white);
         painter->setFont(QFont("Microsoft YaHei", 9));
-        QRect contentRect = rect.adjusted(12, 34, -12, -32);
+        QRectF contentRect = rect.adjusted(12, 34, -12, -32);
         QString cleanContent = content.simplified();
         QString elidedContent = painter->fontMetrics().elidedText(cleanContent, Qt::ElideRight, contentRect.width() * 2);
         painter->drawText(contentRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, elidedContent);
 
         // 6. 绘制底部元数据栏 (时间图标 + 时间 + 类型标签)
-        QRect bottomRect = rect.adjusted(12, 78, -12, -8);
+        QRectF bottomRect = rect.adjusted(12, 78, -12, -8);
         
         // 时间 (强制纯白)
         painter->setPen(Qt::white);
@@ -98,7 +100,7 @@ public:
         
         QString tagText = itemType;
         int tagWidth = painter->fontMetrics().horizontalAdvance(tagText) + 16;
-        QRect tagRect(bottomRect.right() - tagWidth, bottomRect.top() + 2, tagWidth, 18);
+        QRectF tagRect(bottomRect.right() - tagWidth, bottomRect.top() + 2, tagWidth, 18);
         
         painter->setBrush(QColor("#1e1e1e"));
         painter->setPen(QPen(QColor("#444"), 1));
