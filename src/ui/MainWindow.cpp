@@ -205,9 +205,9 @@ void MainWindow::initUI() {
     sidebarHeader->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(sidebarHeader, &QWidget::customContextMenuRequested, this, [this, sidebarContainer, splitter, sidebarHeader](const QPoint& pos){
         QMenu menu;
-        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                           "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
-                           "QMenu::icon { margin-left: 4px; } "
+        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; spacing: 10px; } "
+                           "QMenu::item { padding: 6px 10px 6px 0px; border-radius: 3px; } "
+                           "QMenu::icon { margin-left: 5px; } "
                            "QMenu::item:selected { background-color: #3E3E42; }");
         menu.addAction(IconHelper::getIcon("nav_prev", "#aaaaaa", 18), "向左移动", [this, sidebarContainer, splitter](){
             int index = splitter->indexOf(sidebarContainer);
@@ -255,9 +255,9 @@ void MainWindow::initUI() {
     connect(m_sideBar, &QTreeView::customContextMenuRequested, this, [this](const QPoint& pos){
         QModelIndex index = m_sideBar->indexAt(pos);
         QMenu menu(this);
-        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                           "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
-                           "QMenu::icon { margin-left: 4px; } "
+        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; spacing: 10px; } "
+                           "QMenu::item { padding: 6px 10px 6px 0px; border-radius: 3px; } "
+                           "QMenu::icon { margin-left: 5px; } "
                            "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
         if (!index.isValid() || index.data().toString() == "我的分区") {
@@ -511,9 +511,9 @@ void MainWindow::initUI() {
     listHeader->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(listHeader, &QWidget::customContextMenuRequested, this, [this, listContainer, splitter, listHeader](const QPoint& pos){
         QMenu menu;
-        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                           "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
-                           "QMenu::icon { margin-left: 4px; } "
+        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; spacing: 10px; } "
+                           "QMenu::item { padding: 6px 10px 6px 0px; border-radius: 3px; } "
+                           "QMenu::icon { margin-left: 5px; } "
                            "QMenu::item:selected { background-color: #3E3E42; }");
         menu.addAction("向左移动", [this, listContainer, splitter](){
             int index = splitter->indexOf(listContainer);
@@ -639,9 +639,9 @@ void MainWindow::initUI() {
     editorHeader->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(editorHeader, &QWidget::customContextMenuRequested, this, [this, editorContainer, splitter, editorHeader](const QPoint& pos){
         QMenu menu;
-        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                           "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
-                           "QMenu::icon { margin-left: 4px; } "
+        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; spacing: 10px; } "
+                           "QMenu::item { padding: 6px 10px 6px 0px; border-radius: 3px; } "
+                           "QMenu::icon { margin-left: 5px; } "
                            "QMenu::item:selected { background-color: #3E3E42; }");
         menu.addAction("向左移动", [this, editorContainer, splitter](){
             int index = splitter->indexOf(editorContainer);
@@ -664,7 +664,7 @@ void MainWindow::initUI() {
     toolBarLayout->setContentsMargins(10, 2, 10, 2);
     toolBarLayout->setSpacing(0);
 
-    QString toolBtnStyle = "QPushButton { background: transparent; border: none; border-radius: 4px; padding: 4px; } "
+    QString toolBtnStyle = "QPushButton { background: transparent; border: none; border-radius: 4px; padding: 4px; spacing: 10px; } "
                            "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
                            "QPushButton:checked { background-color: rgba(74, 144, 226, 0.2); }";
 
@@ -831,9 +831,9 @@ void MainWindow::initUI() {
         metaHeader->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(metaHeader, &QWidget::customContextMenuRequested, this, [this, splitter, metaHeader](const QPoint& pos){
             QMenu menu;
-            menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                               "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
-                               "QMenu::icon { margin-left: 4px; } "
+            menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; spacing: 10px; } "
+                               "QMenu::item { padding: 6px 10px 6px 0px; border-radius: 3px; } "
+                               "QMenu::icon { margin-left: 5px; } "
                                "QMenu::item:selected { background-color: #3E3E42; }");
             menu.addAction("向左移动", [this, splitter](){
                 int index = splitter->indexOf(m_metaPanel);
@@ -898,9 +898,9 @@ void MainWindow::initUI() {
     filterHeader->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(filterHeader, &QWidget::customContextMenuRequested, this, [this, filterContainer, splitter, filterHeader](const QPoint& pos){
         QMenu menu;
-        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                           "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
-                           "QMenu::icon { margin-left: 4px; } "
+        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; spacing: 10px; } "
+                           "QMenu::item { padding: 6px 10px 6px 0px; border-radius: 3px; } "
+                           "QMenu::icon { margin-left: 5px; } "
                            "QMenu::item:selected { background-color: #3E3E42; }");
         menu.addAction("向左移动", [this, filterContainer, splitter](){
             int index = splitter->indexOf(filterContainer);
@@ -1333,9 +1333,9 @@ void MainWindow::showContextMenu(const QPoint& pos) {
 
     int selCount = selected.size();
     QMenu menu(this);
-    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                       "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
-                       "QMenu::icon { margin-left: 4px; } "
+    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; spacing: 10px; } "
+                       "QMenu::item { padding: 6px 10px 6px 0px; border-radius: 3px; } "
+                       "QMenu::icon { margin-left: 5px; } "
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
     if (selCount == 1) {
@@ -1458,9 +1458,9 @@ void MainWindow::showToolboxMenu(const QPoint& pos) {
     m_autoCategorizeClipboard = globalSettings.value("autoCategorizeClipboard", false).toBool();
 
     QMenu menu(this);
-    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                       "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
-                       "QMenu::icon { margin-left: 4px; } "
+    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; spacing: 10px; } "
+                       "QMenu::item { padding: 6px 10px 6px 0px; border-radius: 3px; } "
+                       "QMenu::icon { margin-left: 5px; } "
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
     QAction* autoCatAction = menu.addAction(IconHelper::getIcon("zap", "#aaaaaa", 18), "剪贴板自动归档到当前分类");
