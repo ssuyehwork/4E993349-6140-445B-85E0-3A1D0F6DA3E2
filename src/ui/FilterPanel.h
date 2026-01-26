@@ -32,7 +32,6 @@ private:
     void updateFixedNode(const QString& key, const QVariantMap& stats);
 
     QWidget* m_container;
-    QWidget* m_header;
     QTreeWidget* m_tree;
     QPushButton* m_btnReset;
 

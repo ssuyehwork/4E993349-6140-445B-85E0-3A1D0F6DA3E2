@@ -837,7 +837,7 @@ void MainWindow::initUI() {
             QMenu menu;
             menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
                                /* 10px 间距规范：padding-left 10px + icon margin-left 6px */
-                           "QMenu::item { padding: 6px 10px 6px 10px; border-radius: 3px; } "
+                               "QMenu::item { padding: 6px 10px 6px 10px; border-radius: 3px; } "
                                "QMenu::icon { margin-left: 6px; } "
                                "QMenu::item:selected { background-color: #3E3E42; }");
             menu.addAction("向左移动", [this, splitter](){
@@ -899,6 +899,20 @@ void MainWindow::initUI() {
     fiTitle->setStyleSheet("color: #f1c40f; font-size: 13px; font-weight: bold; background: transparent; border: none;");
     filterHeaderLayout->addWidget(fiTitle);
     filterHeaderLayout->addStretch();
+
+    auto* filterCloseBtn = new QPushButton();
+    filterCloseBtn->setIcon(IconHelper::getIcon("close", "#888888"));
+    filterCloseBtn->setFixedSize(24, 24);
+    filterCloseBtn->setCursor(Qt::PointingHandCursor);
+    filterCloseBtn->setStyleSheet(
+        "QPushButton { background-color: transparent; border: none; border-radius: 4px; }"
+        "QPushButton:hover { background-color: #e74c3c; }"
+    );
+    connect(filterCloseBtn, &QPushButton::clicked, this, [this](){
+        m_filterWrapper->hide();
+        m_header->setFilterActive(false);
+    });
+    filterHeaderLayout->addWidget(filterCloseBtn);
     
     filterHeader->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(filterHeader, &QWidget::customContextMenuRequested, this, [this, filterContainer, splitter, filterHeader](const QPoint& pos){

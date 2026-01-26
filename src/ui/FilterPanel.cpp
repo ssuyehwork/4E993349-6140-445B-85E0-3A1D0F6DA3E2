@@ -20,42 +20,6 @@ void FilterPanel::initUI() {
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
-    // 标题栏
-    m_header = new QWidget();
-    m_header->setObjectName("FilterHeader");
-    m_header->setAttribute(Qt::WA_StyledBackground, true);
-    m_header->setFixedHeight(32);
-    m_header->setStyleSheet(
-        "background-color: #252526; "
-        "border-top-left-radius: 12px; "
-        "border-top-right-radius: 12px; "
-        "border-bottom: 1px solid #333;" // 统一分割线
-    );
-
-    auto* headerLayout = new QHBoxLayout(m_header);
-    headerLayout->setContentsMargins(15, 0, 15, 0); // 统一 15px 边距
-
-    auto* headerIcon = new QLabel();
-    headerIcon->setPixmap(IconHelper::getIcon("filter", "#007ACC").pixmap(20, 20));
-    headerLayout->addWidget(headerIcon);
-
-    auto* headerTitle = new QLabel("高级筛选");
-    headerTitle->setStyleSheet("color: #007ACC; font-size: 13px; font-weight: bold; background: transparent;");
-    headerLayout->addWidget(headerTitle);
-    headerLayout->addStretch();
-
-    auto* closeBtn = new QPushButton();
-    closeBtn->setIcon(IconHelper::getIcon("close", "#888888"));
-    closeBtn->setFixedSize(24, 24);
-    closeBtn->setCursor(Qt::PointingHandCursor);
-    closeBtn->setStyleSheet(
-        "QPushButton { background-color: transparent; border: none; border-radius: 4px; }"
-        "QPushButton:hover { background-color: #e74c3c; }"
-    );
-    connect(closeBtn, &QPushButton::clicked, this, &FilterPanel::hide);
-    headerLayout->addWidget(closeBtn);
-    mainLayout->addWidget(m_header);
-
     // 内容容器
     auto* contentWidget = new QWidget();
     contentWidget->setStyleSheet(
