@@ -1599,7 +1599,7 @@ void MainWindow::saveCurrentNote() {
     if (!index.isValid()) return;
     int id = index.data(NoteModel::IdRole).toInt();
     
-    QString content = m_editor->toPlainText();
+    QString content = m_editor->toHtml();
     DatabaseManager::instance().updateNoteState(id, "content", content);
     
     // 退出编辑模式

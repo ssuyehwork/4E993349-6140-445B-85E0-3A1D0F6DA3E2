@@ -92,6 +92,9 @@ private:
     DatabaseManager& operator=(const DatabaseManager&) = delete;
 
     bool createTables();
+    void syncFts(int id, const QString& title, const QString& content);
+    void removeFts(int id);
+    QString stripHtml(const QString& html);
     
     QSqlDatabase m_db;
     QString m_dbPath; 
