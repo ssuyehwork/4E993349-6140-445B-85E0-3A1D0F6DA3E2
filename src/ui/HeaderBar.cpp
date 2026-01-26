@@ -121,15 +121,14 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     layout->addWidget(btnRefresh);
     layout->addSpacing(8);
 
-    // 迁移：高级筛选与工具箱按钮移至中间组
-    m_btnFilter = new QPushButton();
-    m_btnFilter->setIcon(IconHelper::getIcon("filter", "#aaaaaa", 16));
-    m_btnFilter->setToolTip("高级筛选 (Ctrl+G)");
-    m_btnFilter->setStyleSheet(pageBtnStyle + " QPushButton:checked { background-color: #4a90e2; border-color: #4a90e2; }");
-    m_btnFilter->setCheckable(true);
-    m_btnFilter->setFixedSize(24, 24);
-    connect(m_btnFilter, &QPushButton::clicked, this, &HeaderBar::filterRequested);
-    layout->addWidget(m_btnFilter);
+    // 迁移：新建笔记 (+) 和 工具箱 按钮移至中间组
+    QPushButton* btnAddCenter = new QPushButton();
+    btnAddCenter->setIcon(IconHelper::getIcon("add", "#aaaaaa", 16));
+    btnAddCenter->setToolTip("新建笔记 (Ctrl+N)");
+    btnAddCenter->setStyleSheet(pageBtnStyle);
+    btnAddCenter->setFixedSize(24, 24);
+    connect(btnAddCenter, &QPushButton::clicked, this, &HeaderBar::newNoteRequested);
+    layout->addWidget(btnAddCenter);
     layout->addSpacing(8);
 
     QPushButton* btnTool = new QPushButton();
@@ -159,13 +158,14 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
         "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }"
         "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); }";
 
-    QPushButton* btnAdd = new QPushButton();
-    btnAdd->setIcon(IconHelper::getIcon("add", "#ffffff", 20));
-    btnAdd->setIconSize(QSize(20, 20));
-    btnAdd->setToolTip("新建笔记 (Ctrl+N)");
-    btnAdd->setStyleSheet(funcBtnStyle);
-    connect(btnAdd, &QPushButton::clicked, this, &HeaderBar::newNoteRequested);
-    layout->addWidget(btnAdd);
+    m_btnFilter = new QPushButton();
+    m_btnFilter->setIcon(IconHelper::getIcon("filter", "#ffffff", 20));
+    m_btnFilter->setIconSize(QSize(20, 20));
+    m_btnFilter->setToolTip("高级筛选 (Ctrl+G)");
+    m_btnFilter->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }");
+    m_btnFilter->setCheckable(true);
+    connect(m_btnFilter, &QPushButton::clicked, this, &HeaderBar::filterRequested);
+    layout->addWidget(m_btnFilter);
     layout->addSpacing(4);
 
     m_btnMeta = new QPushButton();
