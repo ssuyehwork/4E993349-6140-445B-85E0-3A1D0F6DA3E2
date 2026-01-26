@@ -29,6 +29,8 @@
 #include <QDateTime>
 #include <QGraphicsDropShadowEffect>
 #include <QApplication>
+#include <QClipboard>
+#include <QMimeData>
 #include <QPlainTextEdit>
 #include "CleanListView.h"
 #include "NoteEditWindow.h"
