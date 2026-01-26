@@ -15,7 +15,7 @@ SystemTray::SystemTray(QObject* parent) : QObject(parent) {
     m_menu = new QMenu();
     m_menu->setStyleSheet(
         "QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-        "QMenu::item { padding: 6px 10px 6px 34px; border-radius: 3px; } "
+        "QMenu::item { padding: 6px 10px 6px 10px; border-radius: 3px; } "
         "QMenu::icon { margin-left: 6px; } "
         "QMenu::item:selected { background-color: #4a90e2; color: white; }"
     );
