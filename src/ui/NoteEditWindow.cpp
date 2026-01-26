@@ -26,7 +26,8 @@ NoteEditWindow::NoteEditWindow(int noteId, QWidget* parent)
 {
     setWindowTitle(m_noteId > 0 ? "编辑笔记" : "记录灵感");
     setAttribute(Qt::WA_TranslucentBackground); 
-    resize(950, 650); 
+    // 增加窗口物理尺寸以容纳外围阴影，防止 UpdateLayeredWindowIndirect 参数错误
+    resize(980, 680);
     initUI();
     setupShortcuts();
     
@@ -40,14 +41,8 @@ void NoteEditWindow::setDefaultCategory(int catId) {
 }
 
 void NoteEditWindow::paintEvent(QPaintEvent* event) {
+    // 由于使用了 mainContainer 承载背景和圆角，窗口本身只需保持透明
     Q_UNUSED(event);
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-    
-    painter.setBrush(QColor("#1E1E1E")); 
-    painter.setPen(Qt::NoPen);
-    int radius = m_isMaximized ? 0 : 12;
-    painter.drawRoundedRect(rect(), radius, radius);
 }
 
 void NoteEditWindow::mousePressEvent(QMouseEvent* event) {
@@ -93,7 +88,18 @@ void NoteEditWindow::mouseDoubleClickEvent(QMouseEvent* event) {
 }
 
 void NoteEditWindow::initUI() {
-    auto* outerLayout = new QVBoxLayout(this);
+    auto* windowLayout = new QVBoxLayout(this);
+    windowLayout->setObjectName("WindowLayout");
+    windowLayout->setContentsMargins(15, 15, 15, 15); // 留出阴影空间
+    windowLayout->setSpacing(0);
+
+    // 主容器：承载圆角、背景和阴影
+    auto* mainContainer = new QWidget();
+    mainContainer->setObjectName("MainContainer");
+    mainContainer->setStyleSheet("QWidget#MainContainer { background-color: #1E1E1E; border-radius: 12px; }");
+    windowLayout->addWidget(mainContainer);
+
+    auto* outerLayout = new QVBoxLayout(mainContainer);
     outerLayout->setContentsMargins(0, 0, 0, 0);
     outerLayout->setSpacing(0);
 
@@ -181,11 +187,12 @@ void NoteEditWindow::initUI() {
 
     outerLayout->addWidget(m_splitter);
 
+    // 阴影应用在内部容器上，确保不超出窗口边界
     auto* shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(20);
-    shadow->setColor(QColor(0, 0, 0, 150));
-    shadow->setOffset(0, 5);
-    setGraphicsEffect(shadow);
+    shadow->setBlurRadius(15);
+    shadow->setColor(QColor(0, 0, 0, 180));
+    shadow->setOffset(0, 2);
+    mainContainer->setGraphicsEffect(shadow);
 }
 
 void NoteEditWindow::setupLeftPanel(QVBoxLayout* layout) {
@@ -430,13 +437,20 @@ void NoteEditWindow::toggleStayOnTop() {
 }
 
 void NoteEditWindow::toggleMaximize() {
+    auto* windowLayout = findChild<QVBoxLayout*>("WindowLayout");
+    auto* mainContainer = findChild<QWidget*>("MainContainer");
+
     if (m_isMaximized) {
         showNormal();
+        if (windowLayout) windowLayout->setContentsMargins(15, 15, 15, 15);
+        if (mainContainer) mainContainer->setStyleSheet("QWidget#MainContainer { background-color: #1E1E1E; border-radius: 12px; }");
         m_maxBtn->setIcon(IconHelper::getIcon("maximize", "#aaaaaa", 20));
         m_titleBar->setStyleSheet("background-color: #252526; border-top-left-radius: 12px; border-top-right-radius: 12px; border-bottom: 1px solid #333;");
     } else {
         m_normalGeometry = geometry();
         showMaximized();
+        if (windowLayout) windowLayout->setContentsMargins(0, 0, 0, 0);
+        if (mainContainer) mainContainer->setStyleSheet("QWidget#MainContainer { background-color: #1E1E1E; border-radius: 0px; }");
         m_maxBtn->setIcon(IconHelper::getIcon("restore", "#aaaaaa", 20));
         m_titleBar->setStyleSheet("background-color: #252526; border-radius: 0px; border-bottom: 1px solid #333;");
     }
