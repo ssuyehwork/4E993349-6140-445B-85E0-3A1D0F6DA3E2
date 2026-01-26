@@ -38,7 +38,7 @@ class QuickWindow : public QWidget {
     Q_OBJECT
 public:
     explicit QuickWindow(QWidget* parent = nullptr);
-    void showCentered();
+    void showAuto();
     void saveState();
     void restoreState();
 
@@ -63,6 +63,7 @@ protected:
     void hideEvent(QHideEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
+    void moveEvent(QMoveEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
@@ -122,6 +123,7 @@ public:
     QVariant m_currentFilterValue = -1;
     QString m_currentCategoryColor = "#4a90e2"; // 默认蓝色
     bool m_autoCategorizeClipboard = false;
+    bool m_isStayOnTop = false;
 
 #ifdef Q_OS_WIN
     HWND m_lastActiveHwnd = nullptr;

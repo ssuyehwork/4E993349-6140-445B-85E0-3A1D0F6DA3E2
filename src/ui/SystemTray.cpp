@@ -21,6 +21,7 @@ SystemTray::SystemTray(QObject* parent) : QObject(parent) {
     
     m_menu->addAction(IconHelper::getIcon("monitor", "#aaaaaa"), "显示主界面", this, &SystemTray::showMainWindow);
     m_menu->addAction(IconHelper::getIcon("zap", "#aaaaaa"), "显示快速笔记", this, &SystemTray::showQuickWindow);
+    m_menu->addAction(IconHelper::getIcon("settings", "#aaaaaa"), "设置", this, &SystemTray::showSettings);
     m_menu->addSeparator();
     m_menu->addAction(IconHelper::getIcon("power", "#aaaaaa"), "退出程序", this, &SystemTray::quitApp);
 

@@ -20,11 +20,15 @@
 #include <QRandomGenerator>
 #include <QLineEdit>
 #include <QTextEdit>
+#include <QToolTip>
+#include <QDateTime>
+#include <QGraphicsDropShadowEffect>
 #include <QApplication>
 #include <QPlainTextEdit>
 #include "CleanListView.h"
 #include "FramelessDialog.h"
 #include "CategoryPasswordDialog.h"
+#include "SettingsWindow.h"
 #include <functional>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindowHint) {
@@ -46,6 +50,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindo
 
 void MainWindow::initUI() {
     auto* centralWidget = new QWidget(this);
+    centralWidget->setObjectName("CentralWidget");
+    centralWidget->setAttribute(Qt::WA_StyledBackground, true);
+    centralWidget->setStyleSheet("#CentralWidget { background-color: #1E1E1E; }");
     setCentralWidget(centralWidget);
     auto* mainLayout = new QVBoxLayout(centralWidget);
     mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -89,6 +96,7 @@ void MainWindow::initUI() {
         m_sideBar->setVisible(!m_sideBar->isVisible());
     });
     connect(m_header, &HeaderBar::toolboxRequested, this, &MainWindow::toolboxRequested);
+    connect(m_header, &HeaderBar::toolboxContextMenuRequested, this, &MainWindow::showToolboxMenu);
     connect(m_header, &HeaderBar::metadataToggled, this, [this](bool checked){
         m_metaPanel->setVisible(checked);
     });
@@ -102,6 +110,9 @@ void MainWindow::initUI() {
 
     // 核心内容容器：管理 5px 全局边距
     auto* contentWidget = new QWidget(centralWidget);
+    contentWidget->setAttribute(Qt::WA_StyledBackground, true);
+    contentWidget->setAttribute(Qt::WA_NoSystemBackground, true);
+    contentWidget->setStyleSheet("background: transparent; border: none;");
     auto* contentLayout = new QVBoxLayout(contentWidget);
     contentLayout->setContentsMargins(5, 5, 5, 5); // 确保顶栏下方及窗口四周均有 5px 留白
     contentLayout->setSpacing(0);
@@ -109,7 +120,9 @@ void MainWindow::initUI() {
     auto* splitter = new QSplitter(Qt::Horizontal);
     splitter->setHandleWidth(5); // 统一横向板块间的物理缝隙为 5px
     splitter->setChildrenCollapsible(false);
-    splitter->setStyleSheet("QSplitter::handle { background: transparent; }");
+    splitter->setAttribute(Qt::WA_StyledBackground, true);
+    splitter->setAttribute(Qt::WA_NoSystemBackground, true);
+    splitter->setStyleSheet("QSplitter { background: transparent; border: none; } QSplitter::handle { background: transparent; }");
 
     // 1. 左侧侧边栏包装容器 (固定 230px)
     auto* sidebarWrapper = new QWidget();
@@ -117,8 +130,9 @@ void MainWindow::initUI() {
     auto* sidebarWrapperLayout = new QVBoxLayout(sidebarWrapper);
     sidebarWrapperLayout->setContentsMargins(0, 0, 0, 0); // 彻底消除偏移边距，由全局 Layout 和 Splitter 控制
 
-    auto* sidebarContainer = new QWidget();
+    auto* sidebarContainer = new QFrame();
     sidebarContainer->setObjectName("SidebarContainer");
+    sidebarContainer->setAttribute(Qt::WA_StyledBackground, true);
     sidebarContainer->setStyleSheet(
         "#SidebarContainer {"
         "  background-color: #1e1e1e;"
@@ -180,6 +194,9 @@ void MainWindow::initUI() {
 
     // 内容容器
     auto* sbContent = new QWidget();
+    sbContent->setAttribute(Qt::WA_StyledBackground, true);
+    sbContent->setAttribute(Qt::WA_NoSystemBackground, true);
+    sbContent->setStyleSheet("background: transparent; border: none;");
     auto* sbContentLayout = new QVBoxLayout(sbContent);
     sbContentLayout->setContentsMargins(8, 8, 8, 8);
 
@@ -346,7 +363,7 @@ void MainWindow::initUI() {
                         auto* dlg = new CategoryPasswordDialog("修改密码", this);
                         QString currentHint;
                         auto cats = DatabaseManager::instance().getAllCategories();
-                        for(const auto& c : cats) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
+                        for(const auto& c : std::as_const(cats)) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
                         dlg->setInitialData(currentHint);
                         connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
                             DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
@@ -416,9 +433,10 @@ void MainWindow::initUI() {
     });
 
     // 3. 中间列表卡片容器
-    auto* listContainer = new QWidget();
+    auto* listContainer = new QFrame();
     listContainer->setMinimumWidth(230); // 对齐 MetadataPanel
     listContainer->setObjectName("ListContainer");
+    listContainer->setAttribute(Qt::WA_StyledBackground, true);
     listContainer->setStyleSheet(
         "#ListContainer {"
         "  background-color: #1e1e1e;"
@@ -476,6 +494,9 @@ void MainWindow::initUI() {
 
     // 内容容器
     auto* listContent = new QWidget();
+    listContent->setAttribute(Qt::WA_StyledBackground, true);
+    listContent->setAttribute(Qt::WA_NoSystemBackground, true);
+    listContent->setStyleSheet("background: transparent; border: none;");
     auto* listContentLayout = new QVBoxLayout(listContent);
     // 恢复垂直边距为 8，保留水平边距 15 以对齐宽度
     listContentLayout->setContentsMargins(15, 8, 15, 8);
@@ -520,13 +541,17 @@ void MainWindow::initUI() {
     
     // 4. 右侧内容组合 (水平对齐编辑器与元数据)
     QWidget* rightContainer = new QWidget();
+    rightContainer->setAttribute(Qt::WA_StyledBackground, true);
+    rightContainer->setAttribute(Qt::WA_NoSystemBackground, true);
+    rightContainer->setStyleSheet("background: transparent; border: none;");
     QHBoxLayout* rightLayout = new QHBoxLayout(rightContainer);
     rightLayout->setContentsMargins(0, 0, 0, 0);
     rightLayout->setSpacing(5); 
 
     // 4.1 编辑器容器 (Card)
-    auto* editorContainer = new QWidget();
+    auto* editorContainer = new QFrame();
     editorContainer->setObjectName("EditorContainer");
+    editorContainer->setAttribute(Qt::WA_StyledBackground, true);
     editorContainer->setStyleSheet(
         "#EditorContainer {"
         "  background-color: #1e1e1e;"
@@ -598,6 +623,9 @@ void MainWindow::initUI() {
 
     // 内容容器
     auto* editorContent = new QWidget();
+    editorContent->setAttribute(Qt::WA_StyledBackground, true);
+    editorContent->setAttribute(Qt::WA_NoSystemBackground, true);
+    editorContent->setStyleSheet("background: transparent; border: none;");
     auto* editorContentLayout = new QVBoxLayout(editorContent);
     editorContentLayout->setContentsMargins(2, 2, 2, 2); // 编辑器保留微量对齐边距
 
@@ -645,8 +673,9 @@ void MainWindow::initUI() {
     auto* filterWrapperLayout = new QVBoxLayout(m_filterWrapper);
     filterWrapperLayout->setContentsMargins(0, 0, 0, 0); 
 
-    auto* filterContainer = new QWidget();
+    auto* filterContainer = new QFrame();
     filterContainer->setObjectName("FilterContainer");
+    filterContainer->setAttribute(Qt::WA_StyledBackground, true);
     filterContainer->setStyleSheet(
         "#FilterContainer {"
         "  background-color: #1e1e1e;"
@@ -685,6 +714,8 @@ void MainWindow::initUI() {
     fLayout->setContentsMargins(0, 0, 0, 0); 
 
     m_filterPanel = new FilterPanel(this);
+    m_filterPanel->setAttribute(Qt::WA_StyledBackground, true);
+    m_filterPanel->setStyleSheet("background: transparent; border: none;");
     connect(m_filterPanel, &FilterPanel::filterChanged, this, &MainWindow::refreshData);
     fLayout->addWidget(m_filterPanel);
 
@@ -866,7 +897,7 @@ void MainWindow::refreshData() {
             isLocked = true;
             QString hint;
             auto cats = DatabaseManager::instance().getAllCategories();
-            for(const auto& c : cats) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
+            for(const auto& c : std::as_const(cats)) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
             m_lockWidget->setCategory(catId, hint);
         }
     }
@@ -942,7 +973,7 @@ void MainWindow::onSelectionChanged(const QItemSelection& selected, const QItemS
     } else if (indices.size() == 1) {
         int id = indices.first().data(NoteModel::IdRole).toInt();
         QVariantMap note = DatabaseManager::instance().getNoteById(id);
-        m_editor->setPlainText(QString("# %1\n\n%2").arg(note["title"].toString(), note["content"].toString()));
+        m_editor->setNote(note);
         m_metaPanel->setNote(note);
     } else {
         m_metaPanel->setMultipleNotes(indices.size());
@@ -1097,6 +1128,39 @@ void MainWindow::restoreLayout() {
     if (splitter && settings.contains("splitterState")) {
         splitter->restoreState(settings.value("splitterState").toByteArray());
     }
+
+    QSettings globalSettings("RapidNotes", "QuickWindow");
+    m_autoCategorizeClipboard = globalSettings.value("autoCategorizeClipboard", false).toBool();
+}
+
+void MainWindow::showToolboxMenu(const QPoint& pos) {
+    // 每次打开前刷新设置，确保与 QuickWindow 同步
+    QSettings globalSettings("RapidNotes", "QuickWindow");
+    m_autoCategorizeClipboard = globalSettings.value("autoCategorizeClipboard", false).toBool();
+
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                       "QMenu::item { padding: 6px 10px 6px 28px; border-radius: 3px; } "
+                       "QMenu::item:selected { background-color: #4a90e2; color: white; }");
+
+    QAction* autoCatAction = menu.addAction("剪贴板自动归档到当前分类");
+    autoCatAction->setCheckable(true);
+    autoCatAction->setChecked(m_autoCategorizeClipboard);
+    connect(autoCatAction, &QAction::triggered, [this](bool checked){
+        m_autoCategorizeClipboard = checked;
+        QSettings settings("RapidNotes", "QuickWindow");
+        settings.setValue("autoCategorizeClipboard", m_autoCategorizeClipboard);
+        QToolTip::showText(QCursor::pos(), m_autoCategorizeClipboard ? "✅ 剪贴板自动归档已开启" : "❌ 剪贴板自动归档已关闭", this);
+    });
+
+    menu.addSeparator();
+    
+    menu.addAction(IconHelper::getIcon("settings", "#aaaaaa"), "更多设置...", [this]() {
+        auto* dlg = new SettingsWindow(this);
+        dlg->exec();
+    });
+
+    menu.exec(pos);
 }
 
 void MainWindow::doPreview() {

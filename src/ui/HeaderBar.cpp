@@ -172,7 +172,11 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     btnTool->setIconSize(QSize(20, 20));
     btnTool->setToolTip("工具箱 (右键快捷设置)");
     btnTool->setStyleSheet(funcBtnStyle);
+    btnTool->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(btnTool, &QPushButton::clicked, this, &HeaderBar::toolboxRequested);
+    connect(btnTool, &QPushButton::customContextMenuRequested, this, [this, btnTool](const QPoint& pos){
+        emit toolboxContextMenuRequested(btnTool->mapToGlobal(pos));
+    });
     layout->addWidget(btnTool);
     layout->addSpacing(4);
 

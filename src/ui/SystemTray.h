@@ -14,6 +14,7 @@ public:
 signals:
     void showMainWindow();
     void showQuickWindow();
+    void showSettings();
     void quitApp();
 
 private:

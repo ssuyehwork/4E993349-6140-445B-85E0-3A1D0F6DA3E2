@@ -6,6 +6,7 @@
 #include "../core/DatabaseManager.h"
 #include "../core/ClipboardMonitor.h"
 #include <QGuiApplication>
+#include <utility>
 #include <QScreen>
 #include <QKeyEvent>
 #include <QGraphicsDropShadowEffect>
@@ -35,6 +36,7 @@
 #include <QMessageBox>
 #include "FramelessDialog.h"
 #include "CategoryPasswordDialog.h"
+#include "SettingsWindow.h"
 #include <QRandomGenerator>
 #include <QStyledItemDelegate>
 #include <QPainter>
@@ -182,7 +184,7 @@ private:
 #define RESIZE_MARGIN 10 
 
 QuickWindow::QuickWindow(QWidget* parent) 
-    : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) 
+    : QWidget(parent, Qt::FramelessWindowHint) 
 {
     setAcceptDrops(true);
     setAttribute(Qt::WA_TranslucentBackground);
@@ -215,7 +217,7 @@ QuickWindow::QuickWindow(QWidget* parent)
         // 如果当前正在查看某个分类，同步更新其高亮色
         if (m_currentFilterType == "category" && m_currentFilterValue != -1) {
             auto categories = DatabaseManager::instance().getAllCategories();
-            for (const auto& cat : categories) {
+            for (const auto& cat : std::as_const(categories)) {
                 if (cat["id"].toInt() == m_currentFilterValue) {
                     m_currentCategoryColor = cat["color"].toString();
                     if (m_currentCategoryColor.isEmpty()) m_currentCategoryColor = "#4a90e2";
@@ -661,8 +663,7 @@ void QuickWindow::saveState() {
     settings.setValue("geometry", saveGeometry());
     settings.setValue("splitter", m_splitter->saveState());
     settings.setValue("sidebarHidden", m_systemTree->parentWidget()->isHidden());
-    // settings.setValue("stayOnTop", m_toolbar->isStayOnTop()); // Old
-    settings.setValue("stayOnTop", (windowFlags() & Qt::WindowStaysOnTopHint) ? true : false);
+    settings.setValue("stayOnTop", m_isStayOnTop);
     settings.setValue("autoCategorizeClipboard", m_autoCategorizeClipboard);
 }
 
@@ -675,7 +676,16 @@ void QuickWindow::restoreState() {
         m_splitter->restoreState(settings.value("splitter").toByteArray());
     }
     if (settings.contains("sidebarHidden")) {
-        m_systemTree->parentWidget()->setHidden(settings.value("sidebarHidden").toBool());
+        bool hidden = settings.value("sidebarHidden").toBool();
+        m_systemTree->parentWidget()->setHidden(hidden);
+        
+        // 同步刷新眼睛图标状态
+        auto* btnSidebar = findChild<QPushButton*>("btnSidebar");
+        if (btnSidebar) {
+            bool visible = !hidden;
+            btnSidebar->setChecked(visible);
+            btnSidebar->setIcon(IconHelper::getIcon("eye", visible ? "#ffffff" : "#aaaaaa"));
+        }
     }
     if (settings.contains("stayOnTop")) {
         toggleStayOnTop(settings.value("stayOnTop").toBool());
@@ -706,7 +716,7 @@ void QuickWindow::setupShortcuts() {
     
     // Alt+D Toggle Stay on Top
     new QShortcut(QKeySequence("Alt+D"), this, [this](){ 
-        toggleStayOnTop(!(windowFlags() & Qt::WindowStaysOnTopHint)); 
+        toggleStayOnTop(!m_isStayOnTop); 
     });
     
     new QShortcut(QKeySequence("Alt+W"), this, [this](){ emit toggleMainWindowRequested(); });
@@ -740,7 +750,7 @@ void QuickWindow::refreshData() {
             isLocked = true;
             QString hint;
             auto cats = DatabaseManager::instance().getAllCategories();
-            for(const auto& c : cats) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
+            for(const auto& c : std::as_const(cats)) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
             m_lockWidget->setCategory(catId, hint);
         }
     }
@@ -1097,6 +1107,7 @@ void QuickWindow::doPreview() {
 }
 
 void QuickWindow::toggleStayOnTop(bool checked) {
+    m_isStayOnTop = checked;
 #ifdef Q_OS_WIN
     HWND hwnd = (HWND)winId();
     if (checked) {
@@ -1206,10 +1217,10 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
     QVariantList recentCats = settings.value("recentCategories").toList();
     auto allCategories = DatabaseManager::instance().getAllCategories();
     QMap<int, QVariantMap> catMap;
-    for (const auto& cat : allCategories) catMap[cat["id"].toInt()] = cat;
+    for (const auto& cat : std::as_const(allCategories)) catMap[cat["id"].toInt()] = cat;
 
     int count = 0;
-    for (const auto& v : recentCats) {
+    for (const auto& v : std::as_const(recentCats)) {
         if (count >= 15) break;
         int cid = v.toInt();
         if (catMap.contains(cid)) {
@@ -1375,7 +1386,7 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                     auto* dlg = new CategoryPasswordDialog("修改密码", this);
                     QString currentHint;
                     auto cats = DatabaseManager::instance().getAllCategories();
-                    for(const auto& c : cats) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
+                    for(const auto& c : std::as_const(cats)) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
                     dlg->setInitialData(currentHint);
                     connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
                         DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
@@ -1442,67 +1453,10 @@ void QuickWindow::showToolboxMenu(const QPoint& pos) {
 
     menu.addSeparator();
     
-    QSettings settings("RapidNotes", "QuickWindow");
-    bool hasAppPwd = !settings.value("appPassword").toString().isEmpty();
-
-    if (!hasAppPwd) {
-        menu.addAction(IconHelper::getIcon("lock", "#aaaaaa"), "设置启动密码", [this]() {
-            auto* dlg = new CategoryPasswordDialog("设置启动密码", this);
-            if (dlg->exec() == QDialog::Accepted) {
-                if (dlg->password() == dlg->confirmPassword()) {
-                    QSettings s("RapidNotes", "QuickWindow");
-                    s.setValue("appPassword", dlg->password());
-                    s.setValue("appPasswordHint", dlg->passwordHint());
-                    QMessageBox::information(this, "成功", "启动密码已设置，下次启动时生效。");
-                } else {
-                    QMessageBox::warning(this, "错误", "两次输入的密码不一致。");
-                }
-            }
-            dlg->deleteLater();
-        });
-    } else {
-        menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "修改启动密码", [this]() {
-            QSettings s("RapidNotes", "QuickWindow");
-            // Need to verify old password first for safety
-            auto* verifyDlg = new FramelessInputDialog("身份验证", "请输入当前启动密码:", "", this);
-            verifyDlg->setEchoMode(QLineEdit::Password);
-            if (verifyDlg->exec() == QDialog::Accepted) {
-                if (verifyDlg->text() == s.value("appPassword").toString()) {
-                    auto* dlg = new CategoryPasswordDialog("修改启动密码", this);
-                    dlg->setInitialData(s.value("appPasswordHint").toString());
-                    if (dlg->exec() == QDialog::Accepted) {
-                        if (dlg->password() == dlg->confirmPassword()) {
-                            s.setValue("appPassword", dlg->password());
-                            s.setValue("appPasswordHint", dlg->passwordHint());
-                            QMessageBox::information(this, "成功", "启动密码已更新。");
-                        } else {
-                            QMessageBox::warning(this, "错误", "两次输入的密码不一致。");
-                        }
-                    }
-                    dlg->deleteLater();
-                } else {
-                    QMessageBox::warning(this, "错误", "密码错误，无法修改。");
-                }
-            }
-            verifyDlg->deleteLater();
-        });
-
-        menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "移除启动密码", [this]() {
-            auto* verifyDlg = new FramelessInputDialog("身份验证", "请输入启动密码以移除保护:", "", this);
-            verifyDlg->setEchoMode(QLineEdit::Password);
-            if (verifyDlg->exec() == QDialog::Accepted) {
-                QSettings s("RapidNotes", "QuickWindow");
-                if (verifyDlg->text() == s.value("appPassword").toString()) {
-                    s.remove("appPassword");
-                    s.remove("appPasswordHint");
-                    QMessageBox::information(this, "成功", "启动密码已移除。");
-                } else {
-                    QMessageBox::warning(this, "错误", "密码错误，操作取消。");
-                }
-            }
-            verifyDlg->deleteLater();
-        });
-    }
+    menu.addAction(IconHelper::getIcon("settings", "#aaaaaa"), "更多设置...", [this]() {
+        auto* dlg = new SettingsWindow(this);
+        dlg->exec();
+    });
 
     menu.exec(QCursor::pos());
 }
@@ -1527,7 +1481,7 @@ void QuickWindow::doMoveToCategory(int catId) {
     refreshData();
 }
 
-void QuickWindow::showCentered() {
+void QuickWindow::showAuto() {
 #ifdef Q_OS_WIN
     HWND myHwnd = (HWND)winId();
     HWND current = GetForegroundWindow();
@@ -1543,13 +1497,25 @@ void QuickWindow::showCentered() {
         }
     }
 #endif
-    QScreen *screen = QGuiApplication::primaryScreen();
-    if (screen) {
-        QRect screenGeom = screen->geometry();
-        move(screenGeom.center() - rect().center());
+
+    // 仅在从未保存过位置时执行居中逻辑
+    QSettings settings("RapidNotes", "QuickWindow");
+    if (!settings.contains("geometry")) {
+        QScreen *screen = QGuiApplication::primaryScreen();
+        if (screen) {
+            QRect screenGeom = screen->geometry();
+            move(screenGeom.center() - rect().center());
+        }
     }
+
     show();
+    raise();
     activateWindow();
+    
+#ifdef Q_OS_WIN
+    SetForegroundWindow((HWND)winId());
+#endif
+
     m_searchEdit->setFocus();
     m_searchEdit->selectAll();
 }
@@ -1694,6 +1660,12 @@ void QuickWindow::resizeEvent(QResizeEvent* event) {
         m_appLockWidget->resize(this->size());
     }
     QWidget::resizeEvent(event);
+    saveState();
+}
+
+void QuickWindow::moveEvent(QMoveEvent* event) {
+    QWidget::moveEvent(event);
+    saveState();
 }
 
 void QuickWindow::keyPressEvent(QKeyEvent* event) {

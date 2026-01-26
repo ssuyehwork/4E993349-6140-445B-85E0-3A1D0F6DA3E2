@@ -8,6 +8,8 @@
 #include <QTimer>
 
 FilterPanel::FilterPanel(QWidget* parent) : QWidget(parent) {
+    setAttribute(Qt::WA_StyledBackground, true);
+    setAttribute(Qt::WA_NoSystemBackground, true);
     setMouseTracking(true);
     setMinimumSize(230, 350);
     initUI();
@@ -21,6 +23,7 @@ void FilterPanel::initUI() {
 
     // 标题栏
     m_header = new QWidget();
+    m_header->setAttribute(Qt::WA_StyledBackground, true);
     m_header->setFixedHeight(32);
     m_header->setStyleSheet(
         "background-color: #252526; "
@@ -55,9 +58,11 @@ void FilterPanel::initUI() {
 
     // 内容容器
     auto* contentWidget = new QWidget();
+    contentWidget->setAttribute(Qt::WA_StyledBackground, true);
     contentWidget->setStyleSheet(
         "QWidget { "
         "  background-color: transparent; "
+        "  border: none; "
         "  border-bottom-left-radius: 12px; "
         "  border-bottom-right-radius: 12px; "
         "}"
