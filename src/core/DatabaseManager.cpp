@@ -699,11 +699,17 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
 
     if (!keyword.isEmpty()) {
         baseSql += "JOIN notes_fts ON notes.id = notes_fts.rowid ";
-        whereClause += "AND notes_fts MATCH ? ";
+        whereClause += "AND (notes.tags LIKE ? OR notes_fts MATCH ?) ";
+        params << "%" + keyword + "%";
         params << keyword;
     }
 
-    QString finalSql = baseSql + whereClause + "ORDER BY is_pinned DESC, updated_at DESC";
+    QString finalSql = baseSql + whereClause + "ORDER BY ";
+    if (!keyword.isEmpty()) {
+        finalSql += "CASE WHEN notes.tags LIKE ? THEN 0 ELSE 1 END, ";
+        params << "%" + keyword + "%";
+    }
+    finalSql += "is_pinned DESC, updated_at DESC";
     
     // 回收站不分页，显示所有
     if (page > 0 && filterType != "trash") {
@@ -768,7 +774,8 @@ int DatabaseManager::getNotesCount(const QString& keyword, const QString& filter
 
     if (!keyword.isEmpty()) {
         baseSql += "JOIN notes_fts ON notes.id = notes_fts.rowid ";
-        whereClause += "AND notes_fts MATCH ? ";
+        whereClause += "AND (notes.tags LIKE ? OR notes_fts MATCH ?) ";
+        params << "%" + keyword + "%";
         params << keyword;
     }
 

@@ -238,6 +238,11 @@ void HeaderBar::setMetadataActive(bool active) {
     m_btnMeta->setChecked(active);
 }
 
+void HeaderBar::focusSearch() {
+    m_searchEdit->setFocus();
+    m_searchEdit->selectAll();
+}
+
 void HeaderBar::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         if (auto* win = window()) {

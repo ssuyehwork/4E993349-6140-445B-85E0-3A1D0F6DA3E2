@@ -783,6 +783,13 @@ void MainWindow::initUI() {
     });
     addAction(actionLockCat);
 
+    auto* actionSearch = new QAction(this);
+    actionSearch->setShortcut(QKeySequence("Ctrl+F"));
+    connect(actionSearch, &QAction::triggered, this, [this](){
+        m_header->focusSearch();
+    });
+    addAction(actionSearch);
+
 
     splitter->setStretchFactor(0, 1); 
     splitter->setStretchFactor(1, 2); 

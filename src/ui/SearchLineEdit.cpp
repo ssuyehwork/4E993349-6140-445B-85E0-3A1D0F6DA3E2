@@ -132,6 +132,7 @@ private:
 
 // --- SearchLineEdit Implementation ---
 SearchLineEdit::SearchLineEdit(QWidget* parent) : QLineEdit(parent) {
+    setClearButtonEnabled(true);
     setStyleSheet(
         "QLineEdit { "
         "  background-color: #252526; "
@@ -141,7 +142,7 @@ SearchLineEdit::SearchLineEdit(QWidget* parent) : QLineEdit(parent) {
         "  color: #eee; "
         "  font-size: 14px; "
         "} "
-        "QLineEdit:focus { border: 1px solid #4a90e2; }"
+        "QLineEdit:focus { border: 1px solid #4a90e2; } "
     );
 }
 

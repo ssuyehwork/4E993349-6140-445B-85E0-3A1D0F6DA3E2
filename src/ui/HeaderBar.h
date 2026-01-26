@@ -36,6 +36,7 @@ public:
     void updatePagination(int current, int total);
     void setFilterActive(bool active);
     void setMetadataActive(bool active);
+    void focusSearch();
 
 private:
     SearchLineEdit* m_searchEdit;

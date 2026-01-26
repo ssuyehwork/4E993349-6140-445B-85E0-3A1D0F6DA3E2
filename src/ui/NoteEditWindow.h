@@ -40,6 +40,7 @@ private:
     
 private slots:
     void toggleMaximize();
+    void toggleStayOnTop();
     void saveNote();
     void toggleSearchBar();
 
@@ -49,6 +50,7 @@ private:
     
     // 窗口控制
     bool m_isMaximized = false;
+    bool m_isStayOnTop = false;
     QRect m_normalGeometry;
     QPoint m_dragPos;
     
@@ -56,6 +58,7 @@ private:
     QWidget* m_titleBar;
     QLabel* m_winTitleLabel;
     QPushButton* m_maxBtn;
+    QPushButton* m_btnStayOnTop;
     QSplitter* m_splitter;
     QLineEdit* m_titleEdit;
     QLineEdit* m_tagEdit;

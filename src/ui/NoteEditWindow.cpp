@@ -1,4 +1,7 @@
 #include "NoteEditWindow.h"
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 #include "../core/DatabaseManager.h"
 #include "IconHelper.h"
 #include <QHBoxLayout>
@@ -21,6 +24,7 @@
 NoteEditWindow::NoteEditWindow(int noteId, QWidget* parent) 
     : QWidget(parent, Qt::Window | Qt::FramelessWindowHint), m_noteId(noteId) 
 {
+    setWindowTitle(m_noteId > 0 ? "编辑笔记" : "记录灵感");
     setAttribute(Qt::WA_TranslucentBackground); 
     resize(950, 650); 
     initUI();
@@ -127,6 +131,14 @@ void NoteEditWindow::initUI() {
     m_maxBtn->setFixedSize(32, 32);
     m_maxBtn->setStyleSheet(ctrlBtnStyle);
     connect(m_maxBtn, &QPushButton::clicked, this, &NoteEditWindow::toggleMaximize);
+
+    m_btnStayOnTop = new QPushButton();
+    m_btnStayOnTop->setIcon(IconHelper::getIcon("pin_tilted", "#aaaaaa", 20));
+    m_btnStayOnTop->setIconSize(QSize(20, 20));
+    m_btnStayOnTop->setFixedSize(32, 32);
+    m_btnStayOnTop->setCheckable(true);
+    m_btnStayOnTop->setStyleSheet(ctrlBtnStyle + " QPushButton:checked { background-color: #f1c40f; }");
+    connect(m_btnStayOnTop, &QPushButton::toggled, this, &NoteEditWindow::toggleStayOnTop);
     
     QPushButton* btnClose = new QPushButton();
     btnClose->setIcon(IconHelper::getIcon("close", "#aaaaaa", 20));
@@ -139,6 +151,7 @@ void NoteEditWindow::initUI() {
     btnClose->installEventFilter(this);
     btnClose->setProperty("isCloseBtn", true);
 
+    tbLayout->addWidget(m_btnStayOnTop);
     tbLayout->addWidget(btnMin);
     tbLayout->addWidget(m_maxBtn);
     tbLayout->addWidget(btnClose);
@@ -397,6 +410,23 @@ void NoteEditWindow::setupShortcuts() {
     
     QShortcut* scSearch = new QShortcut(QKeySequence("Ctrl+F"), this);
     connect(scSearch, &QShortcut::activated, this, &NoteEditWindow::toggleSearchBar);
+}
+
+void NoteEditWindow::toggleStayOnTop() {
+    m_isStayOnTop = m_btnStayOnTop->isChecked();
+    m_btnStayOnTop->setIcon(IconHelper::getIcon(m_isStayOnTop ? "pin_vertical" : "pin_tilted", m_isStayOnTop ? "#ffffff" : "#aaaaaa", 20));
+#ifdef Q_OS_WIN
+    HWND hwnd = (HWND)winId();
+    SetWindowPos(hwnd, m_isStayOnTop ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+#else
+    Qt::WindowFlags flags = windowFlags();
+    if (m_isStayOnTop) flags |= Qt::WindowStaysOnTopHint;
+    else flags &= ~Qt::WindowStaysOnTopHint;
+    if (flags != windowFlags()) {
+        setWindowFlags(flags);
+        show();
+    }
+#endif
 }
 
 void NoteEditWindow::toggleMaximize() {
