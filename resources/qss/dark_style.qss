@@ -146,6 +146,7 @@ QMenu {
     padding: 5px;
 }
 
+/* 菜单项图标与文本间距规范：padding-left 设为 10px 配合 icon margin-left 6px 实现精确 10px 间距。请勿修改。 */
 QMenu::item {
     padding: 6px 10px 6px 10px;
     border-radius: 3px;
