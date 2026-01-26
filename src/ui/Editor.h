@@ -35,7 +35,7 @@ class Editor : public QWidget {
     Q_OBJECT
 public:
     explicit Editor(QWidget* parent = nullptr);
-    void setNote(const QVariantMap& note);
+    void setNote(const QVariantMap& note, bool isPreview = false);
     void setPlainText(const QString& text);
     QString toPlainText() const;
     QString toHtml() const;

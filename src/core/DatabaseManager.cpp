@@ -1305,14 +1305,24 @@ void DatabaseManager::removeFts(int id) {
 }
 
 QString DatabaseManager::stripHtml(const QString& html) {
+    // 首先检查是否真的是 HTML，如果不是则直接返回
+    if (!html.contains("<") && !html.contains("&")) return html;
+
     QString plain = html;
-    if (plain.contains("<")) {
-        plain.remove(QRegularExpression("<[^>]*>"));
-    }
-    plain.replace("&nbsp;", " ");
-    plain.replace("&lt;", "<");
-    plain.replace("&gt;", ">");
-    plain.replace("&amp;", "&");
-    plain.replace("&quot;", "\"");
+    // 移除 <style> 和 <script> 块及其内容 (防止样式代码进入索引)
+    plain.remove(QRegularExpression("<style.*?>.*?</style>", QRegularExpression::DotMatchesEverythingOption | QRegularExpression::CaseInsensitiveOption));
+    plain.remove(QRegularExpression("<script.*?>.*?</script>", QRegularExpression::DotMatchesEverythingOption | QRegularExpression::CaseInsensitiveOption));
+
+    // 移除所有 HTML 标签
+    plain.remove(QRegularExpression("<[^>]*>"));
+
+    // 处理常见 HTML 实体
+    plain.replace("&nbsp;", " ", Qt::CaseInsensitive);
+    plain.replace("&lt;", "<", Qt::CaseInsensitive);
+    plain.replace("&gt;", ">", Qt::CaseInsensitive);
+    plain.replace("&amp;", "&", Qt::CaseInsensitive);
+    plain.replace("&quot;", "\"", Qt::CaseInsensitive);
+    plain.replace("&#39;", "'");
+
     return plain.simplified();
 }

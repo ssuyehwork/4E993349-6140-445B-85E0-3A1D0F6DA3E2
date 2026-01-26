@@ -151,7 +151,7 @@ Editor::Editor(QWidget* parent) : QWidget(parent) {
     layout->addWidget(m_stack);
 }
 
-void Editor::setNote(const QVariantMap& note) {
+void Editor::setNote(const QVariantMap& note, bool isPreview) {
     m_currentNote = note;
     QString title = note.value("title").toString();
     QString content = note.value("content").toString();
@@ -160,16 +160,25 @@ void Editor::setNote(const QVariantMap& note) {
 
     m_edit->clear();
 
-    // 如果内容看起来像 HTML，则使用 setHtml
-    if (content.trimmed().startsWith("<!DOCTYPE") || content.trimmed().startsWith("<html") || content.trimmed().startsWith("<body") || content.contains("<p")) {
+    // 增强 HTML 检测：不区分大小写且支持更多标签
+    QString trimmed = content.trimmed();
+    bool isHtml = trimmed.startsWith("<!DOCTYPE", Qt::CaseInsensitive) ||
+                  trimmed.startsWith("<html", Qt::CaseInsensitive) ||
+                  trimmed.startsWith("<body", Qt::CaseInsensitive) ||
+                  trimmed.contains("<p", Qt::CaseInsensitive) ||
+                  Qt::mightBeRichText(content);
+
+    if (isHtml) {
         m_edit->setHtml(content);
         return;
     }
 
     QTextCursor cursor = m_edit->textCursor();
 
-    // 模拟 Markdown 标题格式 (由 Highlighter 进一步上色)
-    cursor.insertText("# " + title + "\n\n");
+    // 仅在预览模式下注入标题，编辑模式保持内容纯净
+    if (isPreview) {
+        cursor.insertText("# " + title + "\n\n");
+    }
 
     if (type == "image" && !blob.isEmpty()) {
         QImage img;

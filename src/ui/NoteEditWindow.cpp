@@ -487,7 +487,7 @@ void NoteEditWindow::loadNoteData(int id) {
     QVariantMap note = DatabaseManager::instance().getNoteById(id);
     if (!note.isEmpty()) {
         m_titleEdit->setText(note.value("title").toString());
-        m_contentEdit->setNote(note);
+        m_contentEdit->setNote(note, false); // 编辑模式不注入预览标题
         m_tagEdit->setText(note.value("tags").toString());
         
         m_catId = note["category_id"].toInt();

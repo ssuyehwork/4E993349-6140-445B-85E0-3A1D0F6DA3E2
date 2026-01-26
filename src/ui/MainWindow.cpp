@@ -1233,7 +1233,7 @@ void MainWindow::onSelectionChanged(const QItemSelection& selected, const QItemS
     } else if (indices.size() == 1) {
         int id = indices.first().data(NoteModel::IdRole).toInt();
         QVariantMap note = DatabaseManager::instance().getNoteById(id);
-        m_editor->setNote(note);
+        m_editor->setNote(note, true);
         m_metaPanel->setNote(note);
         m_editLockBtn->setEnabled(true);
         // 切换笔记时自动退出编辑模式，防止误操作或内容丢失
