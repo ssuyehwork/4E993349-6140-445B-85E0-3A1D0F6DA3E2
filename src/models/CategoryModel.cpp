@@ -29,7 +29,7 @@ void CategoryModel::refresh() {
         addSystemItem("全部数据", "all", "all_data", "#3498db");
         addSystemItem("今日数据", "today", "today", "#2ecc71");
         addSystemItem("未分类", "uncategorized", "uncategorized", "#e67e22");
-        addSystemItem("未标签", "untagged", "text", "#95a5a6");
+        addSystemItem("未标签", "untagged", "untagged", "#95a5a6");
         addSystemItem("书签", "bookmark", "bookmark", "#e74c3c");
         addSystemItem("回收站", "trash", "trash", "#7f8c8d");
     }

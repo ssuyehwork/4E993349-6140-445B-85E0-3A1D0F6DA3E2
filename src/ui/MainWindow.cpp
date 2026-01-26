@@ -1349,7 +1349,7 @@ void MainWindow::showContextMenu(const QPoint& pos) {
         menu.addAction(IconHelper::getIcon("eye", "#1abc9c", 18), "预览 (Space)", this, &MainWindow::doPreview);
     }
     
-    menu.addAction(IconHelper::getIcon("file", "#1abc9c", 18), QString("复制内容 (%1)").arg(selCount), this, &MainWindow::doExtractContent);
+    menu.addAction(IconHelper::getIcon("copy", "#1abc9c", 18), QString("复制内容 (%1)").arg(selCount), this, &MainWindow::doExtractContent);
     menu.addSeparator();
 
     if (selCount == 1) {
