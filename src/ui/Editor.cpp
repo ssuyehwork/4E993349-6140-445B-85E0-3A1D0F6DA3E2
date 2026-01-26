@@ -171,9 +171,14 @@ void Editor::setNote(const QVariantMap& note, bool isPreview) {
     if (m_isRichText) {
         // 如果是 HTML 内容，加载为 HTML
         m_edit->setHtml(content);
-        
-        // 预览模式下，由于 HTML 结构复杂，我们不直接在编辑器内插入 H1 标题
-        // 而是依靠切换到预览 Tab 时由 togglePreview 处理渲染
+        if (isPreview) {
+            // 在预览模式下，为富文本笔记也通过插入方式添加标题头，避免破坏 HTML 结构
+            QTextCursor previewCursor(m_edit->document());
+            previewCursor.movePosition(QTextCursor::Start);
+            previewCursor.insertHtml(QString("<h1 style='color: #569CD6; margin-bottom: 5px;'>%1</h1>"
+                                             "<hr style='border: 0; border-top: 1px solid #333; margin-bottom: 15px;'>")
+                                             .arg(title.toHtmlEscaped()));
+        }
         return;
     }
 

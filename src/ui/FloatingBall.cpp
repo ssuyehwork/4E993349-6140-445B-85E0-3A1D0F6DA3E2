@@ -203,8 +203,8 @@ void FloatingBall::contextMenuEvent(QContextMenuEvent* event) {
     QMenu menu(this);
     menu.setStyleSheet(
         "QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-        "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
-        "QMenu::icon { margin-left: 4px; } "
+        "QMenu::item { padding: 6px 10px 6px 34px; border-radius: 3px; } "
+        "QMenu::icon { margin-left: 6px; } "
         "QMenu::item:selected { background-color: #4a90e2; color: white; } "
         "QMenu::separator { background-color: #444; height: 1px; margin: 4px 0; }"
     );
