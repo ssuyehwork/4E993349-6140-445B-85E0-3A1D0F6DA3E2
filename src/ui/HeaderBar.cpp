@@ -119,34 +119,10 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     QPushButton* btnRefresh = createPageBtn("refresh", "刷新 (F5)");
     connect(btnRefresh, &QPushButton::clicked, this, &HeaderBar::refreshRequested);
     layout->addWidget(btnRefresh);
-    layout->addSpacing(8);
+    layout->addSpacing(10);
 
-    // 迁移：新建笔记 (+) 和 工具箱 按钮移至中间组
-    QPushButton* btnAddCenter = new QPushButton();
-    btnAddCenter->setIcon(IconHelper::getIcon("add", "#aaaaaa", 16));
-    btnAddCenter->setToolTip("新建笔记 (Ctrl+N)");
-    btnAddCenter->setStyleSheet(pageBtnStyle);
-    btnAddCenter->setFixedSize(24, 24);
-    connect(btnAddCenter, &QPushButton::clicked, this, &HeaderBar::newNoteRequested);
-    layout->addWidget(btnAddCenter);
-    layout->addSpacing(8);
-
-    QPushButton* btnTool = new QPushButton();
-    btnTool->setIcon(IconHelper::getIcon("toolbox", "#aaaaaa", 16));
-    btnTool->setToolTip("工具箱 (右键快捷设置)");
-    btnTool->setStyleSheet(pageBtnStyle);
-    btnTool->setFixedSize(24, 24);
-    btnTool->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(btnTool, &QPushButton::clicked, this, &HeaderBar::toolboxRequested);
-    connect(btnTool, &QPushButton::customContextMenuRequested, this, [this, btnTool](const QPoint& pos){
-        emit toolboxContextMenuRequested(btnTool->mapToGlobal(pos));
-    });
-    layout->addWidget(btnTool);
-
-    layout->addStretch();
-
-    // 4. Functional Buttons
-    QString funcBtnStyle = 
+    // 标准功能按钮样式 (32x32, 无边框)
+    QString funcBtnStyle =
         "QPushButton {"
         "    background-color: transparent;"
         "    border: none;"
@@ -158,6 +134,31 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
         "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }"
         "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); }";
 
+    // 迁移：新建笔记 (+) 和 工具箱 按钮移至中间组，保留其原有 32x32 风格
+    QPushButton* btnAddCenter = new QPushButton();
+    btnAddCenter->setIcon(IconHelper::getIcon("add", "#ffffff", 20));
+    btnAddCenter->setIconSize(QSize(20, 20));
+    btnAddCenter->setToolTip("新建笔记 (Ctrl+N)");
+    btnAddCenter->setStyleSheet(funcBtnStyle);
+    connect(btnAddCenter, &QPushButton::clicked, this, &HeaderBar::newNoteRequested);
+    layout->addWidget(btnAddCenter);
+    layout->addSpacing(4);
+
+    QPushButton* btnTool = new QPushButton();
+    btnTool->setIcon(IconHelper::getIcon("toolbox", "#aaaaaa", 20));
+    btnTool->setIconSize(QSize(20, 20));
+    btnTool->setToolTip("工具箱 (右键快捷设置)");
+    btnTool->setStyleSheet(funcBtnStyle);
+    btnTool->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(btnTool, &QPushButton::clicked, this, &HeaderBar::toolboxRequested);
+    connect(btnTool, &QPushButton::customContextMenuRequested, this, [this, btnTool](const QPoint& pos){
+        emit toolboxContextMenuRequested(btnTool->mapToGlobal(pos));
+    });
+    layout->addWidget(btnTool);
+
+    layout->addStretch();
+
+    // 4. Functional Buttons
     m_btnFilter = new QPushButton();
     m_btnFilter->setIcon(IconHelper::getIcon("filter", "#ffffff", 20));
     m_btnFilter->setIconSize(QSize(20, 20));

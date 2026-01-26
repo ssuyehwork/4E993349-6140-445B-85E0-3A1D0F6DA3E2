@@ -72,11 +72,23 @@ void MainWindow::initUI() {
     connect(m_header, &HeaderBar::refreshRequested, this, &MainWindow::refreshData);
     connect(m_header, &HeaderBar::stayOnTopRequested, this, [this](bool checked){
         if (auto* win = window()) {
+#ifdef Q_OS_WIN
+            HWND hwnd = (HWND)win->winId();
+            if (checked) {
+                SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            } else {
+                SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            }
+#else
             Qt::WindowFlags flags = win->windowFlags();
             if (checked) flags |= Qt::WindowStaysOnTopHint;
             else flags &= ~Qt::WindowStaysOnTopHint;
-            win->setWindowFlags(flags);
-            win->show(); // 修改 Flags 后需要 show 才会生效
+
+            if (flags != win->windowFlags()) {
+                win->setWindowFlags(flags);
+                win->show();
+            }
+#endif
         }
     });
     connect(m_header, &HeaderBar::filterRequested, this, [this](){

@@ -17,6 +17,10 @@
 #include "FilterPanel.h"
 #include "CategoryLockWidget.h"
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
