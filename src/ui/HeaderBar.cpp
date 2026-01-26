@@ -119,6 +119,30 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     QPushButton* btnRefresh = createPageBtn("refresh", "刷新 (F5)");
     connect(btnRefresh, &QPushButton::clicked, this, &HeaderBar::refreshRequested);
     layout->addWidget(btnRefresh);
+    layout->addSpacing(8);
+
+    // 迁移：高级筛选与工具箱按钮移至中间组
+    m_btnFilter = new QPushButton();
+    m_btnFilter->setIcon(IconHelper::getIcon("filter", "#aaaaaa", 16));
+    m_btnFilter->setToolTip("高级筛选 (Ctrl+G)");
+    m_btnFilter->setStyleSheet(pageBtnStyle + " QPushButton:checked { background-color: #4a90e2; border-color: #4a90e2; }");
+    m_btnFilter->setCheckable(true);
+    m_btnFilter->setFixedSize(24, 24);
+    connect(m_btnFilter, &QPushButton::clicked, this, &HeaderBar::filterRequested);
+    layout->addWidget(m_btnFilter);
+    layout->addSpacing(8);
+
+    QPushButton* btnTool = new QPushButton();
+    btnTool->setIcon(IconHelper::getIcon("toolbox", "#aaaaaa", 16));
+    btnTool->setToolTip("工具箱 (右键快捷设置)");
+    btnTool->setStyleSheet(pageBtnStyle);
+    btnTool->setFixedSize(24, 24);
+    btnTool->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(btnTool, &QPushButton::clicked, this, &HeaderBar::toolboxRequested);
+    connect(btnTool, &QPushButton::customContextMenuRequested, this, [this, btnTool](const QPoint& pos){
+        emit toolboxContextMenuRequested(btnTool->mapToGlobal(pos));
+    });
+    layout->addWidget(btnTool);
 
     layout->addStretch();
 
@@ -135,15 +159,6 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
         "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }"
         "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); }";
 
-    m_btnFilter = new QPushButton();
-    m_btnFilter->setIcon(IconHelper::getIcon("filter", "#ffffff", 20));
-    m_btnFilter->setIconSize(QSize(20, 20));
-    m_btnFilter->setToolTip("高级筛选 (Ctrl+G)");
-    m_btnFilter->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }"); // Support active state
-    m_btnFilter->setCheckable(true);
-    connect(m_btnFilter, &QPushButton::clicked, this, &HeaderBar::filterRequested);
-    
-    // Swap order: First Add, then Filter
     QPushButton* btnAdd = new QPushButton();
     btnAdd->setIcon(IconHelper::getIcon("add", "#ffffff", 20));
     btnAdd->setIconSize(QSize(20, 20));
@@ -151,11 +166,7 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     btnAdd->setStyleSheet(funcBtnStyle);
     connect(btnAdd, &QPushButton::clicked, this, &HeaderBar::newNoteRequested);
     layout->addWidget(btnAdd);
-    layout->addSpacing(4); // Add spacing
-    
-    // Filter button added after Add button
-    layout->addWidget(m_btnFilter);
-    layout->addSpacing(4); // Add spacing
+    layout->addSpacing(4);
 
     m_btnMeta = new QPushButton();
     m_btnMeta->setIcon(IconHelper::getIcon("sidebar_right", "#aaaaaa", 20));
@@ -165,19 +176,6 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     m_btnMeta->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }");
     connect(m_btnMeta, &QPushButton::toggled, this, &HeaderBar::metadataToggled);
     layout->addWidget(m_btnMeta);
-    layout->addSpacing(4); // Add spacing
-
-    QPushButton* btnTool = new QPushButton();
-    btnTool->setIcon(IconHelper::getIcon("toolbox", "#aaaaaa", 20));
-    btnTool->setIconSize(QSize(20, 20));
-    btnTool->setToolTip("工具箱 (右键快捷设置)");
-    btnTool->setStyleSheet(funcBtnStyle);
-    btnTool->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(btnTool, &QPushButton::clicked, this, &HeaderBar::toolboxRequested);
-    connect(btnTool, &QPushButton::customContextMenuRequested, this, [this, btnTool](const QPoint& pos){
-        emit toolboxContextMenuRequested(btnTool->mapToGlobal(pos));
-    });
-    layout->addWidget(btnTool);
     layout->addSpacing(4);
 
     m_btnStayOnTop = new QPushButton();
