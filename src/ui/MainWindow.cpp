@@ -2,6 +2,7 @@
 #include "../core/DatabaseManager.h"
 #include "NoteDelegate.h"
 #include "CategoryDelegate.h"
+#include "IconHelper.h"
 #include <QHBoxLayout>
 #include <utility>
 #include <QVBoxLayout>
@@ -13,6 +14,9 @@
 #include <QMessageBox>
 #include <QCursor>
 #include <QKeyEvent>
+#include <QMouseEvent>
+#include <QCloseEvent>
+#include <QItemSelection>
 #include <QInputDialog>
 #include <QColorDialog>
 #include <QSet>
@@ -26,12 +30,15 @@
 #include <QApplication>
 #include <QPlainTextEdit>
 #include "CleanListView.h"
+#include "NoteEditWindow.h"
 #include "FramelessDialog.h"
 #include "CategoryPasswordDialog.h"
 #include "SettingsWindow.h"
 #include <functional>
 
 #ifdef Q_OS_WIN
+#include <windows.h>
+#include <windowsx.h>
 #define RESIZE_MARGIN 10
 #endif
 
@@ -379,7 +386,7 @@ void MainWindow::initUI() {
                         auto* dlg = new CategoryPasswordDialog("修改密码", this);
                         QString currentHint;
                         auto cats = DatabaseManager::instance().getAllCategories();
-                        for(const auto& c : std::as_const(cats)) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
+                        for(const auto& c : std::as_const(cats)) if(c.value("id").toInt() == catId) currentHint = c.value("password_hint").toString();
                         dlg->setInitialData(currentHint);
                         connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
                             DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
@@ -931,18 +938,18 @@ void MainWindow::refreshData() {
         for (const auto& note : std::as_const(notes)) {
             bool match = true;
             if (criteria.contains("stars")) {
-                if (!criteria["stars"].toStringList().contains(QString::number(note["rating"].toInt()))) match = false;
+                if (!criteria.value("stars").toStringList().contains(QString::number(note.value("rating").toInt()))) match = false;
             }
             if (match && criteria.contains("types")) {
-                if (!criteria["types"].toStringList().contains(note["item_type"].toString())) match = false;
+                if (!criteria.value("types").toStringList().contains(note.value("item_type").toString())) match = false;
             }
             if (match && criteria.contains("colors")) {
-                if (!criteria["colors"].toStringList().contains(note["color"].toString())) match = false;
+                if (!criteria.value("colors").toStringList().contains(note.value("color").toString())) match = false;
             }
             if (match && criteria.contains("tags")) {
-                QStringList noteTags = note["tags"].toString().split(",", Qt::SkipEmptyParts);
+                QStringList noteTags = note.value("tags").toString().split(",", Qt::SkipEmptyParts);
                 bool tagMatch = false;
-                for (const QString& t : criteria["tags"].toStringList()) {
+                for (const QString& t : criteria.value("tags").toStringList()) {
                     if (noteTags.contains(t.trimmed())) { tagMatch = true; break; }
                 }
                 if (!tagMatch) match = false;
@@ -953,7 +960,7 @@ void MainWindow::refreshData() {
                 QDateTime now = QDateTime::currentDateTime();
                 QDateTime createdAt;
                 
-                QVariant cv = note["created_at"];
+                QVariant cv = note.value("created_at");
                 if (cv.typeId() == QMetaType::QDateTime) {
                     createdAt = cv.toDateTime();
                 } else {
@@ -964,7 +971,7 @@ void MainWindow::refreshData() {
                 }
 
                 if (createdAt.isValid()) {
-                    for (const QString& d_opt : criteria["date_create"].toStringList()) {
+                    for (const QString& d_opt : criteria.value("date_create").toStringList()) {
                         if (d_opt == "today") {
                             if (createdAt.date() == now.date()) dateMatch = true;
                         } else if (d_opt == "yesterday") {
@@ -994,7 +1001,7 @@ void MainWindow::refreshData() {
             isLocked = true;
             QString hint;
             auto cats = DatabaseManager::instance().getAllCategories();
-            for(const auto& c : std::as_const(cats)) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
+            for(const auto& c : std::as_const(cats)) if(c.value("id").toInt() == catId) hint = c.value("password_hint").toString();
             m_lockWidget->setCategory(catId, hint);
         }
     }
@@ -1281,10 +1288,10 @@ void MainWindow::doPreview() {
     QPoint globalPos = m_noteList->mapToGlobal(m_noteList->rect().center()) - QPoint(250, 300);
     m_quickPreview->showPreview(
         id,
-        note["title"].toString(), 
-        note["content"].toString(), 
-        note["item_type"].toString(),
-        note["data_blob"].toByteArray(),
+        note.value("title").toString(),
+        note.value("content").toString(),
+        note.value("item_type").toString(),
+        note.value("data_blob").toByteArray(),
         globalPos
     );
     m_quickPreview->raise();

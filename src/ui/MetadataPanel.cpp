@@ -312,37 +312,37 @@ void MetadataPanel::setNote(const QVariantMap& note) {
         clearSelection();
         return;
     }
-    m_currentNoteId = note["id"].toInt();
+    m_currentNoteId = note.value("id").toInt();
     m_stack->setCurrentIndex(2); // 详情页
     
     m_titleEdit->show();
-    m_titleEdit->setText(note["title"].toString());
+    m_titleEdit->setText(note.value("title").toString());
     m_titleEdit->setCursorPosition(0);
     
     m_tagEdit->setEnabled(true);
     m_tagEdit->setPlaceholderText("输入标签添加... (双击更多)");
     m_separatorLine->show();
 
-    m_capsules["created"]->setText(note["created_at"].toString().left(16).replace("T", " "));
-    m_capsules["updated"]->setText(note["updated_at"].toString().left(16).replace("T", " "));
+    m_capsules["created"]->setText(note.value("created_at").toString().left(16).replace("T", " "));
+    m_capsules["updated"]->setText(note.value("updated_at").toString().left(16).replace("T", " "));
     
-    int rating = note["rating"].toInt();
+    int rating = note.value("rating").toInt();
     QString stars = QString("★").repeated(rating) + QString("☆").repeated(5 - rating);
     m_capsules["rating"]->setText(stars);
     
     QStringList status;
-    if (note["is_pinned"].toInt() > 0) status << "置顶";
-    if (note["is_favorite"].toInt() > 0) status << "书签";
-    if (note["is_locked"].toInt() > 0) status << "锁定";
+    if (note.value("is_pinned").toInt() > 0) status << "置顶";
+    if (note.value("is_favorite").toInt() > 0) status << "书签";
+    if (note.value("is_locked").toInt() > 0) status << "锁定";
     m_capsules["status"]->setText(status.isEmpty() ? "常规" : status.join(", "));
 
     // 分类
-    int catId = note["category_id"].toInt();
+    int catId = note.value("category_id").toInt();
     if (catId > 0) {
         auto categories = DatabaseManager::instance().getAllCategories();
         for (const auto& cat : categories) {
-            if (cat["id"].toInt() == catId) {
-                m_capsules["category"]->setText(cat["name"].toString());
+            if (cat.value("id").toInt() == catId) {
+                m_capsules["category"]->setText(cat.value("name").toString());
                 break;
             }
         }
@@ -351,7 +351,7 @@ void MetadataPanel::setNote(const QVariantMap& note) {
     }
 
     // 标签显示
-    m_capsules["tags"]->setText(note["tags"].toString().isEmpty() ? "无" : note["tags"].toString());
+    m_capsules["tags"]->setText(note.value("tags").toString().isEmpty() ? "无" : note.value("tags").toString());
 }
 
 void MetadataPanel::setMultipleNotes(int count) {
