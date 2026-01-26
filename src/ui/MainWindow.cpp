@@ -31,9 +31,15 @@
 #include "SettingsWindow.h"
 #include <functional>
 
+#ifdef Q_OS_WIN
+#define RESIZE_MARGIN 10
+#endif
+
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindowHint) {
     setWindowTitle("极速灵感 (RapidNotes) - 开发版");
     resize(1200, 800);
+    setMouseTracking(true);
+    setAttribute(Qt::WA_Hover);
     initUI();
     refreshData();
 
@@ -51,6 +57,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindo
 void MainWindow::initUI() {
     auto* centralWidget = new QWidget(this);
     centralWidget->setObjectName("CentralWidget");
+    centralWidget->setMouseTracking(true);
     centralWidget->setAttribute(Qt::WA_StyledBackground, true);
     centralWidget->setStyleSheet("#CentralWidget { background-color: #1E1E1E; }");
     setCentralWidget(centralWidget);
@@ -798,6 +805,39 @@ void MainWindow::initUI() {
     
     m_header->setMetadataActive(true);
 }
+
+#ifdef Q_OS_WIN
+bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr *result) {
+    MSG* msg = static_cast<MSG*>(message);
+    if (msg->message == WM_NCHITTEST) {
+        int x = GET_X_LPARAM(msg->lParam);
+        int y = GET_Y_LPARAM(msg->lParam);
+
+        QPoint pos = mapFromGlobal(QPoint(x, y));
+        int margin = RESIZE_MARGIN;
+        int w = width();
+        int h = height();
+
+        bool left = pos.x() < margin;
+        bool right = pos.x() > w - margin;
+        bool top = pos.y() < margin;
+        bool bottom = pos.y() > h - margin;
+
+        if (top && left) *result = HTTOPLEFT;
+        else if (top && right) *result = HTTOPRIGHT;
+        else if (bottom && left) *result = HTBOTTOMLEFT;
+        else if (bottom && right) *result = HTBOTTOMRIGHT;
+        else if (top) *result = HTTOP;
+        else if (bottom) *result = HTBOTTOM;
+        else if (left) *result = HTLEFT;
+        else if (right) *result = HTRIGHT;
+        else return QMainWindow::nativeEvent(eventType, message, result);
+
+        return true;
+    }
+    return QMainWindow::nativeEvent(eventType, message, result);
+}
+#endif
 
 void MainWindow::onNoteAdded(const QVariantMap& note) {
     m_noteModel->prependNote(note);

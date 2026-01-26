@@ -19,6 +19,7 @@
 
 #ifdef Q_OS_WIN
 #include <windows.h>
+#include <windowsx.h>
 #endif
 
 class MainWindow : public QMainWindow {
@@ -47,6 +48,9 @@ private slots:
     void showToolboxMenu(const QPoint& pos);
 
 protected:
+#ifdef Q_OS_WIN
+    bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
+#endif
     bool eventFilter(QObject* watched, QEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
