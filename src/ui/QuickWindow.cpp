@@ -1171,7 +1171,8 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
     int selCount = selected.size();
     QMenu menu(this);
     menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                       "QMenu::item { padding: 6px 10px 6px 34px; border-radius: 3px; } "
+                       /* 10px 间距规范：padding-left 10px + icon margin-left 6px */
+                       "QMenu::item { padding: 6px 10px 6px 10px; border-radius: 3px; } "
                        "QMenu::icon { margin-left: 6px; } "
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
@@ -1263,7 +1264,8 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
     QModelIndex index = tree->indexAt(pos);
     QMenu menu(this);
     menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                       "QMenu::item { padding: 6px 10px 6px 34px; border-radius: 3px; } "
+                       /* 10px 间距规范：padding-left 10px + icon margin-left 6px */
+                       "QMenu::item { padding: 6px 10px 6px 10px; border-radius: 3px; } "
                        "QMenu::icon { margin-left: 6px; } "
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
@@ -1448,7 +1450,8 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
 void QuickWindow::showToolboxMenu(const QPoint& pos) {
     QMenu menu(this);
     menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                       "QMenu::item { padding: 6px 10px 6px 34px; border-radius: 3px; } "
+                       /* 10px 间距规范：padding-left 10px + icon margin-left 6px */
+                       "QMenu::item { padding: 6px 10px 6px 10px; border-radius: 3px; } "
                        "QMenu::icon { margin-left: 6px; } "
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
