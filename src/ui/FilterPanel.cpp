@@ -37,7 +37,7 @@ void FilterPanel::initUI() {
     // 树形筛选器
     m_tree = new QTreeWidget();
     m_tree->setHeaderHidden(true);
-    m_tree->setIndentation(20);
+    m_tree->setIndentation(0);
     m_tree->setFocusPolicy(Qt::NoFocus);
     m_tree->setRootIsDecorated(false);
     m_tree->setUniformRowHeights(true);
@@ -54,13 +54,16 @@ void FilterPanel::initUI() {
         "QTreeWidget::item {"
         "  height: 28px;"
         "  border-radius: 4px;"
-        "  padding-left: 10px;"
+        "  margin-left: 10px;"
+        "  margin-right: 10px;"
+        "  padding-left: 4px;"
         "}"
         "QTreeWidget::item:hover { background-color: #2a2d2e; }"
         "QTreeWidget::item:selected { background-color: #37373d; color: white; }"
         "QTreeWidget::indicator {"
         "  width: 14px;"
         "  height: 14px;"
+        "  margin-left: 20px;"
         "}"
         "QScrollBar:vertical { border: none; background: transparent; width: 6px; margin: 0px; }"
         "QScrollBar::handle:vertical { background: #444; border-radius: 3px; min-height: 20px; }"
