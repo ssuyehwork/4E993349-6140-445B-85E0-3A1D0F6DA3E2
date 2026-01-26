@@ -38,6 +38,7 @@ public:
     void setNote(const QVariantMap& note);
     void setPlainText(const QString& text);
     QString toPlainText() const;
+    QString toHtml() const;
     void setPlaceholderText(const QString& text);
     void togglePreview(bool preview);
     void setReadOnly(bool ro);

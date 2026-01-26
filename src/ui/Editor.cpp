@@ -153,12 +153,19 @@ Editor::Editor(QWidget* parent) : QWidget(parent) {
 
 void Editor::setNote(const QVariantMap& note) {
     m_currentNote = note;
-    QString title = note["title"].toString();
-    QString content = note["content"].toString();
-    QString type = note["item_type"].toString();
-    QByteArray blob = note["data_blob"].toByteArray();
+    QString title = note.value("title").toString();
+    QString content = note.value("content").toString();
+    QString type = note.value("item_type").toString();
+    QByteArray blob = note.value("data_blob").toByteArray();
 
     m_edit->clear();
+
+    // 如果内容看起来像 HTML，则使用 setHtml
+    if (content.trimmed().startsWith("<!DOCTYPE") || content.trimmed().startsWith("<html") || content.trimmed().startsWith("<body") || content.contains("<p")) {
+        m_edit->setHtml(content);
+        return;
+    }
+
     QTextCursor cursor = m_edit->textCursor();
 
     // 模拟 Markdown 标题格式 (由 Highlighter 进一步上色)
@@ -187,6 +194,10 @@ void Editor::setPlainText(const QString& text) {
 
 QString Editor::toPlainText() const {
     return m_edit->toPlainText();
+}
+
+QString Editor::toHtml() const {
+    return m_edit->toHtml();
 }
 
 void Editor::setPlaceholderText(const QString& text) {
