@@ -205,7 +205,10 @@ void MainWindow::initUI() {
     sidebarHeader->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(sidebarHeader, &QWidget::customContextMenuRequested, this, [this, sidebarContainer, splitter, sidebarHeader](const QPoint& pos){
         QMenu menu;
-        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item { padding: 5px 20px; } QMenu::item:selected { background-color: #3E3E42; }");
+        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                           "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
+                           "QMenu::icon { margin-left: 4px; } "
+                           "QMenu::item:selected { background-color: #3E3E42; }");
         menu.addAction("向左移动", [this, sidebarContainer, splitter](){
             int index = splitter->indexOf(sidebarContainer);
             if (index > 0) splitter->insertWidget(index - 1, sidebarContainer);
@@ -252,8 +255,10 @@ void MainWindow::initUI() {
     connect(m_sideBar, &QTreeView::customContextMenuRequested, this, [this](const QPoint& pos){
         QModelIndex index = m_sideBar->indexAt(pos);
         QMenu menu(this);
+        menu.setIconSize(QSize(18, 18));
         menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                           "QMenu::item { padding: 6px 10px 6px 8px; border-radius: 3px; } "
+                           "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
+                           "QMenu::icon { margin-left: 4px; } "
                            "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
         if (!index.isValid() || index.data().toString() == "我的分区") {
@@ -370,7 +375,8 @@ void MainWindow::initUI() {
 
             menu.addSeparator();
             auto* pwdMenu = menu.addMenu(IconHelper::getIcon("lock", "#aaaaaa"), "密码保护");
-            pwdMenu->setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item:selected { background-color: #3E3E42; }");
+            pwdMenu->setIconSize(QSize(18, 18));
+            pwdMenu->setStyleSheet(menu.styleSheet());
             
             pwdMenu->addAction("设置", [this, catId]() {
                 auto* dlg = new CategoryPasswordDialog("设置密码", this);
@@ -507,7 +513,10 @@ void MainWindow::initUI() {
     listHeader->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(listHeader, &QWidget::customContextMenuRequested, this, [this, listContainer, splitter, listHeader](const QPoint& pos){
         QMenu menu;
-        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item { padding: 5px 20px; } QMenu::item:selected { background-color: #3E3E42; }");
+        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                           "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
+                           "QMenu::icon { margin-left: 4px; } "
+                           "QMenu::item:selected { background-color: #3E3E42; }");
         menu.addAction("向左移动", [this, listContainer, splitter](){
             int index = splitter->indexOf(listContainer);
             if (index > 0) splitter->insertWidget(index - 1, listContainer);
@@ -632,7 +641,10 @@ void MainWindow::initUI() {
     editorHeader->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(editorHeader, &QWidget::customContextMenuRequested, this, [this, editorContainer, splitter, editorHeader](const QPoint& pos){
         QMenu menu;
-        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item { padding: 5px 20px; } QMenu::item:selected { background-color: #3E3E42; }");
+        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                           "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
+                           "QMenu::icon { margin-left: 4px; } "
+                           "QMenu::item:selected { background-color: #3E3E42; }");
         menu.addAction("向左移动", [this, editorContainer, splitter](){
             int index = splitter->indexOf(editorContainer);
             if (index > 0) splitter->insertWidget(index - 1, editorContainer);
@@ -812,7 +824,10 @@ void MainWindow::initUI() {
         metaHeader->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(metaHeader, &QWidget::customContextMenuRequested, this, [this, splitter, metaHeader](const QPoint& pos){
             QMenu menu;
-            menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item { padding: 5px 20px; } QMenu::item:selected { background-color: #3E3E42; }");
+            menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                               "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
+                               "QMenu::icon { margin-left: 4px; } "
+                               "QMenu::item:selected { background-color: #3E3E42; }");
             menu.addAction("向左移动", [this, splitter](){
                 int index = splitter->indexOf(m_metaPanel);
                 if (index > 0) splitter->insertWidget(index - 1, m_metaPanel);
@@ -876,7 +891,10 @@ void MainWindow::initUI() {
     filterHeader->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(filterHeader, &QWidget::customContextMenuRequested, this, [this, filterContainer, splitter, filterHeader](const QPoint& pos){
         QMenu menu;
-        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item { padding: 5px 20px; } QMenu::item:selected { background-color: #3E3E42; }");
+        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                           "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
+                           "QMenu::icon { margin-left: 4px; } "
+                           "QMenu::item:selected { background-color: #3E3E42; }");
         menu.addAction("向左移动", [this, filterContainer, splitter](){
             int index = splitter->indexOf(filterContainer);
             if (index > 0) splitter->insertWidget(index - 1, filterContainer);
@@ -1308,8 +1326,10 @@ void MainWindow::showContextMenu(const QPoint& pos) {
 
     int selCount = selected.size();
     QMenu menu(this);
+    menu.setIconSize(QSize(18, 18));
     menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                       "QMenu::item { padding: 6px 10px 6px 28px; border-radius: 3px; } "
+                       "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
+                       "QMenu::icon { margin-left: 4px; } "
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
     if (selCount == 1) {
@@ -1325,6 +1345,8 @@ void MainWindow::showContextMenu(const QPoint& pos) {
     }
 
     auto* ratingMenu = menu.addMenu(IconHelper::getIcon("star", "#f39c12"), QString("设置星级 (%1)").arg(selCount));
+    ratingMenu->setIconSize(QSize(18, 18));
+    ratingMenu->setStyleSheet(menu.styleSheet());
     auto* starGroup = new QActionGroup(this);
     int currentRating = (selCount == 1) ? selected.first().data(NoteModel::RatingRole).toInt() : -1;
     
@@ -1353,6 +1375,8 @@ void MainWindow::showContextMenu(const QPoint& pos) {
     menu.addSeparator();
 
     auto* catMenu = menu.addMenu(IconHelper::getIcon("branch", "#cccccc"), QString("移动选中项到分类 (%1)").arg(selCount));
+    catMenu->setIconSize(QSize(18, 18));
+    catMenu->setStyleSheet(menu.styleSheet());
     catMenu->addAction("⚠️ 未分类", [this]() { doMoveToCategory(-1); });
     
     QSettings settings("RapidNotes", "QuickWindow");
@@ -1430,8 +1454,10 @@ void MainWindow::showToolboxMenu(const QPoint& pos) {
     m_autoCategorizeClipboard = globalSettings.value("autoCategorizeClipboard", false).toBool();
 
     QMenu menu(this);
+    menu.setIconSize(QSize(18, 18));
     menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                       "QMenu::item { padding: 6px 10px 6px 28px; border-radius: 3px; } "
+                       "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
+                       "QMenu::icon { margin-left: 4px; } "
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
     QAction* autoCatAction = menu.addAction("剪贴板自动归档到当前分类");

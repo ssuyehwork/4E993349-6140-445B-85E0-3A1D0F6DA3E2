@@ -13,9 +13,11 @@ SystemTray::SystemTray(QObject* parent) : QObject(parent) {
     m_trayIcon->setToolTip("快速笔记 (RapidNotes)");
 
     m_menu = new QMenu();
+    m_menu->setIconSize(QSize(18, 18));
     m_menu->setStyleSheet(
-        "QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; } "
-        "QMenu::item { padding: 6px 24px; } "
+        "QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+        "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
+        "QMenu::icon { margin-left: 4px; } "
         "QMenu::item:selected { background-color: #4a90e2; color: white; }"
     );
     

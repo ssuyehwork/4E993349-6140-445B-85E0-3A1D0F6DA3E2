@@ -201,14 +201,18 @@ void FloatingBall::leaveEvent(QEvent* event) {
 
 void FloatingBall::contextMenuEvent(QContextMenuEvent* event) {
     QMenu menu(this);
+    menu.setIconSize(QSize(18, 18));
     menu.setStyleSheet(
-        "QMenu { background-color: #2b2b2b; color: #f0f0f0; border: 1px solid #444; border-radius: 5px; padding: 5px; } "
-        "QMenu::item { padding: 6px 15px 6px 5px; border-radius: 3px; } "
-        "QMenu::item:selected { background-color: #5D4037; color: #fff; } "
+        "QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+        "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
+        "QMenu::icon { margin-left: 4px; } "
+        "QMenu::item:selected { background-color: #4a90e2; color: white; } "
         "QMenu::separator { background-color: #444; height: 1px; margin: 4px 0; }"
     );
 
     QMenu* skinMenu = menu.addMenu(IconHelper::getIcon("palette", "#aaaaaa"), "切换外观");
+    skinMenu->setIconSize(QSize(18, 18));
+    skinMenu->setStyleSheet(menu.styleSheet());
     skinMenu->addAction(IconHelper::getIcon("coffee", "#BCAAA4"), "摩卡·勃艮第", [this](){ switchSkin("mocha"); });
     skinMenu->addAction(IconHelper::getIcon("grid", "#90A4AE"), "经典黑金", [this](){ switchSkin("classic"); });
     skinMenu->addAction(IconHelper::getIcon("book", "#9FA8DA"), "皇家蓝", [this](){ switchSkin("royal"); });
