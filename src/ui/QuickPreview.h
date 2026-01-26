@@ -125,10 +125,22 @@ public:
             html = QString("%1%2<div style='text-align: center;'><img src='data:image/png;base64,%3' width='450'></div>")
                    .arg(titleHtml, hrHtml, QString(data.toBase64()));
         } else {
-            QString formattedContent = content.toHtmlEscaped();
-            formattedContent.replace("\n", "<br>");
-            html = QString("%1%2<div style='line-height: 1.6; color: #ccc; font-size: 13px;'>%3</div>")
-                   .arg(titleHtml, hrHtml, formattedContent);
+            // 判定是否已经是 HTML
+            QString trimmed = content.trimmed();
+            bool isHtml = trimmed.startsWith("<!DOCTYPE", Qt::CaseInsensitive) || 
+                          trimmed.startsWith("<html", Qt::CaseInsensitive) || 
+                          trimmed.contains("<style", Qt::CaseInsensitive) ||
+                          Qt::mightBeRichText(content);
+            
+            QString body;
+            if (isHtml) {
+                body = content; // 直接使用 HTML
+            } else {
+                body = content.toHtmlEscaped();
+                body.replace("\n", "<br>");
+                body = QString("<div style='line-height: 1.6; color: #ccc; font-size: 13px;'>%1</div>").arg(body);
+            }
+            html = QString("%1%2%3").arg(titleHtml, hrHtml, body);
         }
         m_textEdit->setHtml(html);
         move(pos);

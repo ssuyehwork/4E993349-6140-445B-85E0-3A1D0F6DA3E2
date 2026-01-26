@@ -461,7 +461,7 @@ void NoteEditWindow::toggleMaximize() {
 void NoteEditWindow::saveNote() {
     QString title = m_titleEdit->text();
     if(title.isEmpty()) title = "未命名灵感";
-    QString content = m_contentEdit->toPlainText();
+    QString content = m_contentEdit->toHtml();
     QString tags = m_tagEdit->text();
     int catId = m_catId;
     QString color = m_colorGroup->checkedButton() ? m_colorGroup->checkedButton()->property("color").toString() : "";
@@ -486,9 +486,9 @@ void NoteEditWindow::toggleSearchBar() {
 void NoteEditWindow::loadNoteData(int id) {
     QVariantMap note = DatabaseManager::instance().getNoteById(id);
     if (!note.isEmpty()) {
-        m_titleEdit->setText(note["title"].toString());
-        m_contentEdit->setPlainText(note["content"].toString());
-        m_tagEdit->setText(note["tags"].toString());
+        m_titleEdit->setText(note.value("title").toString());
+        m_contentEdit->setNote(note, false); // 编辑模式不注入预览标题
+        m_tagEdit->setText(note.value("tags").toString());
         
         m_catId = note["category_id"].toInt();
         

@@ -202,26 +202,28 @@ void FloatingBall::leaveEvent(QEvent* event) {
 void FloatingBall::contextMenuEvent(QContextMenuEvent* event) {
     QMenu menu(this);
     menu.setStyleSheet(
-        "QMenu { background-color: #2b2b2b; color: #f0f0f0; border: 1px solid #444; border-radius: 5px; padding: 5px; } "
-        "QMenu::item { padding: 6px 15px 6px 5px; border-radius: 3px; } "
-        "QMenu::item:selected { background-color: #5D4037; color: #fff; } "
+        "QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+        "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
+        "QMenu::icon { margin-left: 4px; } "
+        "QMenu::item:selected { background-color: #4a90e2; color: white; } "
         "QMenu::separator { background-color: #444; height: 1px; margin: 4px 0; }"
     );
 
-    QMenu* skinMenu = menu.addMenu(IconHelper::getIcon("palette", "#aaaaaa"), "切换外观");
-    skinMenu->addAction(IconHelper::getIcon("coffee", "#BCAAA4"), "摩卡·勃艮第", [this](){ switchSkin("mocha"); });
-    skinMenu->addAction(IconHelper::getIcon("grid", "#90A4AE"), "经典黑金", [this](){ switchSkin("classic"); });
-    skinMenu->addAction(IconHelper::getIcon("book", "#9FA8DA"), "皇家蓝", [this](){ switchSkin("royal"); });
-    skinMenu->addAction(IconHelper::getIcon("leaf", "#A5D6A7"), "抹茶绿", [this](){ switchSkin("matcha"); });
-    skinMenu->addAction(IconHelper::getIcon("book_open", "#FFCC80"), "摊开手稿", [this](){ switchSkin("open"); });
+    QMenu* skinMenu = menu.addMenu(IconHelper::getIcon("palette", "#aaaaaa", 18), "切换外观");
+    skinMenu->setStyleSheet(menu.styleSheet());
+    skinMenu->addAction(IconHelper::getIcon("coffee", "#BCAAA4", 18), "摩卡·勃艮第", [this](){ switchSkin("mocha"); });
+    skinMenu->addAction(IconHelper::getIcon("grid", "#90A4AE", 18), "经典黑金", [this](){ switchSkin("classic"); });
+    skinMenu->addAction(IconHelper::getIcon("book", "#9FA8DA", 18), "皇家蓝", [this](){ switchSkin("royal"); });
+    skinMenu->addAction(IconHelper::getIcon("leaf", "#A5D6A7", 18), "抹茶绿", [this](){ switchSkin("matcha"); });
+    skinMenu->addAction(IconHelper::getIcon("book_open", "#FFCC80", 18), "摊开手稿", [this](){ switchSkin("open"); });
     skinMenu->addAction("默认天蓝", [this](){ switchSkin("default"); });
 
     menu.addSeparator();
-    menu.addAction(IconHelper::getIcon("zap", "#aaaaaa"), "打开快速笔记", this, &FloatingBall::requestQuickWindow);
-    menu.addAction(IconHelper::getIcon("monitor", "#aaaaaa"), "打开主界面", this, &FloatingBall::requestMainWindow);
-    menu.addAction(IconHelper::getIcon("add", "#aaaaaa"), "新建灵感", this, &FloatingBall::requestNewIdea);
+    menu.addAction(IconHelper::getIcon("zap", "#aaaaaa", 18), "打开快速笔记", this, &FloatingBall::requestQuickWindow);
+    menu.addAction(IconHelper::getIcon("monitor", "#aaaaaa", 18), "打开主界面", this, &FloatingBall::requestMainWindow);
+    menu.addAction(IconHelper::getIcon("add", "#aaaaaa", 18), "新建灵感", this, &FloatingBall::requestNewIdea);
     menu.addSeparator();
-    menu.addAction(IconHelper::getIcon("power", "#aaaaaa"), "退出程序", [](){ qApp->quit(); });
+    menu.addAction(IconHelper::getIcon("power", "#aaaaaa", 18), "退出程序", [](){ qApp->quit(); });
     
     menu.exec(event->globalPos());
 }

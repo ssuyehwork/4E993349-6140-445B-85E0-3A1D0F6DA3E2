@@ -5,6 +5,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QDateTime>
+#include <QRegularExpression>
 #include "../models/NoteModel.h"
 #include "IconHelper.h"
 
@@ -77,7 +78,19 @@ public:
         painter->setPen(Qt::white);
         painter->setFont(QFont("Microsoft YaHei", 9));
         QRectF contentRect = rect.adjusted(12, 34, -12, -32);
-        QString cleanContent = content.simplified();
+        
+        // 剥离 HTML 标签以显示纯文本预览 (防止样式代码进入预览)
+        QString cleanContent = content;
+        if (cleanContent.contains("<")) {
+            cleanContent.remove(QRegularExpression("<style.*?>.*?</style>", QRegularExpression::DotMatchesEverythingOption | QRegularExpression::CaseInsensitiveOption));
+            cleanContent.remove(QRegularExpression("<[^>]*>"));
+            // 处理常见实体
+            cleanContent.replace("&nbsp;", " ", Qt::CaseInsensitive);
+            cleanContent.replace("&lt;", "<", Qt::CaseInsensitive);
+            cleanContent.replace("&gt;", ">", Qt::CaseInsensitive);
+            cleanContent.replace("&amp;", "&", Qt::CaseInsensitive);
+        }
+        cleanContent = cleanContent.simplified();
         QString elidedContent = painter->fontMetrics().elidedText(cleanContent, Qt::ElideRight, contentRect.width() * 2);
         painter->drawText(contentRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, elidedContent);
 

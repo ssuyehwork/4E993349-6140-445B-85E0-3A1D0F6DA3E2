@@ -35,9 +35,10 @@ class Editor : public QWidget {
     Q_OBJECT
 public:
     explicit Editor(QWidget* parent = nullptr);
-    void setNote(const QVariantMap& note);
+    void setNote(const QVariantMap& note, bool isPreview = false);
     void setPlainText(const QString& text);
     QString toPlainText() const;
+    QString toHtml() const;
     void setPlaceholderText(const QString& text);
     void togglePreview(bool preview);
     void setReadOnly(bool ro);
@@ -59,6 +60,7 @@ private:
     QTextEdit* m_preview;
     MarkdownHighlighter* m_highlighter;
     QVariantMap m_currentNote;
+    bool m_isRichText = false;
 };
 
 #endif // EDITOR_H

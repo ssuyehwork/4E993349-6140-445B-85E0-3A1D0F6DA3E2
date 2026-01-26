@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QCryptographicHash>
 #include <QRandomGenerator>
+#include <QRegularExpression>
 
 DatabaseManager& DatabaseManager::instance() {
     static DatabaseManager inst;
@@ -134,14 +135,10 @@ bool DatabaseManager::createTables() {
     )";
     query.exec(createFtsTable);
 
-    // 触发器同步 FTS
-    query.exec("CREATE TRIGGER IF NOT EXISTS notes_ai AFTER INSERT ON notes BEGIN "
-               "INSERT INTO notes_fts(rowid, title, content) VALUES (new.id, new.title, new.content); END;");
-    query.exec("CREATE TRIGGER IF NOT EXISTS notes_ad AFTER DELETE ON notes BEGIN "
-               "INSERT INTO notes_fts(notes_fts, rowid, title, content) VALUES('delete', old.id, old.title, old.content); END;");
-    query.exec("CREATE TRIGGER IF NOT EXISTS notes_au AFTER UPDATE ON notes BEGIN "
-               "INSERT INTO notes_fts(notes_fts, rowid, title, content) VALUES('delete', old.id, old.title, old.content); "
-               "INSERT INTO notes_fts(rowid, title, content) VALUES (new.id, new.title, new.content); END;");
+    // 移除旧的 FTS 触发器，改为在 C++ 层手动管理，以支持 HTML 剥离
+    query.exec("DROP TRIGGER IF EXISTS notes_ai");
+    query.exec("DROP TRIGGER IF EXISTS notes_ad");
+    query.exec("DROP TRIGGER IF EXISTS notes_au");
 
     return true;
 }
@@ -229,6 +226,7 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
         if (query.exec()) {
             success = true;
             QVariant lastId = query.lastInsertId();
+            syncFts(lastId.toInt(), title, content);
             QSqlQuery fetch(m_db);
             fetch.prepare("SELECT * FROM notes WHERE id = :id");
             fetch.bindValue(":id", lastId);
@@ -295,6 +293,7 @@ bool DatabaseManager::updateNote(int id, const QString& title, const QString& co
         query.bindValue(":id", id);
         
         success = query.exec();
+        if (success) syncFts(id, title, content);
     }
 
     if (success) emit noteUpdated();
@@ -406,7 +405,7 @@ bool DatabaseManager::updateNoteState(int id, const QString& column, const QVari
         QMutexLocker locker(&m_mutex);
         if (!m_db.isOpen()) return false;
         
-        QStringList allowedColumns = {"is_pinned", "is_locked", "is_favorite", "is_deleted", "tags", "rating", "category_id", "color"};
+        QStringList allowedColumns = {"is_pinned", "is_locked", "is_favorite", "is_deleted", "tags", "rating", "category_id", "color", "content", "title"};
         if (!allowedColumns.contains(column)) return false;
 
         QSqlQuery query(m_db);
@@ -451,6 +450,15 @@ bool DatabaseManager::updateNoteState(int id, const QString& column, const QVari
         query.bindValue(":id", id);
         
         success = query.exec();
+        
+        if (success && (column == "content" || column == "title")) {
+            QSqlQuery fetch(m_db);
+            fetch.prepare("SELECT title, content FROM notes WHERE id = ?");
+            fetch.addBindValue(id);
+            if (fetch.exec() && fetch.next()) {
+                syncFts(id, fetch.value(0).toString(), fetch.value(1).toString());
+            }
+        }
     } 
 
     if (success) emit noteUpdated();
@@ -595,6 +603,7 @@ bool DatabaseManager::deleteNote(int id) {
         query.prepare("DELETE FROM notes WHERE id=:id");
         query.bindValue(":id", id);
         success = query.exec();
+        if (success) removeFts(id);
     } // 自动解锁
 
     if (success) emit noteUpdated();
@@ -613,7 +622,7 @@ bool DatabaseManager::deleteNotesBatch(const QList<int>& ids) {
         query.prepare("DELETE FROM notes WHERE id=:id");
         for (int id : ids) {
             query.bindValue(":id", id);
-            query.exec();
+            if (query.exec()) removeFts(id);
         }
         success = m_db.commit();
     }
@@ -1272,4 +1281,48 @@ bool DatabaseManager::removeTagFromNote(int noteId, const QString& tag) {
     QStringList existing = note["tags"].toString().split(",", Qt::SkipEmptyParts);
     existing.removeAll(tag.trimmed());
     return updateNoteState(noteId, "tags", existing.join(","));
+}
+
+void DatabaseManager::syncFts(int id, const QString& title, const QString& content) {
+    // 假设已在锁的作用域内
+    QSqlQuery query(m_db);
+    query.prepare("DELETE FROM notes_fts WHERE rowid = ?");
+    query.addBindValue(id);
+    query.exec();
+
+    query.prepare("INSERT INTO notes_fts(rowid, title, content) VALUES (?, ?, ?)");
+    query.addBindValue(id);
+    query.addBindValue(title);
+    query.addBindValue(stripHtml(content));
+    query.exec();
+}
+
+void DatabaseManager::removeFts(int id) {
+    QSqlQuery query(m_db);
+    query.prepare("DELETE FROM notes_fts WHERE rowid = ?");
+    query.addBindValue(id);
+    query.exec();
+}
+
+QString DatabaseManager::stripHtml(const QString& html) {
+    // 首先检查是否真的是 HTML，如果不是则直接返回
+    if (!html.contains("<") && !html.contains("&")) return html;
+
+    QString plain = html;
+    // 移除 <style> 和 <script> 块及其内容 (防止样式代码进入索引)
+    plain.remove(QRegularExpression("<style.*?>.*?</style>", QRegularExpression::DotMatchesEverythingOption | QRegularExpression::CaseInsensitiveOption));
+    plain.remove(QRegularExpression("<script.*?>.*?</script>", QRegularExpression::DotMatchesEverythingOption | QRegularExpression::CaseInsensitiveOption));
+    
+    // 移除所有 HTML 标签
+    plain.remove(QRegularExpression("<[^>]*>"));
+    
+    // 处理常见 HTML 实体
+    plain.replace("&nbsp;", " ", Qt::CaseInsensitive);
+    plain.replace("&lt;", "<", Qt::CaseInsensitive);
+    plain.replace("&gt;", ">", Qt::CaseInsensitive);
+    plain.replace("&amp;", "&", Qt::CaseInsensitive);
+    plain.replace("&quot;", "\"", Qt::CaseInsensitive);
+    plain.replace("&#39;", "'");
+    
+    return plain.simplified();
 }
