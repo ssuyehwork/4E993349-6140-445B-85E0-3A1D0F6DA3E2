@@ -940,7 +940,7 @@ void MainWindow::initUI() {
     filterContent->setAttribute(Qt::WA_StyledBackground, true);
     filterContent->setStyleSheet("background: transparent; border: none;");
     auto* filterContentLayout = new QVBoxLayout(filterContent);
-    filterContentLayout->setContentsMargins(10, 10, 10, 10);
+    filterContentLayout->setContentsMargins(0, 0, 10, 10);
 
     m_filterPanel = new FilterPanel(this);
     m_filterPanel->setStyleSheet("background: transparent; border: none;");
