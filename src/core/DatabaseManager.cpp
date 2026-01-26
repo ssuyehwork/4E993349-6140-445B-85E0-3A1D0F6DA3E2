@@ -698,12 +698,22 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
     }
 
     if (!keyword.isEmpty()) {
-        baseSql += "JOIN notes_fts ON notes.id = notes_fts.rowid ";
-        whereClause += "AND notes_fts MATCH ? ";
-        params << keyword;
+        // 修正：移除 baseSql 中的 JOIN 逻辑，完全采用子查询以避免 Inner Join 导致的过滤错误
+        whereClause += "AND (notes.tags LIKE ? OR notes.id IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?)) ";
+        params << "%" + keyword + "%";
+        
+        // FTS 安全处理：简单的短语包裹
+        QString safeKeyword = keyword;
+        safeKeyword.replace("\"", "\"\"");
+        params << "\"" + safeKeyword + "\"";
     }
 
-    QString finalSql = baseSql + whereClause + "ORDER BY is_pinned DESC, updated_at DESC";
+    QString finalSql = baseSql + whereClause + "ORDER BY ";
+    if (!keyword.isEmpty()) {
+        finalSql += "CASE WHEN notes.tags LIKE ? THEN 0 ELSE 1 END, ";
+        params << "%" + keyword + "%";
+    }
+    finalSql += "is_pinned DESC, updated_at DESC";
     
     // 回收站不分页，显示所有
     if (page > 0 && filterType != "trash") {
@@ -721,6 +731,8 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
             for (int i = 0; i < rec.count(); ++i) map[rec.fieldName(i)] = query.value(i);
             results.append(map);
         }
+    } else {
+        qCritical() << "searchNotes failed:" << query.lastError().text();
     }
     return results;
 }
@@ -767,17 +779,22 @@ int DatabaseManager::getNotesCount(const QString& keyword, const QString& filter
     }
 
     if (!keyword.isEmpty()) {
-        baseSql += "JOIN notes_fts ON notes.id = notes_fts.rowid ";
-        whereClause += "AND notes_fts MATCH ? ";
-        params << keyword;
+        whereClause += "AND (notes.tags LIKE ? OR notes.id IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?)) ";
+        params << "%" + keyword + "%";
+        
+        QString safeKeyword = keyword;
+        safeKeyword.replace("\"", "\"\"");
+        params << "\"" + safeKeyword + "\"";
     }
 
     QSqlQuery query(m_db);
     query.prepare(baseSql + whereClause);
     for (int i = 0; i < params.size(); ++i) query.bindValue(i, params[i]);
 
-    if (query.exec() && query.next()) {
-        return query.value(0).toInt();
+    if (query.exec()) {
+        if (query.next()) return query.value(0).toInt();
+    } else {
+        qCritical() << "getNotesCount failed:" << query.lastError().text();
     }
     return 0;
 }

@@ -1,6 +1,7 @@
 #include "Editor.h"
 #include <QMimeData>
 #include <QFileInfo>
+#include <utility>
 #include <QUrl>
 #include <QTextList>
 

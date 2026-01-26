@@ -17,6 +17,11 @@
 #include "FilterPanel.h"
 #include "CategoryLockWidget.h"
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <windowsx.h>
+#endif
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
@@ -42,7 +47,23 @@ private slots:
     void doPreview();
     void showToolboxMenu(const QPoint& pos);
 
+    // 快捷键处理与操作逻辑 (同步 QuickWindow)
+    void doDeleteSelected(bool physical = false);
+    void doToggleFavorite();
+    void doTogglePin();
+    void doLockSelected();
+    void doNewIdea();
+    void doExtractContent();
+    void doEditSelected();
+    void doSetRating(int rating);
+    void doMoveToCategory(int catId);
+    void saveCurrentNote();
+    void toggleSearchBar();
+
 protected:
+#ifdef Q_OS_WIN
+    bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
+#endif
     bool eventFilter(QObject* watched, QEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
@@ -64,6 +85,10 @@ private:
     
     Editor* m_editor;
     CategoryLockWidget* m_lockWidget;
+    QPushButton* m_editLockBtn;
+    QWidget* m_editorToolbar;
+    QWidget* m_editorSearchBar;
+    QLineEdit* m_editorSearchEdit;
 
     QString m_currentKeyword;
     QString m_currentFilterType = "all";

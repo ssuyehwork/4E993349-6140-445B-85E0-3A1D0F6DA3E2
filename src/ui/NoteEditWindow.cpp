@@ -1,4 +1,7 @@
 #include "NoteEditWindow.h"
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 #include "../core/DatabaseManager.h"
 #include "IconHelper.h"
 #include <QHBoxLayout>
@@ -21,8 +24,10 @@
 NoteEditWindow::NoteEditWindow(int noteId, QWidget* parent) 
     : QWidget(parent, Qt::Window | Qt::FramelessWindowHint), m_noteId(noteId) 
 {
+    setWindowTitle(m_noteId > 0 ? "编辑笔记" : "记录灵感");
     setAttribute(Qt::WA_TranslucentBackground); 
-    resize(950, 650); 
+    // 增加窗口物理尺寸以容纳外围阴影，防止 UpdateLayeredWindowIndirect 参数错误
+    resize(980, 680); 
     initUI();
     setupShortcuts();
     
@@ -36,14 +41,8 @@ void NoteEditWindow::setDefaultCategory(int catId) {
 }
 
 void NoteEditWindow::paintEvent(QPaintEvent* event) {
+    // 由于使用了 mainContainer 承载背景和圆角，窗口本身只需保持透明
     Q_UNUSED(event);
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-    
-    painter.setBrush(QColor("#1E1E1E")); 
-    painter.setPen(Qt::NoPen);
-    int radius = m_isMaximized ? 0 : 12;
-    painter.drawRoundedRect(rect(), radius, radius);
 }
 
 void NoteEditWindow::mousePressEvent(QMouseEvent* event) {
@@ -89,7 +88,18 @@ void NoteEditWindow::mouseDoubleClickEvent(QMouseEvent* event) {
 }
 
 void NoteEditWindow::initUI() {
-    auto* outerLayout = new QVBoxLayout(this);
+    auto* windowLayout = new QVBoxLayout(this);
+    windowLayout->setObjectName("WindowLayout");
+    windowLayout->setContentsMargins(15, 15, 15, 15); // 留出阴影空间
+    windowLayout->setSpacing(0);
+
+    // 主容器：承载圆角、背景和阴影
+    auto* mainContainer = new QWidget();
+    mainContainer->setObjectName("MainContainer");
+    mainContainer->setStyleSheet("QWidget#MainContainer { background-color: #1E1E1E; border-radius: 12px; }");
+    windowLayout->addWidget(mainContainer);
+
+    auto* outerLayout = new QVBoxLayout(mainContainer);
     outerLayout->setContentsMargins(0, 0, 0, 0);
     outerLayout->setSpacing(0);
 
@@ -127,6 +137,14 @@ void NoteEditWindow::initUI() {
     m_maxBtn->setFixedSize(32, 32);
     m_maxBtn->setStyleSheet(ctrlBtnStyle);
     connect(m_maxBtn, &QPushButton::clicked, this, &NoteEditWindow::toggleMaximize);
+
+    m_btnStayOnTop = new QPushButton();
+    m_btnStayOnTop->setIcon(IconHelper::getIcon("pin_tilted", "#aaaaaa", 20));
+    m_btnStayOnTop->setIconSize(QSize(20, 20));
+    m_btnStayOnTop->setFixedSize(32, 32);
+    m_btnStayOnTop->setCheckable(true);
+    m_btnStayOnTop->setStyleSheet(ctrlBtnStyle + " QPushButton:checked { background-color: #f1c40f; }");
+    connect(m_btnStayOnTop, &QPushButton::toggled, this, &NoteEditWindow::toggleStayOnTop);
     
     QPushButton* btnClose = new QPushButton();
     btnClose->setIcon(IconHelper::getIcon("close", "#aaaaaa", 20));
@@ -139,6 +157,7 @@ void NoteEditWindow::initUI() {
     btnClose->installEventFilter(this);
     btnClose->setProperty("isCloseBtn", true);
 
+    tbLayout->addWidget(m_btnStayOnTop);
     tbLayout->addWidget(btnMin);
     tbLayout->addWidget(m_maxBtn);
     tbLayout->addWidget(btnClose);
@@ -168,11 +187,12 @@ void NoteEditWindow::initUI() {
 
     outerLayout->addWidget(m_splitter);
 
+    // 阴影应用在内部容器上，确保不超出窗口边界
     auto* shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(20);
-    shadow->setColor(QColor(0, 0, 0, 150));
-    shadow->setOffset(0, 5);
-    setGraphicsEffect(shadow);
+    shadow->setBlurRadius(15);
+    shadow->setColor(QColor(0, 0, 0, 180));
+    shadow->setOffset(0, 2);
+    mainContainer->setGraphicsEffect(shadow);
 }
 
 void NoteEditWindow::setupLeftPanel(QVBoxLayout* layout) {
@@ -324,11 +344,11 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     toolBar->addWidget(sep2);
 
     // 高亮颜色
-    QStringList hColors = {"#c0392b", "#d35400", "#f1c40f", "#27ae60", "#2980b9", "#8e44ad"};
+    QStringList hColors = {"#c0392b", "#f1c40f", "#27ae60", "#2980b9"};
     for (const auto& color : hColors) {
         QPushButton* hBtn = new QPushButton();
         hBtn->setFixedSize(20, 20);
-        hBtn->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid rgba(0,0,0,0.2); border-radius: 10px; } "
+        hBtn->setStyleSheet(QString("QPushButton { background-color: %1; border: 1px solid rgba(0,0,0,0.2); border-radius: 4px; } "
                                     "QPushButton:hover { border-color: white; }").arg(color));
         hBtn->setCursor(Qt::PointingHandCursor);
         connect(hBtn, &QPushButton::clicked, [this, color](){ m_contentEdit->highlightSelection(QColor(color)); });
@@ -336,15 +356,15 @@ void NoteEditWindow::setupRightPanel(QVBoxLayout* layout) {
     }
 
     // 清除高亮按钮
-    QPushButton* btnClearHighlight = new QPushButton();
-    btnClearHighlight->setIcon(IconHelper::getIcon("edit_clear", "#aaaaaa", 12));
-    btnClearHighlight->setFixedSize(20, 20);
-    btnClearHighlight->setToolTip("清除高亮");
-    btnClearHighlight->setStyleSheet("QPushButton { background: transparent; border: 1px solid #444; border-radius: 10px; } "
-                                     "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); border-color: #666; }");
-    btnClearHighlight->setCursor(Qt::PointingHandCursor);
-    connect(btnClearHighlight, &QPushButton::clicked, [this](){ m_contentEdit->highlightSelection(Qt::transparent); });
-    toolBar->addWidget(btnClearHighlight);
+    QPushButton* btnNoColor = new QPushButton();
+    btnNoColor->setIcon(IconHelper::getIcon("no_color", "#aaaaaa", 14));
+    btnNoColor->setFixedSize(24, 24);
+    btnNoColor->setToolTip("清除高亮");
+    btnNoColor->setStyleSheet("QPushButton { background: transparent; border: 1px solid #444; border-radius: 4px; margin-left: 4px; } "
+                              "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); border-color: #888; }");
+    btnNoColor->setCursor(Qt::PointingHandCursor);
+    connect(btnNoColor, &QPushButton::clicked, [this](){ m_contentEdit->highlightSelection(Qt::transparent); });
+    toolBar->addWidget(btnNoColor);
     
     headerLayout->addLayout(toolBar);
     layout->addLayout(headerLayout);
@@ -399,14 +419,38 @@ void NoteEditWindow::setupShortcuts() {
     connect(scSearch, &QShortcut::activated, this, &NoteEditWindow::toggleSearchBar);
 }
 
+void NoteEditWindow::toggleStayOnTop() {
+    m_isStayOnTop = m_btnStayOnTop->isChecked();
+    m_btnStayOnTop->setIcon(IconHelper::getIcon(m_isStayOnTop ? "pin_vertical" : "pin_tilted", m_isStayOnTop ? "#ffffff" : "#aaaaaa", 20));
+#ifdef Q_OS_WIN
+    HWND hwnd = (HWND)winId();
+    SetWindowPos(hwnd, m_isStayOnTop ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+#else
+    Qt::WindowFlags flags = windowFlags();
+    if (m_isStayOnTop) flags |= Qt::WindowStaysOnTopHint;
+    else flags &= ~Qt::WindowStaysOnTopHint;
+    if (flags != windowFlags()) {
+        setWindowFlags(flags);
+        show();
+    }
+#endif
+}
+
 void NoteEditWindow::toggleMaximize() {
+    auto* windowLayout = findChild<QVBoxLayout*>("WindowLayout");
+    auto* mainContainer = findChild<QWidget*>("MainContainer");
+
     if (m_isMaximized) {
         showNormal();
+        if (windowLayout) windowLayout->setContentsMargins(15, 15, 15, 15);
+        if (mainContainer) mainContainer->setStyleSheet("QWidget#MainContainer { background-color: #1E1E1E; border-radius: 12px; }");
         m_maxBtn->setIcon(IconHelper::getIcon("maximize", "#aaaaaa", 20));
         m_titleBar->setStyleSheet("background-color: #252526; border-top-left-radius: 12px; border-top-right-radius: 12px; border-bottom: 1px solid #333;");
     } else {
         m_normalGeometry = geometry();
         showMaximized();
+        if (windowLayout) windowLayout->setContentsMargins(0, 0, 0, 0);
+        if (mainContainer) mainContainer->setStyleSheet("QWidget#MainContainer { background-color: #1E1E1E; border-radius: 0px; }");
         m_maxBtn->setIcon(IconHelper::getIcon("restore", "#aaaaaa", 20));
         m_titleBar->setStyleSheet("background-color: #252526; border-radius: 0px; border-bottom: 1px solid #333;");
     }

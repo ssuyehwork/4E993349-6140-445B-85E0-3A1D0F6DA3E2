@@ -84,7 +84,6 @@ private:
 MetadataPanel::MetadataPanel(QWidget* parent) : QWidget(parent) {
     setMinimumWidth(230); // 最小宽度 230px，可拉伸
     setAttribute(Qt::WA_StyledBackground, true);
-    setAttribute(Qt::WA_NoSystemBackground, true);
     setStyleSheet("background: transparent; border: none; outline: none;");
     initUI();
 }
@@ -100,7 +99,10 @@ void MetadataPanel::initUI() {
         "#MetadataContainer {"
         "  background-color: #1e1e1e;"
         "  border: 1px solid #333333;"
-        "  border-radius: 12px;"
+        "  border-top-left-radius: 12px;"
+        "  border-top-right-radius: 12px;"
+        "  border-bottom-left-radius: 0px;"
+        "  border-bottom-right-radius: 0px;"
         "}"
     );
     container->setAttribute(Qt::WA_StyledBackground, true);
@@ -118,6 +120,7 @@ void MetadataPanel::initUI() {
 
     // 1. 顶部标题栏 (锁定 32px，标准配色)
     auto* titleBar = new QWidget();
+    titleBar->setObjectName("MetadataHeader");
     titleBar->setFixedHeight(32);
     titleBar->setStyleSheet(
         "background-color: #252526; "
@@ -154,13 +157,12 @@ void MetadataPanel::initUI() {
 
     // 3. 内容包裹容器 (带边距)
     auto* contentWidget = new QWidget();
-    contentWidget->setAttribute(Qt::WA_StyledBackground, true);
     contentWidget->setStyleSheet(
         "QWidget { "
         "  background-color: transparent; "
         "  border: none; "
-        "  border-bottom-left-radius: 12px; "
-        "  border-bottom-right-radius: 12px; "
+        "  border-bottom-left-radius: 0px; "
+        "  border-bottom-right-radius: 0px; "
         "}"
     );
     auto* innerLayout = new QVBoxLayout(contentWidget);
@@ -310,37 +312,37 @@ void MetadataPanel::setNote(const QVariantMap& note) {
         clearSelection();
         return;
     }
-    m_currentNoteId = note["id"].toInt();
+    m_currentNoteId = note.value("id").toInt();
     m_stack->setCurrentIndex(2); // 详情页
     
     m_titleEdit->show();
-    m_titleEdit->setText(note["title"].toString());
+    m_titleEdit->setText(note.value("title").toString());
     m_titleEdit->setCursorPosition(0);
     
     m_tagEdit->setEnabled(true);
     m_tagEdit->setPlaceholderText("输入标签添加... (双击更多)");
     m_separatorLine->show();
 
-    m_capsules["created"]->setText(note["created_at"].toString().left(16).replace("T", " "));
-    m_capsules["updated"]->setText(note["updated_at"].toString().left(16).replace("T", " "));
+    m_capsules["created"]->setText(note.value("created_at").toString().left(16).replace("T", " "));
+    m_capsules["updated"]->setText(note.value("updated_at").toString().left(16).replace("T", " "));
     
-    int rating = note["rating"].toInt();
+    int rating = note.value("rating").toInt();
     QString stars = QString("★").repeated(rating) + QString("☆").repeated(5 - rating);
     m_capsules["rating"]->setText(stars);
     
     QStringList status;
-    if (note["is_pinned"].toInt() > 0) status << "置顶";
-    if (note["is_favorite"].toInt() > 0) status << "书签";
-    if (note["is_locked"].toInt() > 0) status << "锁定";
+    if (note.value("is_pinned").toInt() > 0) status << "置顶";
+    if (note.value("is_favorite").toInt() > 0) status << "书签";
+    if (note.value("is_locked").toInt() > 0) status << "锁定";
     m_capsules["status"]->setText(status.isEmpty() ? "常规" : status.join(", "));
 
     // 分类
-    int catId = note["category_id"].toInt();
+    int catId = note.value("category_id").toInt();
     if (catId > 0) {
         auto categories = DatabaseManager::instance().getAllCategories();
         for (const auto& cat : categories) {
-            if (cat["id"].toInt() == catId) {
-                m_capsules["category"]->setText(cat["name"].toString());
+            if (cat.value("id").toInt() == catId) {
+                m_capsules["category"]->setText(cat.value("name").toString());
                 break;
             }
         }
@@ -349,7 +351,7 @@ void MetadataPanel::setNote(const QVariantMap& note) {
     }
 
     // 标签显示
-    m_capsules["tags"]->setText(note["tags"].toString().isEmpty() ? "无" : note["tags"].toString());
+    m_capsules["tags"]->setText(note.value("tags").toString().isEmpty() ? "无" : note.value("tags").toString());
 }
 
 void MetadataPanel::setMultipleNotes(int count) {

@@ -43,6 +43,10 @@
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <windowsx.h>
+#endif
 
 // --- AppLockWidget 实现 (Eagle 风格启动锁) ---
 class AppLockWidget : public QWidget {
@@ -218,8 +222,8 @@ QuickWindow::QuickWindow(QWidget* parent)
         if (m_currentFilterType == "category" && m_currentFilterValue != -1) {
             auto categories = DatabaseManager::instance().getAllCategories();
             for (const auto& cat : std::as_const(categories)) {
-                if (cat["id"].toInt() == m_currentFilterValue) {
-                    m_currentCategoryColor = cat["color"].toString();
+                if (cat.value("id").toInt() == m_currentFilterValue) {
+                    m_currentCategoryColor = cat.value("color").toString();
                     if (m_currentCategoryColor.isEmpty()) m_currentCategoryColor = "#4a90e2";
                     applyListTheme(m_currentCategoryColor);
                     break;
@@ -750,7 +754,7 @@ void QuickWindow::refreshData() {
             isLocked = true;
             QString hint;
             auto cats = DatabaseManager::instance().getAllCategories();
-            for(const auto& c : std::as_const(cats)) if(c["id"].toInt() == catId) hint = c["password_hint"].toString();
+            for(const auto& c : std::as_const(cats)) if(c.value("id").toInt() == catId) hint = c.value("password_hint").toString();
             m_lockWidget->setCategory(catId, hint);
         }
     }
@@ -855,12 +859,12 @@ void QuickWindow::activateNote(const QModelIndex& index) {
     int id = index.data(NoteModel::IdRole).toInt();
     QVariantMap note = DatabaseManager::instance().getNoteById(id);
 
-    QString itemType = note["item_type"].toString();
-    QString content = note["content"].toString();
+    QString itemType = note.value("item_type").toString();
+    QString content = note.value("content").toString();
     
     if (itemType == "image") {
         QImage img;
-        img.loadFromData(note["data_blob"].toByteArray());
+        img.loadFromData(note.value("data_blob").toByteArray());
         QApplication::clipboard()->setImage(img);
     } else if (itemType != "text" && !itemType.isEmpty()) {
         QStringList rawPaths = content.split(';', Qt::SkipEmptyParts);
@@ -1096,10 +1100,10 @@ void QuickWindow::doPreview() {
     QPoint globalPos = m_listView->mapToGlobal(m_listView->rect().center()) - QPoint(250, 300);
     m_quickPreview->showPreview(
         id,
-        note["title"].toString(), 
-        note["content"].toString(), 
-        note["item_type"].toString(),
-        note["data_blob"].toByteArray(),
+        note.value("title").toString(), 
+        note.value("content").toString(), 
+        note.value("item_type").toString(),
+        note.value("data_blob").toByteArray(),
         globalPos
     );
     m_quickPreview->raise();
@@ -1217,15 +1221,15 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
     QVariantList recentCats = settings.value("recentCategories").toList();
     auto allCategories = DatabaseManager::instance().getAllCategories();
     QMap<int, QVariantMap> catMap;
-    for (const auto& cat : std::as_const(allCategories)) catMap[cat["id"].toInt()] = cat;
+    for (const auto& cat : std::as_const(allCategories)) catMap[cat.value("id").toInt()] = cat;
 
     int count = 0;
     for (const auto& v : std::as_const(recentCats)) {
         if (count >= 15) break;
         int cid = v.toInt();
         if (catMap.contains(cid)) {
-            const auto& cat = catMap[cid];
-            catMenu->addAction(IconHelper::getIcon("branch", cat["color"].toString()), cat["name"].toString(), [this, cid]() {
+            const auto& cat = catMap.value(cid);
+            catMenu->addAction(IconHelper::getIcon("branch", cat.value("color").toString()), cat.value("name").toString(), [this, cid]() {
                 doMoveToCategory(cid);
             });
             count++;
@@ -1386,7 +1390,7 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
                     auto* dlg = new CategoryPasswordDialog("修改密码", this);
                     QString currentHint;
                     auto cats = DatabaseManager::instance().getAllCategories();
-                    for(const auto& c : std::as_const(cats)) if(c["id"].toInt() == catId) currentHint = c["password_hint"].toString();
+                for(const auto& c : std::as_const(cats)) if(c.value("id").toInt() == catId) currentHint = c.value("password_hint").toString();
                     dlg->setInitialData(currentHint);
                     connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
                         DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());

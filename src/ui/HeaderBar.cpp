@@ -119,10 +119,9 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     QPushButton* btnRefresh = createPageBtn("refresh", "刷新 (F5)");
     connect(btnRefresh, &QPushButton::clicked, this, &HeaderBar::refreshRequested);
     layout->addWidget(btnRefresh);
+    layout->addSpacing(10);
 
-    layout->addStretch();
-
-    // 4. Functional Buttons
+    // 标准功能按钮样式 (32x32, 无边框)
     QString funcBtnStyle = 
         "QPushButton {"
         "    background-color: transparent;"
@@ -135,37 +134,15 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
         "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }"
         "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); }";
 
-    m_btnFilter = new QPushButton();
-    m_btnFilter->setIcon(IconHelper::getIcon("filter", "#ffffff", 20));
-    m_btnFilter->setIconSize(QSize(20, 20));
-    m_btnFilter->setToolTip("高级筛选 (Ctrl+G)");
-    m_btnFilter->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }"); // Support active state
-    m_btnFilter->setCheckable(true);
-    connect(m_btnFilter, &QPushButton::clicked, this, &HeaderBar::filterRequested);
-    
-    // Swap order: First Add, then Filter
-    QPushButton* btnAdd = new QPushButton();
-    btnAdd->setIcon(IconHelper::getIcon("add", "#ffffff", 20));
-    btnAdd->setIconSize(QSize(20, 20));
-    btnAdd->setToolTip("新建笔记 (Ctrl+N)");
-    btnAdd->setStyleSheet(funcBtnStyle);
-    connect(btnAdd, &QPushButton::clicked, this, &HeaderBar::newNoteRequested);
-    layout->addWidget(btnAdd);
-    layout->addSpacing(4); // Add spacing
-    
-    // Filter button added after Add button
-    layout->addWidget(m_btnFilter);
-    layout->addSpacing(4); // Add spacing
-
-    m_btnMeta = new QPushButton();
-    m_btnMeta->setIcon(IconHelper::getIcon("sidebar_right", "#aaaaaa", 20));
-    m_btnMeta->setIconSize(QSize(20, 20));
-    m_btnMeta->setToolTip("元数据面板 (Ctrl+I)");
-    m_btnMeta->setCheckable(true);
-    m_btnMeta->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }");
-    connect(m_btnMeta, &QPushButton::toggled, this, &HeaderBar::metadataToggled);
-    layout->addWidget(m_btnMeta);
-    layout->addSpacing(4); // Add spacing
+    // 迁移：新建笔记 (+) 和 工具箱 按钮移至中间组，保留其原有 32x32 风格
+    QPushButton* btnAddCenter = new QPushButton();
+    btnAddCenter->setIcon(IconHelper::getIcon("add", "#ffffff", 20));
+    btnAddCenter->setIconSize(QSize(20, 20));
+    btnAddCenter->setToolTip("新建笔记 (Ctrl+N)");
+    btnAddCenter->setStyleSheet(funcBtnStyle);
+    connect(btnAddCenter, &QPushButton::clicked, this, &HeaderBar::newNoteRequested);
+    layout->addWidget(btnAddCenter);
+    layout->addSpacing(4);
 
     QPushButton* btnTool = new QPushButton();
     btnTool->setIcon(IconHelper::getIcon("toolbox", "#aaaaaa", 20));
@@ -178,8 +155,10 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
         emit toolboxContextMenuRequested(btnTool->mapToGlobal(pos));
     });
     layout->addWidget(btnTool);
-    layout->addSpacing(4);
 
+    layout->addStretch();
+
+    // 4. Functional Buttons
     m_btnStayOnTop = new QPushButton();
     m_btnStayOnTop->setIcon(IconHelper::getIcon("pin_tilted", "#aaaaaa", 20));
     m_btnStayOnTop->setIconSize(QSize(20, 20));
@@ -191,6 +170,26 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
         emit stayOnTopRequested(checked);
     });
     layout->addWidget(m_btnStayOnTop);
+    layout->addSpacing(4);
+
+    m_btnFilter = new QPushButton();
+    m_btnFilter->setIcon(IconHelper::getIcon("filter", "#ffffff", 20));
+    m_btnFilter->setIconSize(QSize(20, 20));
+    m_btnFilter->setToolTip("高级筛选 (Ctrl+G)");
+    m_btnFilter->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }");
+    m_btnFilter->setCheckable(true);
+    connect(m_btnFilter, &QPushButton::clicked, this, &HeaderBar::filterRequested);
+    layout->addWidget(m_btnFilter);
+    layout->addSpacing(4);
+
+    m_btnMeta = new QPushButton();
+    m_btnMeta->setIcon(IconHelper::getIcon("sidebar_right", "#aaaaaa", 20));
+    m_btnMeta->setIconSize(QSize(20, 20));
+    m_btnMeta->setToolTip("元数据面板 (Ctrl+I)");
+    m_btnMeta->setCheckable(true);
+    m_btnMeta->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }");
+    connect(m_btnMeta, &QPushButton::toggled, this, &HeaderBar::metadataToggled);
+    layout->addWidget(m_btnMeta);
 
     // 5. Window Controls
     QWidget* winCtrlWidget = new QWidget();
@@ -237,6 +236,11 @@ void HeaderBar::setFilterActive(bool active) {
 
 void HeaderBar::setMetadataActive(bool active) {
     m_btnMeta->setChecked(active);
+}
+
+void HeaderBar::focusSearch() {
+    m_searchEdit->setFocus();
+    m_searchEdit->selectAll();
 }
 
 void HeaderBar::mousePressEvent(QMouseEvent* event) {
