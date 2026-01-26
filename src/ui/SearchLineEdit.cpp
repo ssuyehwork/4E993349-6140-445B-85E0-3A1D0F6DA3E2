@@ -137,7 +137,7 @@ SearchLineEdit::SearchLineEdit(QWidget* parent) : QLineEdit(parent) {
         "QLineEdit { "
         "  background-color: #252526; "
         "  border: 1px solid #333; "
-        "  border-radius: 16px; "
+        "  border-radius: 6px; "
         "  padding: 8px 15px; "
         "  color: #eee; "
         "  font-size: 14px; "
