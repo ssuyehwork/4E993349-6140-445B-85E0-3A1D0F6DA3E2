@@ -17,6 +17,7 @@
 #include <QMouseEvent>
 #include <QCloseEvent>
 #include <QItemSelection>
+#include <QActionGroup>
 #include <QInputDialog>
 #include <QColorDialog>
 #include <QSet>
@@ -611,18 +612,20 @@ void MainWindow::initUI() {
     editorHeaderLayout->addStretch();
 
     // 编辑锁定/解锁按钮
-    auto* editLockBtn = new QPushButton();
-    editLockBtn->setFixedSize(24, 24);
-    editLockBtn->setCursor(Qt::PointingHandCursor);
-    editLockBtn->setCheckable(true);
-    editLockBtn->setToolTip("点击进入编辑模式");
-    editLockBtn->setIcon(IconHelper::getIcon("edit", "#888888")); 
-    editLockBtn->setStyleSheet(
+    m_editLockBtn = new QPushButton();
+    m_editLockBtn->setFixedSize(24, 24);
+    m_editLockBtn->setCursor(Qt::PointingHandCursor);
+    m_editLockBtn->setCheckable(true);
+    m_editLockBtn->setEnabled(false); // 初始禁用
+    m_editLockBtn->setToolTip("请先选择一条笔记以启用编辑");
+    m_editLockBtn->setIcon(IconHelper::getIcon("edit", "#555555")); // 初始灰色
+    m_editLockBtn->setStyleSheet(
         "QPushButton { background: transparent; border: none; border-radius: 4px; }"
-        "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }"
+        "QPushButton:hover:enabled { background-color: rgba(255, 255, 255, 0.1); }"
         "QPushButton:checked { background-color: rgba(74, 144, 226, 0.2); }"
+        "QPushButton:disabled { opacity: 0.5; }"
     );
-    editorHeaderLayout->addWidget(editLockBtn);
+    editorHeaderLayout->addWidget(m_editLockBtn);
     
     editorHeader->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(editorHeader, &QWidget::customContextMenuRequested, this, [this, editorContainer, splitter, editorHeader](const QPoint& pos){
@@ -641,6 +644,105 @@ void MainWindow::initUI() {
 
     editorContainerLayout->addWidget(editorHeader);
 
+    // --- 编辑器工具栏 (同步 NoteEditWindow) ---
+    m_editorToolbar = new QWidget();
+    m_editorToolbar->setVisible(false);
+    m_editorToolbar->setStyleSheet("background-color: #252526; border-bottom: 1px solid #333;");
+    auto* toolBarLayout = new QHBoxLayout(m_editorToolbar);
+    toolBarLayout->setContentsMargins(10, 2, 10, 2);
+    toolBarLayout->setSpacing(0);
+
+    QString toolBtnStyle = "QPushButton { background: transparent; border: none; border-radius: 4px; padding: 4px; } "
+                           "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
+                           "QPushButton:checked { background-color: rgba(74, 144, 226, 0.2); }";
+
+    auto addTool = [&](const QString& iconName, const QString& tip, std::function<void()> callback) {
+        QPushButton* btn = new QPushButton();
+        btn->setIcon(IconHelper::getIcon(iconName, "#aaaaaa", 18));
+        btn->setIconSize(QSize(18, 18));
+        btn->setToolTip(tip);
+        btn->setFixedSize(28, 28);
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setStyleSheet(toolBtnStyle);
+        connect(btn, &QPushButton::clicked, callback);
+        toolBarLayout->addWidget(btn);
+        return btn;
+    };
+
+    addTool("undo", "撤销 (Ctrl+Z)", [this](){ m_editor->undo(); });
+    addTool("redo", "重做 (Ctrl+Y)", [this](){ m_editor->redo(); });
+
+    auto* sep1 = new QFrame();
+    sep1->setFixedWidth(1); sep1->setFixedHeight(16); sep1->setStyleSheet("background-color: #444; margin: 0 4px;");
+    toolBarLayout->addWidget(sep1);
+
+    addTool("list_ul", "无序列表", [this](){ m_editor->toggleList(false); });
+    addTool("list_ol", "有序列表", [this](){ m_editor->toggleList(true); });
+    addTool("todo", "插入待办", [this](){ m_editor->insertTodo(); });
+
+    auto* btnPre = addTool("eye", "Markdown 预览", nullptr);
+    btnPre->setCheckable(true);
+    connect(btnPre, &QPushButton::toggled, [this](bool checked){ m_editor->togglePreview(checked); });
+
+    addTool("edit_clear", "清除格式", [this](){ m_editor->clearFormatting(); });
+
+    auto* sep2 = new QFrame();
+    sep2->setFixedWidth(1); sep2->setFixedHeight(16); sep2->setStyleSheet("background-color: #444; margin: 0 4px;");
+    toolBarLayout->addWidget(sep2);
+
+    // 高亮颜色
+    QStringList hColors = {"#c0392b", "#f1c40f", "#27ae60", "#2980b9"};
+    for (const auto& color : hColors) {
+        QPushButton* hBtn = new QPushButton();
+        hBtn->setFixedSize(18, 18);
+        hBtn->setStyleSheet(QString("QPushButton { background-color: %1; border-radius: 9px; margin: 2px; } QPushButton:hover { border: 1px solid white; }").arg(color));
+        connect(hBtn, &QPushButton::clicked, [this, color](){ m_editor->highlightSelection(QColor(color)); });
+        toolBarLayout->addWidget(hBtn);
+    }
+
+    toolBarLayout->addStretch();
+
+    auto* btnSave = addTool("save", "保存修改 (Ctrl+S)", [this](){ saveCurrentNote(); });
+    btnSave->setIcon(IconHelper::getIcon("save", "#2ecc71", 18));
+
+    editorContainerLayout->addWidget(m_editorToolbar);
+
+    // --- 编辑器搜索栏 ---
+    m_editorSearchBar = new QWidget();
+    m_editorSearchBar->setVisible(false);
+    m_editorSearchBar->setStyleSheet("background-color: #2D2D30; border-bottom: 1px solid #333;");
+    auto* esLayout = new QHBoxLayout(m_editorSearchBar);
+    esLayout->setContentsMargins(15, 4, 15, 4);
+
+    m_editorSearchEdit = new QLineEdit();
+    m_editorSearchEdit->setPlaceholderText("在内容中查找...");
+    m_editorSearchEdit->setStyleSheet("border: none; background: transparent; color: #fff; font-size: 12px;");
+    connect(m_editorSearchEdit, &QLineEdit::returnPressed, [this](){ m_editor->findText(m_editorSearchEdit->text()); });
+
+    auto* btnPrev = new QPushButton();
+    btnPrev->setIcon(IconHelper::getIcon("nav_prev", "#ccc", 14));
+    btnPrev->setFixedSize(24, 24);
+    btnPrev->setStyleSheet("background: transparent; border: none;");
+    connect(btnPrev, &QPushButton::clicked, [this](){ m_editor->findText(m_editorSearchEdit->text(), true); });
+
+    auto* btnNext = new QPushButton();
+    btnNext->setIcon(IconHelper::getIcon("nav_next", "#ccc", 14));
+    btnNext->setFixedSize(24, 24);
+    btnNext->setStyleSheet("background: transparent; border: none;");
+    connect(btnNext, &QPushButton::clicked, [this](){ m_editor->findText(m_editorSearchEdit->text(), false); });
+
+    auto* btnCloseSearch = new QPushButton();
+    btnCloseSearch->setIcon(IconHelper::getIcon("close", "#888", 14));
+    btnCloseSearch->setFixedSize(24, 24);
+    btnCloseSearch->setStyleSheet("background: transparent; border: none;");
+    connect(btnCloseSearch, &QPushButton::clicked, [this](){ m_editorSearchBar->hide(); });
+
+    esLayout->addWidget(m_editorSearchEdit);
+    esLayout->addWidget(btnPrev);
+    esLayout->addWidget(btnNext);
+    esLayout->addWidget(btnCloseSearch);
+    editorContainerLayout->addWidget(m_editorSearchBar);
+
     // 内容容器
     auto* editorContent = new QWidget();
     editorContent->setAttribute(Qt::WA_StyledBackground, true);
@@ -652,14 +754,17 @@ void MainWindow::initUI() {
     m_editor->togglePreview(false);
     m_editor->setReadOnly(true); // 默认不可编辑
 
-    connect(editLockBtn, &QPushButton::toggled, this, [this, editLockBtn](bool checked){
+    connect(m_editLockBtn, &QPushButton::toggled, this, [this](bool checked){
         m_editor->setReadOnly(!checked);
+        m_editorToolbar->setVisible(checked);
+        if (!checked) m_editorSearchBar->hide();
+
         if (checked) {
-            editLockBtn->setIcon(IconHelper::getIcon("eye", "#4a90e2"));
-            editLockBtn->setToolTip("当前：编辑模式 (点击切回预览)");
+            m_editLockBtn->setIcon(IconHelper::getIcon("eye", "#4a90e2"));
+            m_editLockBtn->setToolTip("当前：编辑模式 (点击切回预览)");
         } else {
-            editLockBtn->setIcon(IconHelper::getIcon("edit", "#888888"));
-            editLockBtn->setToolTip("当前：锁定模式 (点击解锁编辑)");
+            m_editLockBtn->setIcon(IconHelper::getIcon("edit", "#aaaaaa"));
+            m_editLockBtn->setToolTip("当前：锁定模式 (点击解锁编辑)");
         }
     });
     
@@ -824,9 +929,23 @@ void MainWindow::initUI() {
     auto* actionSearch = new QAction(this);
     actionSearch->setShortcut(QKeySequence("Ctrl+F"));
     connect(actionSearch, &QAction::triggered, this, [this](){
-        m_header->focusSearch();
+        if (m_editLockBtn->isChecked()) toggleSearchBar();
+        else m_header->focusSearch();
     });
     addAction(actionSearch);
+
+    auto* actionNew = new QAction(this);
+    actionNew->setShortcut(QKeySequence("Ctrl+N"));
+    connect(actionNew, &QAction::triggered, this, &MainWindow::doNewIdea);
+    addAction(actionNew);
+
+    auto* actionSave = new QAction(this);
+    actionSave->setShortcut(QKeySequence("Ctrl+S"));
+    connect(actionSave, &QAction::triggered, this, [this](){
+        if (m_editLockBtn->isChecked()) saveCurrentNote();
+        else doLockSelected();
+    });
+    addAction(actionSave);
 
 
     splitter->setStretchFactor(0, 1); 
@@ -1074,13 +1193,28 @@ void MainWindow::onSelectionChanged(const QItemSelection& selected, const QItemS
     QModelIndexList indices = m_noteList->selectionModel()->selectedIndexes();
     if (indices.isEmpty()) {
         m_metaPanel->clearSelection();
+        m_editor->setPlainText("");
+        m_editLockBtn->setEnabled(false);
+        m_editLockBtn->setChecked(false);
+        m_editLockBtn->setIcon(IconHelper::getIcon("edit", "#555555"));
+        m_editLockBtn->setToolTip("请先选择一条笔记以启用编辑");
     } else if (indices.size() == 1) {
         int id = indices.first().data(NoteModel::IdRole).toInt();
         QVariantMap note = DatabaseManager::instance().getNoteById(id);
         m_editor->setNote(note);
         m_metaPanel->setNote(note);
+        m_editLockBtn->setEnabled(true);
+        // 切换笔记时自动退出编辑模式，防止误操作或内容丢失
+        m_editLockBtn->setChecked(false);
+        m_editLockBtn->setIcon(IconHelper::getIcon("edit", "#aaaaaa"));
+        m_editLockBtn->setToolTip("点击进入编辑模式");
     } else {
         m_metaPanel->setMultipleNotes(indices.size());
+        m_editor->setPlainText(QString("已选中 %1 条笔记").arg(indices.size()));
+        m_editLockBtn->setEnabled(false);
+        m_editLockBtn->setChecked(false);
+        m_editLockBtn->setIcon(IconHelper::getIcon("edit", "#555555"));
+        m_editLockBtn->setToolTip("多选状态下不可直接编辑");
     }
 }
 
@@ -1095,28 +1229,40 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     if (watched == m_noteList && event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
-        if (keyEvent->key() == Qt::Key_Delete) {
-            // 处理删除快捷键
-            QModelIndexList indices = m_noteList->selectionModel()->selectedIndexes();
-            if (indices.isEmpty()) return true;
+        int key = keyEvent->key();
+        auto modifiers = keyEvent->modifiers();
 
-            if (m_currentFilterType == "trash") {
-                if (QMessageBox::question(this, "确认彻底删除", QString("确定要永久删除选中的 %1 条数据吗？此操作不可逆。").arg(indices.count())) == QMessageBox::Yes) {
-                    QList<int> ids;
-                    for (const auto& index : std::as_const(indices)) ids << index.data(NoteModel::IdRole).toInt();
-                    DatabaseManager::instance().deleteNotesBatch(ids);
-                    refreshData();
-                }
-            } else {
-                QList<int> ids;
-                for (const auto& index : std::as_const(indices)) ids << index.data(NoteModel::IdRole).toInt();
-                DatabaseManager::instance().softDeleteNotes(ids);
-                refreshData();
-            }
+        if (key == Qt::Key_Delete) {
+            doDeleteSelected(modifiers & Qt::ControlModifier);
             return true;
         }
-        if (keyEvent->key() == Qt::Key_Space) {
+        if (key == Qt::Key_Space) {
             doPreview();
+            return true;
+        }
+        if (key == Qt::Key_E && (modifiers & Qt::ControlModifier)) {
+            doToggleFavorite();
+            return true;
+        }
+        if (key == Qt::Key_P && (modifiers & Qt::ControlModifier)) {
+            doTogglePin();
+            return true;
+        }
+        if (key == Qt::Key_S && (modifiers & Qt::ControlModifier)) {
+            if (m_editLockBtn->isChecked()) saveCurrentNote();
+            else doLockSelected();
+            return true;
+        }
+        if (key == Qt::Key_B && (modifiers & Qt::ControlModifier)) {
+            doEditSelected();
+            return true;
+        }
+        if (key == Qt::Key_T && (modifiers & Qt::ControlModifier)) {
+            doExtractContent();
+            return true;
+        }
+        if (key >= Qt::Key_0 && key <= Qt::Key_5 && (modifiers & Qt::ControlModifier)) {
+            doSetRating(key - Qt::Key_0);
             return true;
         }
     }
@@ -1135,70 +1281,97 @@ void MainWindow::onTagSelected(const QModelIndex& index) {
 }
 
 void MainWindow::showContextMenu(const QPoint& pos) {
-    QModelIndex index = m_noteList->indexAt(pos);
-    if (!index.isValid()) return;
-
-    int id = index.data(NoteModel::IdRole).toInt();
-    bool isPinned = index.data(NoteModel::PinnedRole).toBool();
-    bool isLocked = index.data(NoteModel::LockedRole).toBool();
-    int favorite = index.data(NoteModel::FavoriteRole).toInt();
-
-    QMenu menu(this);
-    menu.setStyleSheet("QMenu { background: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item { padding: 8px 25px; } QMenu::item:selected { background: #3E3E42; }");
-
-    QAction* actEdit = menu.addAction(IconHelper::getIcon("edit", "#aaaaaa"), "编辑");
-    connect(actEdit, &QAction::triggered, [this, id](){
-        NoteEditWindow* win = new NoteEditWindow(id);
-        connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
-        win->show();
-    });
-
-    menu.addSeparator();
-
-    QMenu* starMenu = menu.addMenu(IconHelper::getIcon("star", "#aaaaaa"), "设置星级");
-    starMenu->setStyleSheet("QMenu { background: #2D2D2D; color: #EEE; border: 1px solid #444; } QMenu::item:selected { background: #3E3E42; }");
-    for(int i=0; i<=5; ++i) {
-        QString label = (i == 0) ? "无星级" : QString("%1 星").arg(i);
-        QAction* act = starMenu->addAction(label);
-        if (favorite == i) act->setCheckable(true);
-        if (favorite == i) act->setChecked(true);
-        connect(act, &QAction::triggered, [id, i](){
-            DatabaseManager::instance().updateNoteState(id, "is_favorite", i);
-        });
+    auto selected = m_noteList->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) {
+        QModelIndex index = m_noteList->indexAt(pos);
+        if (index.isValid()) {
+            m_noteList->setCurrentIndex(index);
+            selected << index;
+        } else {
+            return;
+        }
     }
 
-    QAction* actLock = menu.addAction(IconHelper::getIcon("lock", "#aaaaaa"), isLocked ? "解锁" : "锁定");
-    connect(actLock, &QAction::triggered, [id, isLocked](){
-        DatabaseManager::instance().updateNoteState(id, "is_locked", !isLocked);
-    });
+    int selCount = selected.size();
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                       "QMenu::item { padding: 6px 10px 6px 28px; border-radius: 3px; } "
+                       "QMenu::item:selected { background-color: #4a90e2; color: white; }");
+
+    if (selCount == 1) {
+        menu.addAction(IconHelper::getIcon("eye", "#1abc9c"), "预览 (Space)", this, &MainWindow::doPreview);
+    }
+
+    menu.addAction(IconHelper::getIcon("file", "#1abc9c"), QString("复制内容 (%1)").arg(selCount), this, &MainWindow::doExtractContent);
+    menu.addSeparator();
+
+    if (selCount == 1) {
+        menu.addAction(IconHelper::getIcon("edit", "#4a90e2"), "编辑 (Ctrl+B)", this, &MainWindow::doEditSelected);
+        menu.addSeparator();
+    }
+
+    auto* ratingMenu = menu.addMenu(IconHelper::getIcon("star", "#f39c12"), QString("设置星级 (%1)").arg(selCount));
+    auto* starGroup = new QActionGroup(this);
+    int currentRating = (selCount == 1) ? selected.first().data(NoteModel::RatingRole).toInt() : -1;
+
+    for (int i = 1; i <= 5; ++i) {
+        QString stars = QString("★").repeated(i);
+        QAction* action = ratingMenu->addAction(stars, [this, i]() { doSetRating(i); });
+        action->setCheckable(true);
+        if (i == currentRating) action->setChecked(true);
+        starGroup->addAction(action);
+    }
+    ratingMenu->addSeparator();
+    ratingMenu->addAction("清除评级", [this]() { doSetRating(0); });
+
+    bool isFavorite = (selCount == 1) && selected.first().data(NoteModel::FavoriteRole).toBool();
+    menu.addAction(IconHelper::getIcon(isFavorite ? "bookmark_filled" : "bookmark", "#ff6b81"),
+                   isFavorite ? "取消书签" : "添加书签 (Ctrl+E)", this, &MainWindow::doToggleFavorite);
+
+    bool isPinned = (selCount == 1) && selected.first().data(NoteModel::PinnedRole).toBool();
+    menu.addAction(IconHelper::getIcon(isPinned ? "pin_vertical" : "pin_tilted", isPinned ? "#e74c3c" : "#aaaaaa"),
+                   isPinned ? "取消置顶" : "置顶选中项 (Ctrl+P)", this, &MainWindow::doTogglePin);
+
+    bool isLocked = (selCount == 1) && selected.first().data(NoteModel::LockedRole).toBool();
+    menu.addAction(IconHelper::getIcon("lock", isLocked ? "#2ecc71" : "#aaaaaa"),
+                   isLocked ? "解锁选中项" : "锁定选中项 (Ctrl+S)", this, &MainWindow::doLockSelected);
 
     menu.addSeparator();
 
-    QAction* actPin = menu.addAction(IconHelper::getIcon("pin", "#aaaaaa"), isPinned ? "取消置顶" : "置顶");
-    connect(actPin, &QAction::triggered, [id, isPinned](){
-        DatabaseManager::instance().updateNoteState(id, "is_pinned", !isPinned);
-    });
+    auto* catMenu = menu.addMenu(IconHelper::getIcon("branch", "#cccccc"), QString("移动选中项到分类 (%1)").arg(selCount));
+    catMenu->addAction("⚠️ 未分类", [this]() { doMoveToCategory(-1); });
 
-    menu.addSeparator();
+    QSettings settings("RapidNotes", "QuickWindow");
+    QVariantList recentCats = settings.value("recentCategories").toList();
+    auto allCategories = DatabaseManager::instance().getAllCategories();
+    QMap<int, QVariantMap> catMap;
+    for (const auto& cat : std::as_const(allCategories)) catMap[cat.value("id").toInt()] = cat;
 
-    QAction* actDel = menu.addAction(IconHelper::getIcon("trash", "#aaaaaa"), 
-                                    (m_currentFilterType == "trash") ? "彻底删除 (不可逆)" : "移至回收站");
-    connect(actDel, &QAction::triggered, [this, id](){
-        if (m_currentFilterType == "trash") {
-            // 回收站内直接删除，无视保护机制
-            if (QMessageBox::question(this, "确认彻底删除", "确定要永久从数据库中删除这条数据吗？此操作不可逆。") == QMessageBox::Yes) {
-                DatabaseManager::instance().deleteNote(id);
-                refreshData();
-            }
-        } else {
-            // 移至回收站：解除所有绑定 (置顶、收藏、分类)
-            DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
-            DatabaseManager::instance().updateNoteState(id, "is_pinned", 0);
-            DatabaseManager::instance().updateNoteState(id, "is_favorite", 0);
-            DatabaseManager::instance().updateNoteState(id, "category_id", QVariant());
-            refreshData();
+    int count = 0;
+    for (const auto& v : std::as_const(recentCats)) {
+        if (count >= 15) break;
+        int cid = v.toInt();
+        if (catMap.contains(cid)) {
+            const auto& cat = catMap.value(cid);
+            catMenu->addAction(IconHelper::getIcon("branch", cat.value("color").toString()), cat.value("name").toString(), [this, cid]() {
+                doMoveToCategory(cid);
+            });
+            count++;
         }
-    });
+    }
+
+    menu.addSeparator();
+    if (m_currentFilterType == "trash") {
+        menu.addAction(IconHelper::getIcon("refresh", "#2ecc71"), "恢复 (还原到未分类)", [this, selected](){
+            QList<int> ids;
+            for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+            DatabaseManager::instance().moveNotesToCategory(ids, -1);
+            refreshData();
+        });
+        menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "彻底删除 (不可逆)", [this](){ doDeleteSelected(true); });
+    } else {
+        menu.addAction(IconHelper::getIcon("trash", "#e74c3c"), "移至回收站 (Delete)", [this](){ doDeleteSelected(false); });
+    }
 
     menu.exec(QCursor::pos());
 }
@@ -1296,4 +1469,135 @@ void MainWindow::doPreview() {
     );
     m_quickPreview->raise();
     m_quickPreview->activateWindow();
+}
+
+void MainWindow::doDeleteSelected(bool physical) {
+    auto selected = m_noteList->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+
+    bool inTrash = (m_currentFilterType == "trash");
+
+    if (physical || inTrash) {
+        QString msg = QString("确定要永久删除选中的 %1 条数据吗？此操作不可逆。").arg(selected.count());
+        if (QMessageBox::question(this, "确认彻底删除", msg) == QMessageBox::Yes) {
+            QList<int> ids;
+            for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+            DatabaseManager::instance().deleteNotesBatch(ids);
+            refreshData();
+        }
+    } else {
+        QList<int> ids;
+        for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+        DatabaseManager::instance().softDeleteNotes(ids);
+        refreshData();
+    }
+}
+
+void MainWindow::doToggleFavorite() {
+    auto selected = m_noteList->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+    for (const auto& index : selected) {
+        int id = index.data(NoteModel::IdRole).toInt();
+        DatabaseManager::instance().toggleNoteState(id, "is_favorite");
+    }
+    refreshData();
+}
+
+void MainWindow::doTogglePin() {
+    auto selected = m_noteList->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+    for (const auto& index : selected) {
+        int id = index.data(NoteModel::IdRole).toInt();
+        DatabaseManager::instance().toggleNoteState(id, "is_pinned");
+    }
+    refreshData();
+}
+
+void MainWindow::doLockSelected() {
+    auto selected = m_noteList->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+
+    int firstId = selected.first().data(NoteModel::IdRole).toInt();
+    bool firstState = selected.first().data(NoteModel::LockedRole).toBool();
+    bool targetState = !firstState;
+
+    QList<int> ids;
+    for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+
+    DatabaseManager::instance().updateNoteStateBatch(ids, "is_locked", targetState);
+    refreshData();
+}
+
+void MainWindow::doNewIdea() {
+    NoteEditWindow* win = new NoteEditWindow();
+    connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
+    win->show();
+}
+
+void MainWindow::doExtractContent() {
+    auto selected = m_noteList->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+    QStringList texts;
+    for (const auto& index : selected) {
+        int id = index.data(NoteModel::IdRole).toInt();
+        QVariantMap note = DatabaseManager::instance().getNoteById(id);
+        if (note.value("item_type").toString() == "text" || note.value("item_type").toString().isEmpty()) {
+            texts << note.value("content").toString();
+        }
+    }
+    if (!texts.isEmpty()) {
+        QApplication::clipboard()->setText(texts.join("\n---\n"));
+    }
+}
+
+void MainWindow::doEditSelected() {
+    QModelIndex index = m_noteList->currentIndex();
+    if (!index.isValid()) return;
+    int id = index.data(NoteModel::IdRole).toInt();
+    NoteEditWindow* win = new NoteEditWindow(id);
+    connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
+    win->show();
+}
+
+void MainWindow::doSetRating(int rating) {
+    auto selected = m_noteList->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+    for (const auto& index : selected) {
+        int id = index.data(NoteModel::IdRole).toInt();
+        DatabaseManager::instance().updateNoteState(id, "rating", rating);
+    }
+    refreshData();
+}
+
+void MainWindow::doMoveToCategory(int catId) {
+    auto selected = m_noteList->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+
+    QList<int> ids;
+    for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+
+    DatabaseManager::instance().moveNotesToCategory(ids, catId);
+    refreshData();
+}
+
+void MainWindow::saveCurrentNote() {
+    QModelIndex index = m_noteList->currentIndex();
+    if (!index.isValid()) return;
+    int id = index.data(NoteModel::IdRole).toInt();
+
+    QString content = m_editor->toPlainText();
+    DatabaseManager::instance().updateNoteState(id, "content", content);
+
+    // 退出编辑模式
+    m_editLockBtn->setChecked(false);
+    refreshData();
+    QToolTip::showText(QCursor::pos(), "✅ 内容已保存", this);
+}
+
+void MainWindow::toggleSearchBar() {
+    m_editorSearchBar->setVisible(!m_editorSearchBar->isVisible());
+    if (m_editorSearchBar->isVisible()) {
+        m_editorSearchEdit->setFocus();
+        m_editorSearchEdit->selectAll();
+    }
 }
