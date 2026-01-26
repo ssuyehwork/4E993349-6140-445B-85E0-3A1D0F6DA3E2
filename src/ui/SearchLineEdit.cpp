@@ -18,6 +18,7 @@ class HistoryChip : public QFrame {
     Q_OBJECT
 public:
     HistoryChip(const QString& text, QWidget* parent = nullptr) : QFrame(parent), m_text(text) {
+        setAttribute(Qt::WA_StyledBackground);
         setCursor(Qt::PointingHandCursor);
         setObjectName("HistoryChip");
 
@@ -29,7 +30,7 @@ public:
         lbl->setStyleSheet("border: none; background: transparent; color: #DDD; font-size: 12px;");
         layout->addWidget(lbl);
 
-        m_btnDel = new QPushButton("×");
+        m_btnDel = new QPushButton(QChar(0x00D7));
         m_btnDel->setFixedSize(16, 16);
         m_btnDel->setCursor(Qt::PointingHandCursor);
         m_btnDel->setStyleSheet(
@@ -38,7 +39,9 @@ public:
             "  color: #666;"
             "  border-radius: 8px;"
             "  font-weight: bold;"
-            "  padding-bottom: 2px;"
+            "  font-size: 14px;"
+            "  padding: 0px;"
+            "  text-align: center;"
             "}"
             "QPushButton:hover {"
             "  background-color: #E74C3C;"
@@ -138,6 +141,12 @@ public:
         m_flow = new FlowLayout(m_chipsWidget, 0, 8, 8);
         scroll->setWidget(m_chipsWidget);
         layout->addWidget(scroll);
+
+        m_opacityAnim = new QPropertyAnimation(this, "windowOpacity");
+        m_opacityAnim->setDuration(200);
+        m_opacityAnim->setEasingCurve(QEasingCurve::OutCubic);
+
+        refreshUI();
     }
 
     void refreshUI() {
@@ -177,8 +186,7 @@ public:
             contentHeight = qMin(400, qMax(120, flowHeight + 50));
         }
         
-        setFixedWidth(targetContentWidth + (m_shadowMargin * 2));
-        setFixedHeight(contentHeight + (m_shadowMargin * 2));
+        this->resize(targetContentWidth + (m_shadowMargin * 2), contentHeight + (m_shadowMargin * 2));
     }
 
     void showAnimated() {
@@ -193,12 +201,9 @@ public:
         setWindowOpacity(0);
         show();
 
-        auto* anim = new QPropertyAnimation(this, "windowOpacity");
-        anim->setDuration(200);
-        anim->setStartValue(0);
-        anim->setEndValue(1);
-        anim->setEasingCurve(QEasingCurve::OutCubic);
-        anim->start(QAbstractAnimation::DeleteWhenStopped);
+        m_opacityAnim->setStartValue(0);
+        m_opacityAnim->setEndValue(1);
+        m_opacityAnim->start();
     }
 
 private:
@@ -206,6 +211,7 @@ private:
     QFrame* m_container;
     QWidget* m_chipsWidget;
     FlowLayout* m_flow;
+    QPropertyAnimation* m_opacityAnim;
     int m_shadowMargin = 12;
 };
 
