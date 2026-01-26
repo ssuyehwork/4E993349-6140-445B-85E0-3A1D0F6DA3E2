@@ -13,7 +13,6 @@ SystemTray::SystemTray(QObject* parent) : QObject(parent) {
     m_trayIcon->setToolTip("快速笔记 (RapidNotes)");
 
     m_menu = new QMenu();
-    m_menu->setIconSize(QSize(18, 18));
     m_menu->setStyleSheet(
         "QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
         "QMenu::item { padding: 6px 10px 6px 32px; border-radius: 3px; } "
@@ -21,11 +20,11 @@ SystemTray::SystemTray(QObject* parent) : QObject(parent) {
         "QMenu::item:selected { background-color: #4a90e2; color: white; }"
     );
     
-    m_menu->addAction(IconHelper::getIcon("monitor", "#aaaaaa"), "显示主界面", this, &SystemTray::showMainWindow);
-    m_menu->addAction(IconHelper::getIcon("zap", "#aaaaaa"), "显示快速笔记", this, &SystemTray::showQuickWindow);
-    m_menu->addAction(IconHelper::getIcon("settings", "#aaaaaa"), "设置", this, &SystemTray::showSettings);
+    m_menu->addAction(IconHelper::getIcon("monitor", "#aaaaaa", 18), "显示主界面", this, &SystemTray::showMainWindow);
+    m_menu->addAction(IconHelper::getIcon("zap", "#aaaaaa", 18), "显示快速笔记", this, &SystemTray::showQuickWindow);
+    m_menu->addAction(IconHelper::getIcon("settings", "#aaaaaa", 18), "设置", this, &SystemTray::showSettings);
     m_menu->addSeparator();
-    m_menu->addAction(IconHelper::getIcon("power", "#aaaaaa"), "退出程序", this, &SystemTray::quitApp);
+    m_menu->addAction(IconHelper::getIcon("power", "#aaaaaa", 18), "退出程序", this, &SystemTray::quitApp);
 
     m_trayIcon->setContextMenu(m_menu);
 

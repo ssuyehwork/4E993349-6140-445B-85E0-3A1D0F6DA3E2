@@ -126,8 +126,10 @@ public:
                    .arg(titleHtml, hrHtml, QString(data.toBase64()));
         } else {
             // 判定是否已经是 HTML
-            bool isHtml = content.trimmed().startsWith("<!DOCTYPE", Qt::CaseInsensitive) ||
-                          content.trimmed().startsWith("<html", Qt::CaseInsensitive) ||
+            QString trimmed = content.trimmed();
+            bool isHtml = trimmed.startsWith("<!DOCTYPE", Qt::CaseInsensitive) ||
+                          trimmed.startsWith("<html", Qt::CaseInsensitive) ||
+                          trimmed.contains("<style", Qt::CaseInsensitive) ||
                           Qt::mightBeRichText(content);
 
             QString body;

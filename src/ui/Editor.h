@@ -60,6 +60,7 @@ private:
     QTextEdit* m_preview;
     MarkdownHighlighter* m_highlighter;
     QVariantMap m_currentNote;
+    bool m_isRichText = false;
 };
 
 #endif // EDITOR_H

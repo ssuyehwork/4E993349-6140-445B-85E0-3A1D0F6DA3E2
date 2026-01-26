@@ -160,31 +160,43 @@ void Editor::setNote(const QVariantMap& note, bool isPreview) {
 
     m_edit->clear();
 
-    // 增强 HTML 检测：不区分大小写且支持更多标签
+    // 增强 HTML 检测：采用更严谨的启发式算法，识别 Qt 生成的 HTML 模式
+    // Qt 生成的 HTML 通常以 <!DOCTYPE HTML 开始，或者包含大量的 <style>
     QString trimmed = content.trimmed();
-    bool isHtml = trimmed.startsWith("<!DOCTYPE", Qt::CaseInsensitive) ||
-                  trimmed.startsWith("<html", Qt::CaseInsensitive) ||
-                  trimmed.startsWith("<body", Qt::CaseInsensitive) ||
-                  trimmed.contains("<p", Qt::CaseInsensitive) ||
-                  Qt::mightBeRichText(content);
+    m_isRichText = trimmed.startsWith("<!DOCTYPE", Qt::CaseInsensitive) ||
+                   trimmed.startsWith("<html", Qt::CaseInsensitive) ||
+                   trimmed.contains("<style", Qt::CaseInsensitive) ||
+                   Qt::mightBeRichText(content);
 
-    if (isHtml) {
+    if (m_isRichText) {
+        // 如果是 HTML 内容，加载为 HTML
         m_edit->setHtml(content);
+
+        // 预览模式下，由于 HTML 结构复杂，我们不直接在编辑器内插入 H1 标题
+        // 而是依靠切换到预览 Tab 时由 togglePreview 处理渲染
         return;
     }
 
+    // 纯文本/Markdown 逻辑
     QTextCursor cursor = m_edit->textCursor();
 
-    // 仅在预览模式下注入标题，编辑模式保持内容纯净
+    // 物理隔离：仅在预览模式下注入预览头
     if (isPreview) {
+        // 使用特殊颜色标识预览头，让用户知道这是自动生成的
+        QTextCharFormat fmt;
+        fmt.setForeground(QColor("#569CD6"));
+        fmt.setFontWeight(QFont::Bold);
+        cursor.setCharFormat(fmt);
         cursor.insertText("# " + title + "\n\n");
+
+        // 恢复默认格式
+        cursor.setCharFormat(QTextCharFormat());
     }
 
     if (type == "image" && !blob.isEmpty()) {
         QImage img;
         img.loadFromData(blob);
         if (!img.isNull()) {
-            // 限制编辑器内的预览宽度
             if (img.width() > 550) {
                 img = img.scaledToWidth(550, Qt::SmoothTransformation);
             }
@@ -194,6 +206,9 @@ void Editor::setNote(const QVariantMap& note, bool isPreview) {
     }
 
     cursor.insertText(content);
+
+    // 滚动到顶部
+    m_edit->moveCursor(QTextCursor::Start);
 }
 
 void Editor::setPlainText(const QString& text) {
@@ -263,6 +278,13 @@ bool Editor::findText(const QString& text, bool backward) {
 
 void Editor::togglePreview(bool preview) {
     if (preview) {
+        if (m_isRichText) {
+            // 如果已经是富文本，直接同步 HTML 到预览框
+            m_preview->setHtml(m_edit->toHtml());
+            m_stack->setCurrentWidget(m_preview);
+            return;
+        }
+
         QString text = m_edit->toPlainText();
         QString html = "<html><head><style>"
                        "body { font-family: 'Microsoft YaHei'; color: #ddd; background-color: #1e1e1e; line-height: 1.6; padding: 20px; }"
