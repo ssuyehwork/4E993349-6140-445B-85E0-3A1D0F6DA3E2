@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "../core/DatabaseManager.h"
+#include "../core/ClipboardMonitor.h"
 #include "NoteDelegate.h"
 #include "CategoryDelegate.h"
 #include "IconHelper.h"
@@ -1594,6 +1595,7 @@ void MainWindow::doExtractContent() {
         }
     }
     if (!texts.isEmpty()) {
+        ClipboardMonitor::instance().skipNext();
         QApplication::clipboard()->setText(texts.join("\n---\n"));
     }
 }
@@ -1634,6 +1636,10 @@ void MainWindow::saveCurrentNote() {
     int id = index.data(NoteModel::IdRole).toInt();
     
     QString content = m_editor->toHtml();
+
+    // 保存前锁定剪贴板监控，防止自触发 (虽然 updateNoteState 不直接操作剪贴板，但为了严谨性)
+    // 实际上 updateNoteState 会触发 noteUpdated，不会引起剪贴板变化。
+
     DatabaseManager::instance().updateNoteState(id, "content", content);
     
     // 退出编辑模式

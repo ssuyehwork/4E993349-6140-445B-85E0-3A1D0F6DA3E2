@@ -26,6 +26,11 @@ ClipboardMonitor::ClipboardMonitor(QObject* parent) : QObject(parent) {
 void ClipboardMonitor::onClipboardChanged() {
     emit clipboardChanged();
 
+    if (m_skipNext) {
+        m_skipNext = false;
+        return;
+    }
+
     // 抓取来源窗口信息 (对标 Ditto)
     QString sourceApp = "未知应用";
     QString sourceTitle = "未知窗口";

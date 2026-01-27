@@ -661,10 +661,16 @@ void QuickWindow::initUI() {
         QString text = m_searchEdit->text().trimmed();
         if (text.isEmpty()) return;
         m_searchEdit->addHistoryEntry(text);
+
+        // 强制立即刷新一次数据，防止定时器延迟导致 rowCount 不准确
+        m_searchTimer->stop();
+        refreshData();
+
         if (m_model->rowCount() == 0) {
             DatabaseManager::instance().addNoteAsync("快速记录", text, QStringList());
             m_searchEdit->clear();
-            hide();
+            // 不再自动隐藏窗口，避免用户困惑
+            refreshData();
         }
     });
 
@@ -908,6 +914,7 @@ void QuickWindow::activateNote(const QModelIndex& index) {
     if (itemType == "image") {
         QImage img;
         img.loadFromData(blob);
+        ClipboardMonitor::instance().skipNext();
         QApplication::clipboard()->setImage(img);
     } else if (itemType == "local_file" || itemType == "local_folder" || itemType == "local_batch") {
         // 文件系统托管模式：从相对路径恢复绝对路径
@@ -927,6 +934,7 @@ void QuickWindow::activateNote(const QModelIndex& index) {
             } else {
                 mimeData->setUrls({QUrl::fromLocalFile(fullPath)});
             }
+            ClipboardMonitor::instance().skipNext();
             QApplication::clipboard()->setMimeData(mimeData);
         } else {
             QApplication::clipboard()->setText(content);
@@ -975,6 +983,7 @@ void QuickWindow::activateNote(const QModelIndex& index) {
             }
         }
     } else {
+        ClipboardMonitor::instance().skipNext();
         StringUtils::copyNoteToClipboard(content);
     }
 
@@ -1137,6 +1146,7 @@ void QuickWindow::doExtractContent() {
         }
     }
     if (!texts.isEmpty()) {
+        ClipboardMonitor::instance().skipNext();
         QApplication::clipboard()->setText(texts.join("\n---\n"));
     }
 }
