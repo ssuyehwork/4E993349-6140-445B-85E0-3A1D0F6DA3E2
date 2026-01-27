@@ -2,7 +2,9 @@
 #include "IconHelper.h"
 #include "../core/DatabaseManager.h"
 #include <QDragEnterEvent>
+#include <QDragLeaveEvent>
 #include <QDropEvent>
+#include <QMouseEvent>
 #include <QMimeData>
 #include <QFileInfo>
 #include <QFile>
@@ -12,6 +14,8 @@
 #include <QApplication>
 #include <QGraphicsDropShadowEffect>
 #include <QHBoxLayout>
+#include <QPushButton>
+#include <QFrame>
 #include <QToolTip>
 #include <QDateTime>
 #include <QDebug>

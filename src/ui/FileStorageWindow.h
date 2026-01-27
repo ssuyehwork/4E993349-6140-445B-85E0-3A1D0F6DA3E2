@@ -7,6 +7,11 @@
 #include <QVBoxLayout>
 #include <QPoint>
 
+class QDragEnterEvent;
+class QDragLeaveEvent;
+class QDropEvent;
+class QMouseEvent;
+
 class FileStorageWindow : public QWidget {
     Q_OBJECT
 public:
