@@ -394,6 +394,7 @@ void MainWindow::initUI() {
             pwdMenu->addAction("修改", [this, catId]() {
                 QTimer::singleShot(0, [this, catId]() {
                     auto* verifyDlg = new FramelessInputDialog("验证旧密码", "请输入当前密码:", "", this);
+                    verifyDlg->setEchoMode(QLineEdit::Password);
                     connect(verifyDlg, &FramelessInputDialog::accepted, [this, catId, verifyDlg]() {
                         if (DatabaseManager::instance().verifyCategoryPassword(catId, verifyDlg->text())) {
                             auto* dlg = new CategoryPasswordDialog("修改密码", this);
@@ -413,11 +414,14 @@ void MainWindow::initUI() {
                         }
                     });
                     verifyDlg->show();
+                    verifyDlg->activateWindow();
+                    verifyDlg->raise();
                 });
             });
             pwdMenu->addAction("移除", [this, catId]() {
                 QTimer::singleShot(0, [this, catId]() {
                     auto* dlg = new FramelessInputDialog("验证密码", "请输入当前密码以移除保护:", "", this);
+                    dlg->setEchoMode(QLineEdit::Password);
                     connect(dlg, &FramelessInputDialog::accepted, [this, catId, dlg]() {
                         if (DatabaseManager::instance().verifyCategoryPassword(catId, dlg->text())) {
                             DatabaseManager::instance().removeCategoryPassword(catId);
@@ -427,6 +431,8 @@ void MainWindow::initUI() {
                         }
                     });
                     dlg->show();
+                    dlg->activateWindow();
+                    dlg->raise();
                 });
             });
             pwdMenu->addAction("立即锁定", [this, catId]() {
