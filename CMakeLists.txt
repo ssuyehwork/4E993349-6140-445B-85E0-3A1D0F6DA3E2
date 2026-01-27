@@ -18,6 +18,7 @@ set(SOURCES
     src/core/HotkeyManager.cpp
     src/core/ClipboardMonitor.cpp
     src/core/KeyboardHook.cpp
+    src/core/ExplorerHelper.cpp
     src/core/OCRManager.cpp
     src/models/NoteModel.cpp
     src/models/CategoryModel.cpp
@@ -76,7 +77,7 @@ target_link_libraries(RapidNotes PRIVATE
 )
 
 if(WIN32)
-    target_link_libraries(RapidNotes PRIVATE user32 shell32 psapi)
+    target_link_libraries(RapidNotes PRIVATE user32 shell32 psapi ole32 oleaut32)
     set_target_properties(RapidNotes PROPERTIES
         WIN32_EXECUTABLE TRUE
     )

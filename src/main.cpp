@@ -1,5 +1,7 @@
 #include <QApplication>
 #include <QFile>
+#include <QToolTip>
+#include <QCursor>
 #include <QMessageBox>
 #include <QCoreApplication>
 #include <QDir>
@@ -24,8 +26,13 @@
 #include "ui/ScreenshotTool.h"
 #include "ui/SettingsWindow.h"
 #include "core/KeyboardHook.h"
+#include "core/ExplorerHelper.h"
+#include <objbase.h>
 
 int main(int argc, char *argv[]) {
+    // 初始化 COM，用于 ExplorerHelper 中的 IShellWindows
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
     QApplication a(argc, argv);
     a.setApplicationName("RapidNotes");
     a.setOrganizationName("RapidDev");
@@ -125,6 +132,25 @@ int main(int argc, char *argv[]) {
 
     // 处理主窗口切换信号
     QObject::connect(quickWin, &QuickWindow::toggleMainWindowRequested, showMainWindow);
+
+    // 监听 F4 获取资源管理器路径
+    QObject::connect(&KeyboardHook::instance(), &KeyboardHook::f4PressedInExplorer, [=](){
+        QStringList paths = ExplorerHelper::getSelectedPaths();
+        if (paths.isEmpty()) {
+            QToolTip::showText(QCursor::pos(),
+                "<div style='background-color: #2d2d2d; color: #ff6b6b; border: 1px solid #444; padding: 5px; border-radius: 4px;'>"
+                "未选中任何文件或文件夹"
+                "</div>");
+        } else {
+            QString content = "<div style='background-color: #1e1e1e; border: 1px solid #3a90ff; padding: 8px; border-radius: 6px;'>";
+            content += "<b style='color: #3a90ff; font-size: 14px;'>选中的路径:</b><br>";
+            for (const QString& path : paths) {
+                content += QString("<span style='color: #2ecc71;'>• %1</span><br>").arg(path);
+            }
+            content += "</div>";
+            QToolTip::showText(QCursor::pos(), content);
+        }
+    });
 
     // 5. 开启全局键盘钩子 (支持快捷键重映射)
     KeyboardHook::instance().start();
