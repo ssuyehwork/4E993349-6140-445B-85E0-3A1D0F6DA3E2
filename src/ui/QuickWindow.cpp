@@ -29,6 +29,10 @@
 #include <QImage>
 #include <QMap>
 #include <QFileInfo>
+#include <QDir>
+#include <QFile>
+#include <QDesktopServices>
+#include <QCoreApplication>
 #include <QLineEdit>
 #include <QTextEdit>
 #include <QPlainTextEdit>
@@ -898,17 +902,51 @@ void QuickWindow::activateNote(const QModelIndex& index) {
 
     QString itemType = note.value("item_type").toString();
     QString content = note.value("content").toString();
+    QByteArray blob = note.value("data_blob").toByteArray();
     
     if (itemType == "image") {
         QImage img;
-        img.loadFromData(note.value("data_blob").toByteArray());
+        img.loadFromData(blob);
         QApplication::clipboard()->setImage(img);
+    } else if (itemType == "local_file" || itemType == "local_folder" || itemType == "local_batch") {
+        // 文件系统托管模式：从相对路径恢复绝对路径
+        QString fullPath = QCoreApplication::applicationDirPath() + "/" + content;
+        QFileInfo fi(fullPath);
+        if (fi.exists()) {
+            QMimeData* mimeData = new QMimeData();
+            mimeData->setUrls({QUrl::fromLocalFile(fullPath)});
+            QApplication::clipboard()->setMimeData(mimeData);
+
+            // 可选：同时尝试打开它（根据用户习惯，QuickWindow通常是发送，MainWindow通常是打开）
+            // 这里我们优先保证“发送”逻辑，即存入剪贴板
+        } else {
+            QApplication::clipboard()->setText(content);
+            QToolTip::showText(QCursor::pos(), "⚠️ 文件已丢失或被移动", this);
+        }
+    } else if (!blob.isEmpty() && (itemType == "file" || itemType == "folder")) {
+        // 旧的数据库存储模式：导出到临时目录
+        QString title = note.value("title").toString();
+        QString exportDir = QDir::tempPath() + "/RapidNotes_Export";
+        QDir().mkpath(exportDir);
+        QString tempPath = exportDir + "/" + title;
+
+        QFile f(tempPath);
+        if (f.open(QIODevice::WriteOnly)) {
+            f.write(blob);
+            f.close();
+
+            QMimeData* mimeData = new QMimeData();
+            mimeData->setUrls({QUrl::fromLocalFile(tempPath)});
+            QApplication::clipboard()->setMimeData(mimeData);
+        } else {
+            QApplication::clipboard()->setText(content);
+        }
     } else if (itemType != "text" && !itemType.isEmpty()) {
         QStringList rawPaths = content.split(';', Qt::SkipEmptyParts);
         QList<QUrl> validUrls;
         QStringList missingFiles;
         
-        for (const QString& p : rawPaths) {
+        for (const QString& p : std::as_const(rawPaths)) {
             QString path = p.trimmed().remove('\"');
             if (QFileInfo::exists(path)) {
                 validUrls << QUrl::fromLocalFile(path);
@@ -1010,7 +1048,7 @@ void QuickWindow::doDeleteSelected(bool physical) {
     if (physical || inTrash) {
         // 物理删除：直接无视任何保护 (锁定、收藏、标签)，全部删除
         QList<int> idsToDelete;
-        for (const auto& index : selected) {
+        for (const auto& index : std::as_const(selected)) {
             idsToDelete << index.data(NoteModel::IdRole).toInt();
         }
 
@@ -1024,7 +1062,7 @@ void QuickWindow::doDeleteSelected(bool physical) {
     } else {
         // 移至回收站：解除绑定
         QList<int> idsToTrash;
-        for (const auto& index : selected) idsToTrash << index.data(NoteModel::IdRole).toInt();
+        for (const auto& index : std::as_const(selected)) idsToTrash << index.data(NoteModel::IdRole).toInt();
         DatabaseManager::instance().softDeleteNotes(idsToTrash);
         refreshData();
     }
@@ -1041,7 +1079,7 @@ void QuickWindow::doRestoreTrash() {
 void QuickWindow::doToggleFavorite() {
     auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
-    for (const auto& index : selected) {
+    for (const auto& index : std::as_const(selected)) {
         int id = index.data(NoteModel::IdRole).toInt();
         DatabaseManager::instance().toggleNoteState(id, "is_favorite");
     }
@@ -1051,7 +1089,7 @@ void QuickWindow::doToggleFavorite() {
 void QuickWindow::doTogglePin() {
     auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
-    for (const auto& index : selected) {
+    for (const auto& index : std::as_const(selected)) {
         int id = index.data(NoteModel::IdRole).toInt();
         DatabaseManager::instance().toggleNoteState(id, "is_pinned");
     }
@@ -1062,12 +1100,11 @@ void QuickWindow::doLockSelected() {
     auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
     
-    int firstId = selected.first().data(NoteModel::IdRole).toInt();
     bool firstState = selected.first().data(NoteModel::LockedRole).toBool();
     bool targetState = !firstState;
 
     QList<int> ids;
-    for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+    for (const auto& index : std::as_const(selected)) ids << index.data(NoteModel::IdRole).toInt();
     
     DatabaseManager::instance().updateNoteStateBatch(ids, "is_locked", targetState);
     refreshData();
@@ -1083,7 +1120,7 @@ void QuickWindow::doExtractContent() {
     auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
     QStringList texts;
-    for (const auto& index : selected) {
+    for (const auto& index : std::as_const(selected)) {
         QString type = index.data(NoteModel::TypeRole).toString();
         if (type == "text" || type.isEmpty()) {
             texts << index.data(NoteModel::ContentRole).toString();
@@ -1110,7 +1147,7 @@ void QuickWindow::doEditNote(int id) {
 void QuickWindow::doSetRating(int rating) {
     auto selected = m_listView->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
-    for (const auto& index : selected) {
+    for (const auto& index : std::as_const(selected)) {
         int id = index.data(NoteModel::IdRole).toInt();
         DatabaseManager::instance().updateNoteState(id, "rating", rating);
     }
@@ -1536,7 +1573,7 @@ void QuickWindow::doMoveToCategory(int catId) {
     }
 
     QList<int> ids;
-    for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+    for (const auto& index : std::as_const(selected)) ids << index.data(NoteModel::IdRole).toInt();
     
     DatabaseManager::instance().moveNotesToCategory(ids, catId);
     refreshData();
@@ -1712,7 +1749,7 @@ void QuickWindow::dropEvent(QDropEvent* event) {
     if (mime->hasUrls()) {
         QList<QUrl> urls = mime->urls();
         QStringList paths;
-        for (const QUrl& url : urls) {
+        for (const QUrl& url : std::as_const(urls)) {
             if (url.isLocalFile()) {
                 QString p = url.toLocalFile();
                 paths << p;

@@ -40,6 +40,8 @@ set(SOURCES
     src/ui/PasswordGeneratorWindow.cpp
     src/ui/OCRWindow.cpp
     src/ui/PathAcquisitionWindow.cpp
+    src/ui/FileStorageWindow.h
+    src/ui/FileStorageWindow.cpp
     src/ui/TagManagerWindow.cpp
     src/ui/FireworksOverlay.h
     src/ui/FireworksOverlay.cpp
