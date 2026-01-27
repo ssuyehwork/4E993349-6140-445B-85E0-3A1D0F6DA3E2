@@ -43,7 +43,6 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (nCode == HC_ACTION) {
         KBDLLHOOKSTRUCT* pKey = (KBDLLHOOKSTRUCT*)lParam;
         bool isKeyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
-        bool isKeyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
 
         // 工具箱数字拦截 (仅在使能时触发)
         if (KeyboardHook::instance().m_digitInterceptEnabled) {
@@ -53,7 +52,7 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
                     qDebug() << "Digit pressed:" << digit;
                     emit KeyboardHook::instance().digitPressed(digit);
                 }
-                // 按下和弹起都拦截，确保完整的按键周期被处理，避免按键泄漏
+                // 按下和弹起都拦截
                 return 1;
             }
         }
