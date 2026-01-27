@@ -39,6 +39,7 @@
 #include <QPlainTextEdit>
 #include "CleanListView.h"
 #include "NoteEditWindow.h"
+#include "StringUtils.h"
 #include "FramelessDialog.h"
 #include "CategoryPasswordDialog.h"
 #include "SettingsWindow.h"
@@ -1586,8 +1587,10 @@ void MainWindow::doExtractContent() {
     for (const auto& index : std::as_const(selected)) {
         int id = index.data(NoteModel::IdRole).toInt();
         QVariantMap note = DatabaseManager::instance().getNoteById(id);
-        if (note.value("item_type").toString() == "text" || note.value("item_type").toString().isEmpty()) {
-            texts << note.value("content").toString();
+        QString type = note.value("item_type").toString();
+        if (type == "text" || type.isEmpty()) {
+            QString content = note.value("content").toString();
+            texts << StringUtils::htmlToPlainText(content);
         }
     }
     if (!texts.isEmpty()) {

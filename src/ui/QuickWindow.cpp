@@ -1,5 +1,6 @@
 #include "QuickWindow.h"
 #include "NoteEditWindow.h"
+#include "StringUtils.h"
 #include "AdvancedTagSelector.h"
 #include "IconHelper.h"
 #include "QuickNoteDelegate.h"
@@ -966,7 +967,7 @@ void QuickWindow::activateNote(const QModelIndex& index) {
             }
         }
     } else {
-        QApplication::clipboard()->setText(content);
+        StringUtils::copyNoteToClipboard(content);
     }
 
     // hide(); // 用户要求不隐藏窗口
@@ -1123,7 +1124,8 @@ void QuickWindow::doExtractContent() {
     for (const auto& index : std::as_const(selected)) {
         QString type = index.data(NoteModel::TypeRole).toString();
         if (type == "text" || type.isEmpty()) {
-            texts << index.data(NoteModel::ContentRole).toString();
+            QString content = index.data(NoteModel::ContentRole).toString();
+            texts << StringUtils::htmlToPlainText(content);
         }
     }
     if (!texts.isEmpty()) {
