@@ -1,5 +1,6 @@
 #include "QuickWindow.h"
 #include "NoteEditWindow.h"
+#include "AdvancedTagSelector.h"
 #include "IconHelper.h"
 #include "QuickNoteDelegate.h"
 #include "CategoryDelegate.h"
@@ -457,10 +458,34 @@ void QuickWindow::initUI() {
 
     applyListTheme(""); // 【核心修复】初始化时即应用深色主题
 
+    // --- 底部状态栏与标签输入框 ---
+    auto* bottomLayout = new QHBoxLayout();
+    bottomLayout->setContentsMargins(2, 0, 10, 5);
+    bottomLayout->setSpacing(10);
+
     m_statusLabel = new QLabel("当前分区: 全部数据");
-    m_statusLabel->setStyleSheet("font-size: 11px; color: #888; padding-left: 2px;");
+    m_statusLabel->setStyleSheet("font-size: 11px; color: #888;");
     m_statusLabel->setFixedHeight(32);
-    leftLayout->addWidget(m_statusLabel);
+    bottomLayout->addWidget(m_statusLabel);
+
+    m_tagEdit = new ClickableLineEdit();
+    m_tagEdit->setPlaceholderText("输入标签添加...");
+    m_tagEdit->setStyleSheet(
+        "QLineEdit { background-color: rgba(255, 255, 255, 0.05); "
+        "border: 1px solid rgba(255, 255, 255, 0.1); "
+        "border-radius: 10px; "
+        "padding: 6px 12px; "
+        "font-size: 12px; "
+        "color: #EEE; } "
+        "QLineEdit:focus { border-color: #4a90e2; background-color: rgba(255, 255, 255, 0.08); } "
+        "QLineEdit:disabled { background-color: transparent; border: 1px solid #333; color: #666; }"
+    );
+    m_tagEdit->setEnabled(false); // 初始禁用
+    connect(m_tagEdit, &QLineEdit::returnPressed, this, &QuickWindow::handleTagInput);
+    connect(m_tagEdit, &ClickableLineEdit::doubleClicked, this, &QuickWindow::openTagSelector);
+    bottomLayout->addWidget(m_tagEdit, 1);
+
+    leftLayout->addLayout(bottomLayout);
 
     containerLayout->addWidget(leftContent);
 
@@ -635,6 +660,18 @@ void QuickWindow::initUI() {
             DatabaseManager::instance().addNoteAsync("快速记录", text, QStringList());
             m_searchEdit->clear();
             hide();
+        }
+    });
+
+    // 监听列表选择变化，动态切换输入框状态
+    connect(m_listView->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this](){
+        auto selected = m_listView->selectionModel()->selectedIndexes();
+        if (selected.isEmpty()) {
+            m_tagEdit->setEnabled(false);
+            m_tagEdit->setPlaceholderText("请先选择一个项目");
+        } else {
+            m_tagEdit->setEnabled(true);
+            m_tagEdit->setPlaceholderText(selected.size() == 1 ? "输入标签添加... (双击更多)" : "输入标签批量添加...");
         }
     });
 
@@ -1503,6 +1540,54 @@ void QuickWindow::doMoveToCategory(int catId) {
     
     DatabaseManager::instance().moveNotesToCategory(ids, catId);
     refreshData();
+}
+
+void QuickWindow::handleTagInput() {
+    QString text = m_tagEdit->text().trimmed();
+    if (text.isEmpty()) return;
+    
+    auto selected = m_listView->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+
+    QStringList tags = { text };
+    for (const auto& index : std::as_const(selected)) {
+        int id = index.data(NoteModel::IdRole).toInt();
+        DatabaseManager::instance().addTagsToNote(id, tags);
+    }
+    
+    m_tagEdit->clear();
+    refreshData();
+    QToolTip::showText(QCursor::pos(), "✅ 标签已添加", this);
+}
+
+void QuickWindow::openTagSelector() {
+    auto selected = m_listView->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+
+    QStringList currentTags;
+    if (selected.size() == 1) {
+        int id = selected.first().data(NoteModel::IdRole).toInt();
+        QVariantMap note = DatabaseManager::instance().getNoteById(id);
+        currentTags = note.value("tags").toString().split(",", Qt::SkipEmptyParts);
+    }
+
+    for (QString& t : currentTags) t = t.trimmed();
+
+    auto* selector = new AdvancedTagSelector(this);
+    auto recentTags = DatabaseManager::instance().getRecentTagsWithCounts(20);
+    auto allTags = DatabaseManager::instance().getAllTags();
+    selector->setup(recentTags, allTags, currentTags);
+
+    connect(selector, &AdvancedTagSelector::tagsConfirmed, [this, selected](const QStringList& tags){
+        for (const auto& index : std::as_const(selected)) {
+            int id = index.data(NoteModel::IdRole).toInt();
+            DatabaseManager::instance().updateNoteState(id, "tags", tags.join(", "));
+        }
+        refreshData();
+        QToolTip::showText(QCursor::pos(), "✅ 标签已更新", this);
+    });
+
+    selector->showAtCursor();
 }
 
 void QuickWindow::showAuto() {

@@ -1370,6 +1370,70 @@ bool DatabaseManager::removeTagFromNote(int noteId, const QString& tag) {
     return updateNoteState(noteId, "tags", existing.join(","));
 }
 
+bool DatabaseManager::renameTagGlobally(const QString& oldName, const QString& newName) {
+    if (oldName.trimmed().isEmpty() || oldName == newName) return true;
+    QMutexLocker locker(&m_mutex);
+    if (!m_db.isOpen()) return false;
+
+    m_db.transaction();
+    QSqlQuery query(m_db);
+    // 查找包含该标签的所有笔记 (不包括已删除的，或者如果需要也可以包括)
+    query.prepare("SELECT id, tags FROM notes WHERE (',' || tags || ',') LIKE ? AND is_deleted = 0");
+    query.addBindValue("%," + oldName.trimmed() + ",%");
+
+    if (query.exec()) {
+        while (query.next()) {
+            int noteId = query.value(0).toInt();
+            QString tagsStr = query.value(1).toString();
+            QStringList tagList = tagsStr.split(",", Qt::SkipEmptyParts);
+            for (int i = 0; i < tagList.size(); ++i) {
+                if (tagList[i].trimmed() == oldName.trimmed()) {
+                    tagList[i] = newName.trimmed();
+                }
+            }
+            tagList.removeDuplicates();
+
+            QSqlQuery updateQuery(m_db);
+            updateQuery.prepare("UPDATE notes SET tags = ? WHERE id = ?");
+            updateQuery.addBindValue(tagList.join(","));
+            updateQuery.addBindValue(noteId);
+            updateQuery.exec();
+        }
+    }
+    bool ok = m_db.commit();
+    if (ok) emit noteUpdated();
+    return ok;
+}
+
+bool DatabaseManager::deleteTagGlobally(const QString& tagName) {
+    if (tagName.trimmed().isEmpty()) return true;
+    QMutexLocker locker(&m_mutex);
+    if (!m_db.isOpen()) return false;
+
+    m_db.transaction();
+    QSqlQuery query(m_db);
+    query.prepare("SELECT id, tags FROM notes WHERE (',' || tags || ',') LIKE ? AND is_deleted = 0");
+    query.addBindValue("%," + tagName.trimmed() + ",%");
+
+    if (query.exec()) {
+        while (query.next()) {
+            int noteId = query.value(0).toInt();
+            QString tagsStr = query.value(1).toString();
+            QStringList tagList = tagsStr.split(",", Qt::SkipEmptyParts);
+            tagList.removeAll(tagName.trimmed());
+
+            QSqlQuery updateQuery(m_db);
+            updateQuery.prepare("UPDATE notes SET tags = ? WHERE id = ?");
+            updateQuery.addBindValue(tagList.join(","));
+            updateQuery.addBindValue(noteId);
+            updateQuery.exec();
+        }
+    }
+    bool ok = m_db.commit();
+    if (ok) emit noteUpdated();
+    return ok;
+}
+
 void DatabaseManager::syncFts(int id, const QString& title, const QString& content) {
     // 假设已在锁的作用域内
     QSqlQuery query(m_db);

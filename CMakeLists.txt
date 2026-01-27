@@ -40,6 +40,7 @@ set(SOURCES
     src/ui/PasswordGeneratorWindow.cpp
     src/ui/OCRWindow.cpp
     src/ui/PathAcquisitionWindow.cpp
+    src/ui/TagManagerWindow.cpp
     src/ui/FireworksOverlay.h
     src/ui/FireworksOverlay.cpp
     src/ui/SystemTray.cpp
@@ -50,6 +51,7 @@ set(SOURCES
     src/ui/FlowLayout.h
     src/ui/AdvancedTagSelector.cpp
     src/ui/AdvancedTagSelector.h
+    src/ui/ClickableLineEdit.h
     src/ui/FramelessDialog.h
     src/ui/FramelessDialog.cpp
     src/ui/FilterPanel.cpp

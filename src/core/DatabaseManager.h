@@ -60,6 +60,8 @@ public:
     // 标签管理
     bool addTagsToNote(int noteId, const QStringList& tags);
     bool removeTagFromNote(int noteId, const QString& tag);
+    bool renameTagGlobally(const QString& oldName, const QString& newName);
+    bool deleteTagGlobally(const QString& tagName);
 
     // 搜索与查询
     QList<QVariantMap> searchNotes(const QString& keyword, const QString& filterType = "all", const QVariant& filterValue = -1, int page = -1, int pageSize = 20, const QVariantMap& criteria = QVariantMap());

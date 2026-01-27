@@ -8,21 +8,8 @@
 #include <QStringList>
 #include <QMap>
 #include <QStackedWidget>
-#include <QMouseEvent>
 #include <QFrame>
-
-class ClickableLineEdit : public QLineEdit {
-    Q_OBJECT
-public:
-    using QLineEdit::QLineEdit;
-signals:
-    void doubleClicked();
-protected:
-    void mouseDoubleClickEvent(QMouseEvent* event) override {
-        if (event->button() == Qt::LeftButton) emit doubleClicked();
-        QLineEdit::mouseDoubleClickEvent(event);
-    }
-};
+#include "ClickableLineEdit.h"
 
 class MetadataPanel : public QWidget {
     Q_OBJECT
