@@ -1685,7 +1685,7 @@ void QuickWindow::keyPressEvent(QKeyEvent* event) {
         hide();
         return;
     }
-    if (event->key() == Qt::Key_Space) {
+    if (event->key() == Qt::Key_Space && event->modifiers() == Qt::NoModifier) {
         doPreview();
         return;
     }
@@ -1723,7 +1723,7 @@ bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
                 return true;
             }
         }
-        if (keyEvent->key() == Qt::Key_Space) {
+        if (keyEvent->key() == Qt::Key_Space && keyEvent->modifiers() == Qt::NoModifier) {
             if (watched == m_listView) {
                 doPreview();
                 return true;

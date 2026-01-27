@@ -1218,7 +1218,7 @@ void MainWindow::onSelectionChanged(const QItemSelection& selected, const QItemS
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_Space) {
+    if (event->key() == Qt::Key_Space && event->modifiers() == Qt::NoModifier) {
         doPreview();
         return;
     }
@@ -1235,7 +1235,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
             doDeleteSelected(modifiers & Qt::ControlModifier);
             return true;
         }
-        if (key == Qt::Key_Space) {
+        if (key == Qt::Key_Space && modifiers == Qt::NoModifier) {
             doPreview();
             return true;
         }
