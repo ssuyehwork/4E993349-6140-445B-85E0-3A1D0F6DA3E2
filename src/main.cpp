@@ -24,6 +24,7 @@
 #include "ui/PasswordGeneratorWindow.h"
 #include "ui/OCRWindow.h"
 #include "ui/PathAcquisitionWindow.h"
+#include "ui/FireworksOverlay.h"
 #include "ui/ScreenshotTool.h"
 #include "ui/SettingsWindow.h"
 #include "core/KeyboardHook.h"
@@ -69,7 +70,8 @@ int main(int argc, char *argv[]) {
     MainWindow* mainWin = new MainWindow();
     // mainWin->show(); // 默认启动不显示主界面
 
-    // 3. 初始化悬浮球
+    // 3. 初始化特效层与悬浮球
+    FireworksOverlay::instance(); // 预初始化特效层
     FloatingBall* ball = new FloatingBall();
     ball->show();
 
@@ -223,6 +225,11 @@ int main(int argc, char *argv[]) {
     });
 
     // 8. 监听剪贴板 (智能标题与自动分类)
+    QObject::connect(&ClipboardMonitor::instance(), &ClipboardMonitor::clipboardChanged, [=](){
+        // 触发烟花爆炸特效
+        FireworksOverlay::instance()->explode(QCursor::pos());
+    });
+
     QObject::connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, 
         [=](const QString& content, const QString& type, const QByteArray& data,
             const QString& sourceApp, const QString& sourceTitle){
