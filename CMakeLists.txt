@@ -18,7 +18,6 @@ set(SOURCES
     src/core/HotkeyManager.cpp
     src/core/ClipboardMonitor.cpp
     src/core/KeyboardHook.cpp
-    src/core/ExplorerHelper.cpp
     src/core/OCRManager.cpp
     src/models/NoteModel.cpp
     src/models/CategoryModel.cpp
@@ -40,6 +39,7 @@ set(SOURCES
     src/ui/TimePasteWindow.cpp
     src/ui/PasswordGeneratorWindow.cpp
     src/ui/OCRWindow.cpp
+    src/ui/PathAcquisitionWindow.cpp
     src/ui/SystemTray.cpp
     src/ui/SettingsWindow.h
     src/ui/SettingsWindow.cpp
@@ -77,7 +77,7 @@ target_link_libraries(RapidNotes PRIVATE
 )
 
 if(WIN32)
-    target_link_libraries(RapidNotes PRIVATE user32 shell32 psapi ole32 oleaut32)
+    target_link_libraries(RapidNotes PRIVATE user32 shell32 psapi)
     set_target_properties(RapidNotes PROPERTIES
         WIN32_EXECUTABLE TRUE
     )

@@ -1,5 +1,4 @@
 #include "KeyboardHook.h"
-#include "ExplorerHelper.h"
 #include <QDebug>
 
 #ifdef Q_OS_WIN
@@ -45,16 +44,6 @@ LRESULT CALLBACK KeyboardHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
         KBDLLHOOKSTRUCT* pKey = (KBDLLHOOKSTRUCT*)lParam;
         bool isKeyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
         bool isKeyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
-
-        // F4 资源管理器路径获取拦截
-        if (pKey->vkCode == VK_F4) {
-            if (ExplorerHelper::isForegroundExplorer()) {
-                if (isKeyDown) {
-                    emit KeyboardHook::instance().f4PressedInExplorer();
-                }
-                return 1; // 仅在资源管理器中拦截 F4
-            }
-        }
 
         // 工具箱数字拦截 (仅在使能时触发)
         if (KeyboardHook::instance().m_digitInterceptEnabled) {

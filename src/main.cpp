@@ -23,16 +23,12 @@
 #include "ui/TimePasteWindow.h"
 #include "ui/PasswordGeneratorWindow.h"
 #include "ui/OCRWindow.h"
+#include "ui/PathAcquisitionWindow.h"
 #include "ui/ScreenshotTool.h"
 #include "ui/SettingsWindow.h"
 #include "core/KeyboardHook.h"
-#include "core/ExplorerHelper.h"
-#include <objbase.h>
 
 int main(int argc, char *argv[]) {
-    // 初始化 COM，用于 ExplorerHelper 中的 IShellWindows
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-
     QApplication a(argc, argv);
     a.setApplicationName("RapidNotes");
     a.setOrganizationName("RapidDev");
@@ -88,6 +84,7 @@ int main(int argc, char *argv[]) {
     TimePasteWindow* timePasteWin = new TimePasteWindow();
     PasswordGeneratorWindow* passwordGenWin = new PasswordGeneratorWindow();
     OCRWindow* ocrWin = new OCRWindow();
+    PathAcquisitionWindow* pathAcqWin = new PathAcquisitionWindow();
 
     auto toggleWindow = [](QWidget* win, QWidget* parentWin = nullptr) {
         if (win->isVisible()) {
@@ -114,6 +111,7 @@ int main(int argc, char *argv[]) {
     QObject::connect(toolbox, &Toolbox::showTimePasteRequested, [=](){ toggleWindow(timePasteWin); });
     QObject::connect(toolbox, &Toolbox::showPasswordGeneratorRequested, [=](){ toggleWindow(passwordGenWin); });
     QObject::connect(toolbox, &Toolbox::showOCRRequested, [=](){ toggleWindow(ocrWin); });
+    QObject::connect(toolbox, &Toolbox::showPathAcquisitionRequested, [=](){ toggleWindow(pathAcqWin); });
 
     // 统一显示主窗口的逻辑，处理启动锁定状态
     auto showMainWindow = [=]() {
@@ -132,25 +130,6 @@ int main(int argc, char *argv[]) {
 
     // 处理主窗口切换信号
     QObject::connect(quickWin, &QuickWindow::toggleMainWindowRequested, showMainWindow);
-
-    // 监听 F4 获取资源管理器路径
-    QObject::connect(&KeyboardHook::instance(), &KeyboardHook::f4PressedInExplorer, [=](){
-        QStringList paths = ExplorerHelper::getSelectedPaths();
-        if (paths.isEmpty()) {
-            QToolTip::showText(QCursor::pos(),
-                "<div style='background-color: #2d2d2d; color: #ff6b6b; border: 1px solid #444; padding: 5px; border-radius: 4px;'>"
-                "未选中任何文件或文件夹"
-                "</div>");
-        } else {
-            QString content = "<div style='background-color: #1e1e1e; border: 1px solid #3a90ff; padding: 8px; border-radius: 6px;'>";
-            content += "<b style='color: #3a90ff; font-size: 14px;'>选中的路径:</b><br>";
-            for (const QString& path : paths) {
-                content += QString("<span style='color: #2ecc71;'>• %1</span><br>").arg(path);
-            }
-            content += "</div>";
-            QToolTip::showText(QCursor::pos(), content);
-        }
-    });
 
     // 5. 开启全局键盘钩子 (支持快捷键重映射)
     KeyboardHook::instance().start();
@@ -293,7 +272,5 @@ int main(int argc, char *argv[]) {
         DatabaseManager::instance().addNoteAsync(title, content, tags, "", catId, type, data, sourceApp, sourceTitle);
     });
 
-    int result = a.exec();
-    CoUninitialize();
-    return result;
+    return a.exec();
 }

@@ -18,7 +18,6 @@ public:
 
 signals:
     void digitPressed(int digit);
-    void f4PressedInExplorer();
 
 private:
     bool m_digitInterceptEnabled = false;
