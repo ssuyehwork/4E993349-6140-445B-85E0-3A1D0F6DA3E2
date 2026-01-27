@@ -1,5 +1,6 @@
 #include "QuickWindow.h"
 #include "NoteEditWindow.h"
+#include "AdvancedTagSelector.h"
 #include "IconHelper.h"
 #include "QuickNoteDelegate.h"
 #include "CategoryDelegate.h"
@@ -467,7 +468,7 @@ void QuickWindow::initUI() {
     m_statusLabel->setFixedHeight(32);
     bottomLayout->addWidget(m_statusLabel);
 
-    m_tagEdit = new QLineEdit();
+    m_tagEdit = new ClickableLineEdit();
     m_tagEdit->setPlaceholderText("输入标签添加...");
     m_tagEdit->setStyleSheet(
         "QLineEdit { background-color: rgba(255, 255, 255, 0.05); "
@@ -481,6 +482,7 @@ void QuickWindow::initUI() {
     );
     m_tagEdit->setEnabled(false); // 初始禁用
     connect(m_tagEdit, &QLineEdit::returnPressed, this, &QuickWindow::handleTagInput);
+    connect(m_tagEdit, &ClickableLineEdit::doubleClicked, this, &QuickWindow::openTagSelector);
     bottomLayout->addWidget(m_tagEdit, 1);
 
     leftLayout->addLayout(bottomLayout);
@@ -669,7 +671,7 @@ void QuickWindow::initUI() {
             m_tagEdit->setPlaceholderText("请先选择一个项目");
         } else {
             m_tagEdit->setEnabled(true);
-            m_tagEdit->setPlaceholderText(selected.size() == 1 ? "输入标签添加... (回车保存)" : "输入标签批量添加...");
+            m_tagEdit->setPlaceholderText(selected.size() == 1 ? "输入标签添加... (双击更多)" : "输入标签批量添加...");
         }
     });
 
@@ -1556,6 +1558,36 @@ void QuickWindow::handleTagInput() {
     m_tagEdit->clear();
     refreshData();
     QToolTip::showText(QCursor::pos(), "✅ 标签已添加", this);
+}
+
+void QuickWindow::openTagSelector() {
+    auto selected = m_listView->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+
+    QStringList currentTags;
+    if (selected.size() == 1) {
+        int id = selected.first().data(NoteModel::IdRole).toInt();
+        QVariantMap note = DatabaseManager::instance().getNoteById(id);
+        currentTags = note.value("tags").toString().split(",", Qt::SkipEmptyParts);
+    }
+
+    for (QString& t : currentTags) t = t.trimmed();
+
+    auto* selector = new AdvancedTagSelector(this);
+    auto recentTags = DatabaseManager::instance().getRecentTagsWithCounts(20);
+    auto allTags = DatabaseManager::instance().getAllTags();
+    selector->setup(recentTags, allTags, currentTags);
+
+    connect(selector, &AdvancedTagSelector::tagsConfirmed, [this, selected](const QStringList& tags){
+        for (const auto& index : std::as_const(selected)) {
+            int id = index.data(NoteModel::IdRole).toInt();
+            DatabaseManager::instance().updateNoteState(id, "tags", tags.join(", "));
+        }
+        refreshData();
+        QToolTip::showText(QCursor::pos(), "✅ 标签已更新", this);
+    });
+
+    selector->showAtCursor();
 }
 
 void QuickWindow::showAuto() {

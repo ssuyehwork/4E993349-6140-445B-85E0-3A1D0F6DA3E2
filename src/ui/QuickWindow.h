@@ -19,6 +19,7 @@
 #include "QuickToolbar.h"
 #include "DropTreeView.h"
 #include "CategoryLockWidget.h"
+#include "ClickableLineEdit.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -99,6 +100,7 @@ public:
     void showSidebarMenu(const QPoint& pos);
     void showToolboxMenu(const QPoint& pos);
     void handleTagInput();
+    void openTagSelector();
     
     SearchLineEdit* m_searchEdit;
     QListView* m_listView;
@@ -117,7 +119,7 @@ public:
     QSplitter* m_splitter;
     QuickToolbar* m_toolbar;
     QLabel* m_statusLabel;
-    QLineEdit* m_tagEdit;
+    ClickableLineEdit* m_tagEdit;
 
     int m_currentPage = 1;
     int m_totalPages = 1;
