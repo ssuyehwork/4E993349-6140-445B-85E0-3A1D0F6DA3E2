@@ -62,8 +62,8 @@ public:
     bool removeTagFromNote(int noteId, const QString& tag);
 
     // 搜索与查询
-    QList<QVariantMap> searchNotes(const QString& keyword, const QString& filterType = "all", const QVariant& filterValue = -1, int page = -1, int pageSize = 20);
-    int getNotesCount(const QString& keyword, const QString& filterType = "all", const QVariant& filterValue = -1);
+    QList<QVariantMap> searchNotes(const QString& keyword, const QString& filterType = "all", const QVariant& filterValue = -1, int page = -1, int pageSize = 20, const QVariantMap& criteria = QVariantMap());
+    int getNotesCount(const QString& keyword, const QString& filterType = "all", const QVariant& filterValue = -1, const QVariantMap& criteria = QVariantMap());
     QList<QVariantMap> getAllNotes();
     QStringList getAllTags();
     QList<QVariantMap> getRecentTagsWithCounts(int limit = 20);
@@ -71,7 +71,7 @@ public:
 
     // 统计
     QVariantMap getCounts();
-    QVariantMap getFilterStats(const QString& keyword = "", const QString& filterType = "all", const QVariant& filterValue = -1);
+    QVariantMap getFilterStats(const QString& keyword = "", const QString& filterType = "all", const QVariant& filterValue = -1, const QVariantMap& criteria = QVariantMap());
 
     // 异步操作
     void addNoteAsync(const QString& title, const QString& content, const QStringList& tags = QStringList(),
@@ -95,6 +95,7 @@ private:
     void syncFts(int id, const QString& title, const QString& content);
     void removeFts(int id);
     QString stripHtml(const QString& html);
+    void applySecurityFilter(QString& whereClause, QVariantList& params, const QString& filterType);
     
     QSqlDatabase m_db;
     QString m_dbPath; 

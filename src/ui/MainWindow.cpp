@@ -1107,69 +1107,9 @@ void MainWindow::refreshData() {
         checkChildren(index);
     }
 
-    auto notes = DatabaseManager::instance().searchNotes(m_currentKeyword, m_currentFilterType, m_currentFilterValue, m_currentPage, m_pageSize);
-    int totalCount = DatabaseManager::instance().getNotesCount(m_currentKeyword, m_currentFilterType, m_currentFilterValue);
-    
     QVariantMap criteria = m_filterPanel->getCheckedCriteria();
-    if (!criteria.isEmpty()) {
-        QList<QVariantMap> filtered;
-        for (const auto& note : std::as_const(notes)) {
-            bool match = true;
-            if (criteria.contains("stars")) {
-                if (!criteria.value("stars").toStringList().contains(QString::number(note.value("rating").toInt()))) match = false;
-            }
-            if (match && criteria.contains("types")) {
-                if (!criteria.value("types").toStringList().contains(note.value("item_type").toString())) match = false;
-            }
-            if (match && criteria.contains("colors")) {
-                if (!criteria.value("colors").toStringList().contains(note.value("color").toString())) match = false;
-            }
-            if (match && criteria.contains("tags")) {
-                QStringList noteTags = note.value("tags").toString().split(",", Qt::SkipEmptyParts);
-                bool tagMatch = false;
-                for (const QString& t : criteria.value("tags").toStringList()) {
-                    if (noteTags.contains(t.trimmed())) { tagMatch = true; break; }
-                }
-                if (!tagMatch) match = false;
-            }
-            
-            if (match && criteria.contains("date_create")) {
-                bool dateMatch = false;
-                QDateTime now = QDateTime::currentDateTime();
-                QDateTime createdAt;
-                
-                QVariant cv = note.value("created_at");
-                if (cv.typeId() == QMetaType::QDateTime) {
-                    createdAt = cv.toDateTime();
-                } else {
-                    createdAt = QDateTime::fromString(cv.toString(), Qt::ISODate);
-                    if (!createdAt.isValid()) {
-                        createdAt = QDateTime::fromString(cv.toString(), "yyyy-MM-dd HH:mm:ss");
-                    }
-                }
-
-                if (createdAt.isValid()) {
-                    for (const QString& d_opt : criteria.value("date_create").toStringList()) {
-                        if (d_opt == "today") {
-                            if (createdAt.date() == now.date()) dateMatch = true;
-                        } else if (d_opt == "yesterday") {
-                            if (createdAt.date() == now.date().addDays(-1)) dateMatch = true;
-                        } else if (d_opt == "this_week" || d_opt == "week") {
-                            if (createdAt.date() >= now.date().addDays(-6)) dateMatch = true;
-                        } else if (d_opt == "this_month" || d_opt == "month") {
-                            if (createdAt.date().year() == now.date().year() && createdAt.date().month() == now.date().month()) dateMatch = true;
-                        }
-                        if (dateMatch) break;
-                    }
-                    if (!dateMatch) match = false;
-                }
-            }
-
-            if (match) filtered.append(note);
-        }
-        notes = filtered;
-        totalCount = notes.size(); 
-    }
+    auto notes = DatabaseManager::instance().searchNotes(m_currentKeyword, m_currentFilterType, m_currentFilterValue, m_currentPage, m_pageSize, criteria);
+    int totalCount = DatabaseManager::instance().getNotesCount(m_currentKeyword, m_currentFilterType, m_currentFilterValue, criteria);
 
     // 检查当前分类是否锁定
     bool isLocked = false;

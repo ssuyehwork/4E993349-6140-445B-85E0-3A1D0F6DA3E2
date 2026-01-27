@@ -664,7 +664,7 @@ void DatabaseManager::addNoteAsync(const QString& title, const QString& content,
     }, Qt::QueuedConnection);
 }
 
-QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QString& filterType, const QVariant& filterValue, int page, int pageSize) {
+QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QString& filterType, const QVariant& filterValue, int page, int pageSize, const QVariantMap& criteria) {
     QMutexLocker locker(&m_mutex);
     QList<QVariantMap> results;
     if (!m_db.isOpen()) return results;
@@ -673,20 +673,57 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
     QString whereClause = "WHERE is_deleted = 0 ";
     QVariantList params;
 
-    // 安全过滤：排除所有锁定分类的数据（除非正在查看该特定分类且已通过 UI 层的锁定检查）
-    if (filterType != "category" && filterType != "trash") {
-        QSqlQuery catQuery(m_db);
-        catQuery.exec("SELECT id FROM categories WHERE password IS NOT NULL AND password != ''");
-        QList<int> lockedIds;
-        while (catQuery.next()) {
-            int cid = catQuery.value(0).toInt();
-            if (!m_unlockedCategories.contains(cid)) lockedIds.append(cid);
+    applySecurityFilter(whereClause, params, filterType);
+
+    // 高级筛选逻辑
+    if (!criteria.isEmpty()) {
+        if (criteria.contains("stars")) {
+            QStringList stars = criteria.value("stars").toStringList();
+            if (!stars.isEmpty()) {
+                whereClause += QString("AND rating IN (%1) ").arg(stars.join(","));
+            }
         }
-        if (!lockedIds.isEmpty()) {
-            QStringList placeholders;
-            for (int i = 0; i < lockedIds.size(); ++i) placeholders << "?";
-            whereClause += QString("AND (category_id IS NULL OR category_id NOT IN (%1)) ").arg(placeholders.join(","));
-            for (int id : lockedIds) params << id;
+        if (criteria.contains("types")) {
+            QStringList types = criteria.value("types").toStringList();
+            if (!types.isEmpty()) {
+                QStringList placeholders;
+                for (const auto& t : types) { placeholders << "?"; params << t; }
+                whereClause += QString("AND item_type IN (%1) ").arg(placeholders.join(","));
+            }
+        }
+        if (criteria.contains("colors")) {
+            QStringList colors = criteria.value("colors").toStringList();
+            if (!colors.isEmpty()) {
+                QStringList placeholders;
+                for (const auto& c : colors) { placeholders << "?"; params << c; }
+                whereClause += QString("AND color IN (%1) ").arg(placeholders.join(","));
+            }
+        }
+        if (criteria.contains("tags")) {
+            QStringList tags = criteria.value("tags").toStringList();
+            if (!tags.isEmpty()) {
+                QStringList tagConds;
+                for (const auto& t : tags) {
+                    tagConds << "(',' || tags || ',') LIKE ?";
+                    params << "%," + t.trimmed() + ",%";
+                }
+                whereClause += QString("AND (%1) ").arg(tagConds.join(" OR "));
+            }
+        }
+        if (criteria.contains("date_create")) {
+            QStringList dates = criteria.value("date_create").toStringList();
+            if (!dates.isEmpty()) {
+                QStringList dateConds;
+                for (const auto& d : dates) {
+                    if (d == "today") dateConds << "date(created_at) = date('now', 'localtime')";
+                    else if (d == "yesterday") dateConds << "date(created_at) = date('now', '-1 day', 'localtime')";
+                    else if (d == "week") dateConds << "date(created_at) >= date('now', '-6 days', 'localtime')";
+                    else if (d == "month") dateConds << "strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')";
+                }
+                if (!dateConds.isEmpty()) {
+                    whereClause += QString("AND (%1) ").arg(dateConds.join(" OR "));
+                }
+            }
         }
     }
 
@@ -746,7 +783,7 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
     return results;
 }
 
-int DatabaseManager::getNotesCount(const QString& keyword, const QString& filterType, const QVariant& filterValue) {
+int DatabaseManager::getNotesCount(const QString& keyword, const QString& filterType, const QVariant& filterValue, const QVariantMap& criteria) {
     QMutexLocker locker(&m_mutex);
     if (!m_db.isOpen()) return 0;
 
@@ -754,20 +791,57 @@ int DatabaseManager::getNotesCount(const QString& keyword, const QString& filter
     QString whereClause = "WHERE is_deleted = 0 ";
     QVariantList params;
 
-    // 安全过滤：排除所有锁定分类的数据
-    if (filterType != "category" && filterType != "trash") {
-        QSqlQuery catQuery(m_db);
-        catQuery.exec("SELECT id FROM categories WHERE password IS NOT NULL AND password != ''");
-        QList<int> lockedIds;
-        while (catQuery.next()) {
-            int cid = catQuery.value(0).toInt();
-            if (!m_unlockedCategories.contains(cid)) lockedIds.append(cid);
+    applySecurityFilter(whereClause, params, filterType);
+
+    // 高级筛选逻辑
+    if (!criteria.isEmpty()) {
+        if (criteria.contains("stars")) {
+            QStringList stars = criteria.value("stars").toStringList();
+            if (!stars.isEmpty()) {
+                whereClause += QString("AND rating IN (%1) ").arg(stars.join(","));
+            }
         }
-        if (!lockedIds.isEmpty()) {
-            QStringList placeholders;
-            for (int i = 0; i < lockedIds.size(); ++i) placeholders << "?";
-            whereClause += QString("AND (category_id IS NULL OR category_id NOT IN (%1)) ").arg(placeholders.join(","));
-            for (int id : lockedIds) params << id;
+        if (criteria.contains("types")) {
+            QStringList types = criteria.value("types").toStringList();
+            if (!types.isEmpty()) {
+                QStringList placeholders;
+                for (const auto& t : types) { placeholders << "?"; params << t; }
+                whereClause += QString("AND item_type IN (%1) ").arg(placeholders.join(","));
+            }
+        }
+        if (criteria.contains("colors")) {
+            QStringList colors = criteria.value("colors").toStringList();
+            if (!colors.isEmpty()) {
+                QStringList placeholders;
+                for (const auto& c : colors) { placeholders << "?"; params << c; }
+                whereClause += QString("AND color IN (%1) ").arg(placeholders.join(","));
+            }
+        }
+        if (criteria.contains("tags")) {
+            QStringList tags = criteria.value("tags").toStringList();
+            if (!tags.isEmpty()) {
+                QStringList tagConds;
+                for (const auto& t : tags) {
+                    tagConds << "(',' || tags || ',') LIKE ?";
+                    params << "%," + t.trimmed() + ",%";
+                }
+                whereClause += QString("AND (%1) ").arg(tagConds.join(" OR "));
+            }
+        }
+        if (criteria.contains("date_create")) {
+            QStringList dates = criteria.value("date_create").toStringList();
+            if (!dates.isEmpty()) {
+                QStringList dateConds;
+                for (const auto& d : dates) {
+                    if (d == "today") dateConds << "date(created_at) = date('now', 'localtime')";
+                    else if (d == "yesterday") dateConds << "date(created_at) = date('now', '-1 day', 'localtime')";
+                    else if (d == "week") dateConds << "date(created_at) >= date('now', '-6 days', 'localtime')";
+                    else if (d == "month") dateConds << "strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')";
+                }
+                if (!dateConds.isEmpty()) {
+                    whereClause += QString("AND (%1) ").arg(dateConds.join(" OR "));
+                }
+            }
         }
     }
 
@@ -1140,9 +1214,21 @@ QVariantMap DatabaseManager::getCounts() {
     if (!m_db.isOpen()) return counts;
     QSqlQuery query(m_db);
     
-    auto getCount = [&](const QString& where) {
-        if (query.exec("SELECT COUNT(*) FROM notes WHERE " + where)) {
-            if (query.next()) return query.value(0).toInt();
+    auto getCount = [&](const QString& where, bool applySecurity = true) {
+        QString sql = "SELECT COUNT(*) FROM notes WHERE " + where;
+        QVariantList params;
+        if (applySecurity) {
+            QString securityClause;
+            applySecurityFilter(securityClause, params, "all");
+            sql += " " + securityClause;
+        }
+        
+        QSqlQuery q(m_db);
+        q.prepare(sql);
+        for(int i=0; i<params.size(); ++i) q.bindValue(i, params[i]);
+
+        if (q.exec()) {
+            if (q.next()) return q.value(0).toInt();
         }
         return 0;
     };
@@ -1152,7 +1238,7 @@ QVariantMap DatabaseManager::getCounts() {
     counts["uncategorized"] = getCount("is_deleted = 0 AND category_id IS NULL");
     counts["untagged"] = getCount("is_deleted = 0 AND (tags IS NULL OR tags = '')");
     counts["bookmark"] = getCount("is_deleted = 0 AND is_favorite = 1");
-    counts["trash"] = getCount("is_deleted = 1");
+    counts["trash"] = getCount("is_deleted = 1", false);
 
     // 获取分类统计
     if (query.exec("SELECT category_id, COUNT(*) FROM notes WHERE is_deleted = 0 AND category_id IS NOT NULL GROUP BY category_id")) {
@@ -1164,7 +1250,7 @@ QVariantMap DatabaseManager::getCounts() {
     return counts;
 }
 
-QVariantMap DatabaseManager::getFilterStats(const QString& keyword, const QString& filterType, const QVariant& filterValue) {
+QVariantMap DatabaseManager::getFilterStats(const QString& keyword, const QString& filterType, const QVariant& filterValue, const QVariantMap& criteria) {
     QMutexLocker locker(&m_mutex);
     QVariantMap stats;
     if (!m_db.isOpen()) return stats;
@@ -1176,6 +1262,7 @@ QVariantMap DatabaseManager::getFilterStats(const QString& keyword, const QStrin
         whereClause += "AND is_deleted = 1 ";
     } else {
         whereClause += "AND is_deleted = 0 ";
+        applySecurityFilter(whereClause, params, filterType);
         if (filterType == "category") {
             if (filterValue.toInt() == -1) whereClause += "AND category_id IS NULL ";
             else {
@@ -1302,6 +1389,24 @@ void DatabaseManager::removeFts(int id) {
     query.prepare("DELETE FROM notes_fts WHERE rowid = ?");
     query.addBindValue(id);
     query.exec();
+}
+
+void DatabaseManager::applySecurityFilter(QString& whereClause, QVariantList& params, const QString& filterType) {
+    if (filterType == "category" || filterType == "trash") return;
+
+    QSqlQuery catQuery(m_db);
+    catQuery.exec("SELECT id FROM categories WHERE password IS NOT NULL AND password != ''");
+    QList<int> lockedIds;
+    while (catQuery.next()) {
+        int cid = catQuery.value(0).toInt();
+        if (!m_unlockedCategories.contains(cid)) lockedIds.append(cid);
+    }
+    if (!lockedIds.isEmpty()) {
+        QStringList placeholders;
+        for (int i = 0; i < lockedIds.size(); ++i) placeholders << "?";
+        whereClause += QString("AND (category_id IS NULL OR category_id NOT IN (%1)) ").arg(placeholders.join(","));
+        for (int id : lockedIds) params << id;
+    }
 }
 
 QString DatabaseManager::stripHtml(const QString& html) {
