@@ -28,6 +28,7 @@ set(SOURCES
     src/ui/MainWindow.cpp
     src/ui/CleanListView.h
     src/ui/CleanListView.cpp
+    src/ui/StringUtils.h
     src/ui/QuickPreview.h
     src/ui/HeaderBar.cpp
     src/ui/MetadataPanel.cpp
