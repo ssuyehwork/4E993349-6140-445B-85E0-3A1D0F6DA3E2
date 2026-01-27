@@ -1499,13 +1499,13 @@ void MainWindow::doDeleteSelected(bool physical) {
         QString msg = QString("确定要永久删除选中的 %1 条数据吗？此操作不可逆。").arg(selected.count());
         if (QMessageBox::question(this, "确认彻底删除", msg) == QMessageBox::Yes) {
             QList<int> ids;
-            for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+            for (const auto& index : std::as_const(selected)) ids << index.data(NoteModel::IdRole).toInt();
             DatabaseManager::instance().deleteNotesBatch(ids);
             refreshData();
         }
     } else {
         QList<int> ids;
-        for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+        for (const auto& index : std::as_const(selected)) ids << index.data(NoteModel::IdRole).toInt();
         DatabaseManager::instance().softDeleteNotes(ids);
         refreshData();
     }
@@ -1514,7 +1514,7 @@ void MainWindow::doDeleteSelected(bool physical) {
 void MainWindow::doToggleFavorite() {
     auto selected = m_noteList->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
-    for (const auto& index : selected) {
+    for (const auto& index : std::as_const(selected)) {
         int id = index.data(NoteModel::IdRole).toInt();
         DatabaseManager::instance().toggleNoteState(id, "is_favorite");
     }
@@ -1524,7 +1524,7 @@ void MainWindow::doToggleFavorite() {
 void MainWindow::doTogglePin() {
     auto selected = m_noteList->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
-    for (const auto& index : selected) {
+    for (const auto& index : std::as_const(selected)) {
         int id = index.data(NoteModel::IdRole).toInt();
         DatabaseManager::instance().toggleNoteState(id, "is_pinned");
     }
@@ -1535,12 +1535,11 @@ void MainWindow::doLockSelected() {
     auto selected = m_noteList->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
     
-    int firstId = selected.first().data(NoteModel::IdRole).toInt();
     bool firstState = selected.first().data(NoteModel::LockedRole).toBool();
     bool targetState = !firstState;
 
     QList<int> ids;
-    for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+    for (const auto& index : std::as_const(selected)) ids << index.data(NoteModel::IdRole).toInt();
     
     DatabaseManager::instance().updateNoteStateBatch(ids, "is_locked", targetState);
     refreshData();
@@ -1556,7 +1555,7 @@ void MainWindow::doExtractContent() {
     auto selected = m_noteList->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
     QStringList texts;
-    for (const auto& index : selected) {
+    for (const auto& index : std::as_const(selected)) {
         int id = index.data(NoteModel::IdRole).toInt();
         QVariantMap note = DatabaseManager::instance().getNoteById(id);
         if (note.value("item_type").toString() == "text" || note.value("item_type").toString().isEmpty()) {
@@ -1580,7 +1579,7 @@ void MainWindow::doEditSelected() {
 void MainWindow::doSetRating(int rating) {
     auto selected = m_noteList->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
-    for (const auto& index : selected) {
+    for (const auto& index : std::as_const(selected)) {
         int id = index.data(NoteModel::IdRole).toInt();
         DatabaseManager::instance().updateNoteState(id, "rating", rating);
     }
@@ -1592,7 +1591,7 @@ void MainWindow::doMoveToCategory(int catId) {
     if (selected.isEmpty()) return;
 
     QList<int> ids;
-    for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+    for (const auto& index : std::as_const(selected)) ids << index.data(NoteModel::IdRole).toInt();
     
     DatabaseManager::instance().moveNotesToCategory(ids, catId);
     refreshData();

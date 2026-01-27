@@ -32,7 +32,7 @@ QStringList ExplorerHelper::getSelectedPaths() {
                 IWebBrowserApp* pwba = nullptr;
                 if (SUCCEEDED(pdisp->QueryInterface(IID_IWebBrowserApp, (void**)&pwba))) {
                     HWND hwndWba = 0;
-                    pwba->get_HWND((long_PTR*)&hwndWba);
+                    pwba->get_HWND((LONG_PTR*)&hwndWba);
 
                     // 匹配前台窗口
                     if (hwndWba == hwndForeground) {
@@ -41,7 +41,7 @@ QStringList ExplorerHelper::getSelectedPaths() {
                             IShellBrowser* psb = nullptr;
                             if (SUCCEEDED(psp->QueryService(SID_STopLevelBrowser, IID_IShellBrowser, (void**)&psb))) {
                                 IShellView* psv = nullptr;
-                                if (SUCCEEDED(psb->QueryActiveView(&psv))) {
+                                if (SUCCEEDED(psb->QueryActiveShellView(&psv))) {
                                     IFolderView* pfv = nullptr;
                                     if (SUCCEEDED(psv->QueryInterface(IID_IFolderView, (void**)&pfv))) {
                                         IShellItemArray* psia = nullptr;
