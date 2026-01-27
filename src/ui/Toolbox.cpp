@@ -4,6 +4,11 @@
 #include <QGraphicsDropShadowEffect>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPushButton>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 Toolbox::Toolbox(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::Tool | Qt::WindowStaysOnTopHint);
@@ -117,20 +122,31 @@ QPushButton* Toolbox::createToolButton(const QString& text) {
 
 void Toolbox::toggleStayOnTop(bool checked) {
     m_isStayOnTop = checked;
-    Qt::WindowFlags flags = windowFlags();
+#ifdef Q_OS_WIN
+    HWND hwnd = (HWND)winId();
     if (checked) {
-        flags |= Qt::WindowStaysOnTopHint;
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
     } else {
-        flags &= ~Qt::WindowStaysOnTopHint;
+        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
     }
-    setWindowFlags(flags);
+#else
+    Qt::WindowFlags flags = windowFlags();
+    if (checked) flags |= Qt::WindowStaysOnTopHint;
+    else flags &= ~Qt::WindowStaysOnTopHint;
     
-    // 更新图标
-    if (auto* btnPin = findChild<QPushButton*>("btnPin")) {
-        btnPin->setIcon(IconHelper::getIcon(checked ? "pin_vertical" : "pin_tilted", checked ? "#ffffff" : "#888888"));
+    if (flags != windowFlags()) {
+        setWindowFlags(flags);
+        show();
     }
+#endif
 
-    show(); // Important to show again after changing flags
+    // 更新按钮状态与图标
+    auto* btnPin = findChild<QPushButton*>("btnPin");
+    if (btnPin) {
+        if (btnPin->isChecked() != checked) btnPin->setChecked(checked);
+        // 切换图标样式 (选中时白色垂直，未选中时灰色倾斜)
+        btnPin->setIcon(IconHelper::getIcon(checked ? "pin_vertical" : "pin_tilted", checked ? "#ffffff" : "#aaaaaa"));
+    }
 }
 
 void Toolbox::mousePressEvent(QMouseEvent* event) {
