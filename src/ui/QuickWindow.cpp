@@ -915,11 +915,19 @@ void QuickWindow::activateNote(const QModelIndex& index) {
         QFileInfo fi(fullPath);
         if (fi.exists()) {
             QMimeData* mimeData = new QMimeData();
-            mimeData->setUrls({QUrl::fromLocalFile(fullPath)});
+            if (itemType == "local_batch") {
+                // 批量托管模式：双击发送该批量的所有文件/文件夹内容
+                QDir dir(fullPath);
+                QList<QUrl> urls;
+                for (const QString& fileName : dir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot)) {
+                    urls << QUrl::fromLocalFile(dir.absoluteFilePath(fileName));
+                }
+                if (urls.isEmpty()) urls << QUrl::fromLocalFile(fullPath); // 保底发送文件夹自身
+                mimeData->setUrls(urls);
+            } else {
+                mimeData->setUrls({QUrl::fromLocalFile(fullPath)});
+            }
             QApplication::clipboard()->setMimeData(mimeData);
-            
-            // 可选：同时尝试打开它（根据用户习惯，QuickWindow通常是发送，MainWindow通常是打开）
-            // 这里我们优先保证“发送”逻辑，即存入剪贴板
         } else {
             QApplication::clipboard()->setText(content);
             QToolTip::showText(QCursor::pos(), "⚠️ 文件已丢失或被移动", this);

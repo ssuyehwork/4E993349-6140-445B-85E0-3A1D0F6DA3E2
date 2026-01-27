@@ -26,9 +26,18 @@ ClipboardMonitor::ClipboardMonitor(QObject* parent) : QObject(parent) {
 void ClipboardMonitor::onClipboardChanged() {
     emit clipboardChanged();
 
-    // 1. 过滤本程序自身的复制
+    // 1. 过滤本程序自身的复制 (通过进程 ID 判定，比 activeWindow 更可靠)
+#ifdef Q_OS_WIN
+    HWND hwnd = GetForegroundWindow();
+    if (hwnd) {
+        DWORD processId;
+        GetWindowThreadProcessId(hwnd, &processId);
+        if (processId == GetCurrentProcessId()) return;
+    }
+#else
     QWidget* activeWin = QApplication::activeWindow();
     if (activeWin) return;
+#endif
 
     // 抓取来源窗口信息 (对标 Ditto)
     QString sourceApp = "未知应用";
