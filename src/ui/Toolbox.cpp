@@ -96,6 +96,10 @@ void Toolbox::initUI() {
     connect(btnPath, &QPushButton::clicked, this, &Toolbox::showPathAcquisitionRequested);
     contentLayout->addWidget(btnPath);
 
+    auto* btnTags = createToolButton("标签管理");
+    connect(btnTags, &QPushButton::clicked, this, &Toolbox::showTagManagerRequested);
+    contentLayout->addWidget(btnTags);
+
     contentLayout->addStretch();
 }
 

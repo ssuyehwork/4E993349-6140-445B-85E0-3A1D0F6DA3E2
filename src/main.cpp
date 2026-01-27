@@ -24,6 +24,7 @@
 #include "ui/PasswordGeneratorWindow.h"
 #include "ui/OCRWindow.h"
 #include "ui/PathAcquisitionWindow.h"
+#include "ui/TagManagerWindow.h"
 #include "ui/FireworksOverlay.h"
 #include "ui/ScreenshotTool.h"
 #include "ui/SettingsWindow.h"
@@ -87,6 +88,7 @@ int main(int argc, char *argv[]) {
     PasswordGeneratorWindow* passwordGenWin = new PasswordGeneratorWindow();
     OCRWindow* ocrWin = new OCRWindow();
     PathAcquisitionWindow* pathAcqWin = new PathAcquisitionWindow();
+    TagManagerWindow* tagMgrWin = new TagManagerWindow();
 
     auto toggleWindow = [](QWidget* win, QWidget* parentWin = nullptr) {
         if (win->isVisible()) {
@@ -114,6 +116,10 @@ int main(int argc, char *argv[]) {
     QObject::connect(toolbox, &Toolbox::showPasswordGeneratorRequested, [=](){ toggleWindow(passwordGenWin); });
     QObject::connect(toolbox, &Toolbox::showOCRRequested, [=](){ toggleWindow(ocrWin); });
     QObject::connect(toolbox, &Toolbox::showPathAcquisitionRequested, [=](){ toggleWindow(pathAcqWin); });
+    QObject::connect(toolbox, &Toolbox::showTagManagerRequested, [=](){
+        tagMgrWin->refreshData();
+        toggleWindow(tagMgrWin);
+    });
 
     // 统一显示主窗口的逻辑，处理启动锁定状态
     auto showMainWindow = [=]() {

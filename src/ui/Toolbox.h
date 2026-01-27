@@ -17,6 +17,7 @@ signals:
     void showPasswordGeneratorRequested();
     void showOCRRequested();
     void showPathAcquisitionRequested();
+    void showTagManagerRequested();
 
 protected:
     void mousePressEvent(QMouseEvent* event) override;
