@@ -27,6 +27,7 @@
 #include <QTextEdit>
 #include <QToolTip>
 #include <QDateTime>
+#include <QTimer>
 #include <QGraphicsDropShadowEffect>
 #include <QApplication>
 #include <QClipboard>
