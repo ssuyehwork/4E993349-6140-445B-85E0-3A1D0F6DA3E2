@@ -16,6 +16,8 @@
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QFrame>
+#include <QFileDialog>
+#include <QMenu>
 #include <QToolTip>
 #include <QDateTime>
 #include <QDebug>
@@ -75,10 +77,12 @@ void FileStorageWindow::initUI() {
     contentLayout->addWidget(titleBar);
 
     // Drop Area
-    m_dropHint = new QLabel("拖拽文件或文件夹到这里\n数据将完整存入笔记库");
-    m_dropHint->setAlignment(Qt::AlignCenter);
-    m_dropHint->setStyleSheet("color: #888; font-size: 12px; border: 2px dashed #444; border-radius: 8px; padding: 20px; background: #181818;");
+    m_dropHint = new QPushButton("拖拽文件或文件夹到这里\n数据将完整存入笔记库");
+    m_dropHint->setObjectName("DropArea");
+    m_dropHint->setStyleSheet("QPushButton#DropArea { color: #888; font-size: 12px; border: 2px dashed #444; border-radius: 8px; padding: 20px; background: #181818; outline: none; } "
+                               "QPushButton#DropArea:hover { border-color: #f1c40f; color: #f1c40f; background-color: rgba(241, 196, 15, 0.05); }");
     m_dropHint->setFixedHeight(100);
+    connect(m_dropHint, &QPushButton::clicked, this, &FileStorageWindow::onSelectItems);
     contentLayout->addWidget(m_dropHint);
 
     // Status List
@@ -282,4 +286,27 @@ void FileStorageWindow::mouseMoveEvent(QMouseEvent* event) {
 void FileStorageWindow::mouseReleaseEvent(QMouseEvent* event) {
     Q_UNUSED(event);
     m_dragPos = QPoint();
+}
+
+void FileStorageWindow::onSelectItems() {
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                       "QMenu::item { padding: 6px 20px; border-radius: 3px; } "
+                       "QMenu::item:selected { background-color: #f1c40f; color: black; }");
+
+    menu.addAction("选择并存入文件...", [this]() {
+        QStringList files = QFileDialog::getOpenFileNames(this, "选择文件", "", "所有文件 (*.*)");
+        if (!files.isEmpty()) {
+            processStorage(files);
+        }
+    });
+
+    menu.addAction("选择并存入文件夹...", [this]() {
+        QString dir = QFileDialog::getExistingDirectory(this, "选择文件夹", "");
+        if (!dir.isEmpty()) {
+            processStorage({dir});
+        }
+    });
+
+    menu.exec(QCursor::pos());
 }

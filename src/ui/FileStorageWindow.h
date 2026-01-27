@@ -11,6 +11,7 @@ class QDragEnterEvent;
 class QDragLeaveEvent;
 class QDropEvent;
 class QMouseEvent;
+class QPushButton;
 
 class FileStorageWindow : public QWidget {
     Q_OBJECT
@@ -26,6 +27,9 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
 
+private slots:
+    void onSelectItems();
+
 private:
     void initUI();
     void processStorage(const QStringList& paths);
@@ -33,7 +37,7 @@ private:
     void storeFolder(const QString& path);
     void storeArchive(const QStringList& paths);
 
-    QLabel* m_dropHint;
+    QPushButton* m_dropHint;
     QListWidget* m_statusList;
     QPoint m_dragPos;
     int m_categoryId = -1;
