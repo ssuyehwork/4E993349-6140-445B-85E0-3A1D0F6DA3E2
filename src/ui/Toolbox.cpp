@@ -100,6 +100,10 @@ void Toolbox::initUI() {
     connect(btnTags, &QPushButton::clicked, this, &Toolbox::showTagManagerRequested);
     contentLayout->addWidget(btnTags);
 
+    auto* btnFile = createToolButton("存储文件");
+    connect(btnFile, &QPushButton::clicked, this, &Toolbox::showFileStorageRequested);
+    contentLayout->addWidget(btnFile);
+
     contentLayout->addStretch();
 }
 

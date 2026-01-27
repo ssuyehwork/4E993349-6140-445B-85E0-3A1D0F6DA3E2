@@ -28,6 +28,10 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
     explicit MainWindow(QWidget* parent = nullptr);
+    int getCurrentCategoryId() const {
+        if (m_currentFilterType == "category") return m_currentFilterValue.toInt();
+        return -1;
+    }
 
 signals:
     void toolboxRequested();
