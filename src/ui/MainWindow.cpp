@@ -29,7 +29,11 @@
 #include <QDateTime>
 #include <QTimer>
 #include <QGraphicsDropShadowEffect>
+#include <QDesktopServices>
+#include <QUrl>
 #include <QApplication>
+#include <QFile>
+#include <QCoreApplication>
 #include <QClipboard>
 #include <QMimeData>
 #include <QPlainTextEdit>
@@ -52,6 +56,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindo
     setMouseTracking(true);
     setAttribute(Qt::WA_Hover);
     initUI();
+
+    m_searchTimer = new QTimer(this);
+    m_searchTimer->setSingleShot(true);
+    connect(m_searchTimer, &QTimer::timeout, this, &MainWindow::refreshData);
+
     refreshData();
 
     // 【关键修改】区分两种信号
@@ -81,7 +90,7 @@ void MainWindow::initUI() {
     connect(m_header, &HeaderBar::searchChanged, this, [this](const QString& text){
         m_currentKeyword = text;
         m_currentPage = 1;
-        refreshData();
+        m_searchTimer->start(300);
     });
     connect(m_header, &HeaderBar::pageChanged, this, [this](int page){
         m_currentPage = page;
@@ -573,6 +582,21 @@ void MainWindow::initUI() {
     connect(m_noteList, &QListView::doubleClicked, this, [this](const QModelIndex& index){
         if (!index.isValid()) return;
         int id = index.data(NoteModel::IdRole).toInt();
+        QVariantMap note = DatabaseManager::instance().getNoteById(id);
+        QString type = note.value("item_type").toString();
+        
+        if (type == "local_file" || type == "local_folder" || type == "local_batch") {
+            QString relativePath = note.value("content").toString();
+            QString fullPath = QCoreApplication::applicationDirPath() + "/" + relativePath;
+            
+            if (QFile::exists(fullPath)) {
+                QDesktopServices::openUrl(QUrl::fromLocalFile(fullPath));
+            } else {
+                QMessageBox::warning(this, "文件丢失", "未找到源文件：\n" + fullPath + "\n\n可能已被手动删除或移动。");
+            }
+            return;
+        }
+
         NoteEditWindow* win = new NoteEditWindow(id);
         connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
         win->show();
@@ -1450,6 +1474,10 @@ void MainWindow::showToolboxMenu(const QPoint& pos) {
 
     menu.addSeparator();
     
+    menu.addAction(IconHelper::getIcon("save", "#aaaaaa", 18), "存储文件 (拖拽入库)", [this]() {
+        emit fileStorageRequested();
+    });
+
     menu.addAction(IconHelper::getIcon("settings", "#aaaaaa", 18), "更多设置...", [this]() {
         auto* dlg = new SettingsWindow(this);
         dlg->exec();

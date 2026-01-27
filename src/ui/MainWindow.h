@@ -6,6 +6,8 @@
 #include <QListView>
 #include <QSplitter>
 #include <QStandardItemModel>
+#include <QTimer>
+#include <QFileInfo>
 #include "../models/NoteModel.h"
 #include "../models/CategoryModel.h"
 #include "Editor.h"
@@ -16,6 +18,7 @@
 #include "DropTreeView.h"
 #include "FilterPanel.h"
 #include "CategoryLockWidget.h"
+#include "FileStorageWindow.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -26,9 +29,14 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
     explicit MainWindow(QWidget* parent = nullptr);
+    int getCurrentCategoryId() const {
+        if (m_currentFilterType == "category") return m_currentFilterValue.toInt();
+        return -1;
+    }
 
 signals:
     void toolboxRequested();
+    void fileStorageRequested();
 
 private slots:
     void onNoteSelected(const QModelIndex& index);
@@ -96,6 +104,7 @@ private:
     int m_currentPage = 1;
     int m_pageSize = 50;
     bool m_autoCategorizeClipboard = false;
+    QTimer* m_searchTimer;
 };
 
 #endif // MAINWINDOW_H

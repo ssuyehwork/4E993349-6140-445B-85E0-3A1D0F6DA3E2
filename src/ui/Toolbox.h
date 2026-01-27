@@ -18,6 +18,7 @@ signals:
     void showOCRRequested();
     void showPathAcquisitionRequested();
     void showTagManagerRequested();
+    void showFileStorageRequested();
 
 protected:
     void mousePressEvent(QMouseEvent* event) override;
