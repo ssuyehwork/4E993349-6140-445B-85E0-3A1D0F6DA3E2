@@ -36,6 +36,7 @@ public:
 
 signals:
     void toolboxRequested();
+    void fileStorageRequested();
 
 private slots:
     void onNoteSelected(const QModelIndex& index);
@@ -104,7 +105,6 @@ private:
     int m_pageSize = 50;
     bool m_autoCategorizeClipboard = false;
     QTimer* m_searchTimer;
-    FileStorageWindow* m_fileStorageWindow = nullptr;
 };
 
 #endif // MAINWINDOW_H

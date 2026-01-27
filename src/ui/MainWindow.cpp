@@ -1475,15 +1475,7 @@ void MainWindow::showToolboxMenu(const QPoint& pos) {
     menu.addSeparator();
     
     menu.addAction(IconHelper::getIcon("save", "#aaaaaa", 18), "存储文件 (拖拽入库)", [this]() {
-        if (!m_fileStorageWindow) {
-            m_fileStorageWindow = new FileStorageWindow(this);
-        }
-        int catId = -1;
-        if (m_currentFilterType == "category") catId = m_currentFilterValue.toInt();
-        m_fileStorageWindow->setCurrentCategory(catId);
-        m_fileStorageWindow->show();
-        m_fileStorageWindow->raise();
-        m_fileStorageWindow->activateWindow();
+        emit fileStorageRequested();
     });
 
     menu.addAction(IconHelper::getIcon("settings", "#aaaaaa", 18), "更多设置...", [this]() {

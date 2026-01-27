@@ -112,6 +112,10 @@ int main(int argc, char *argv[]) {
     quickWin->setObjectName("QuickWindow");
     QObject::connect(quickWin, &QuickWindow::toolboxRequested, [=](){ toggleWindow(toolbox, quickWin); });
     QObject::connect(mainWin, &MainWindow::toolboxRequested, [=](){ toggleWindow(toolbox, mainWin); });
+    QObject::connect(mainWin, &MainWindow::fileStorageRequested, [=](){
+        fileStorageWin->setCurrentCategory(mainWin->getCurrentCategoryId());
+        toggleWindow(fileStorageWin, mainWin);
+    });
 
     // 连接工具箱按钮信号
     QObject::connect(toolbox, &Toolbox::showTimePasteRequested, [=](){ toggleWindow(timePasteWin); });
