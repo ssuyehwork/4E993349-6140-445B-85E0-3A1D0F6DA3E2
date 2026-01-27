@@ -7,6 +7,7 @@
 #include <QSplitter>
 #include <QStandardItemModel>
 #include <QTimer>
+#include <QFileInfo>
 #include "../models/NoteModel.h"
 #include "../models/CategoryModel.h"
 #include "Editor.h"

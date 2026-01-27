@@ -30,7 +30,9 @@
 #include <QTimer>
 #include <QGraphicsDropShadowEffect>
 #include <QDesktopServices>
+#include <QUrl>
 #include <QApplication>
+#include <QFile>
 #include <QCoreApplication>
 #include <QClipboard>
 #include <QMimeData>
@@ -587,8 +589,7 @@ void MainWindow::initUI() {
             QString relativePath = note.value("content").toString();
             QString fullPath = QCoreApplication::applicationDirPath() + "/" + relativePath;
 
-            QFileInfo info(fullPath);
-            if (info.exists()) {
+            if (QFile::exists(fullPath)) {
                 QDesktopServices::openUrl(QUrl::fromLocalFile(fullPath));
             } else {
                 QMessageBox::warning(this, "文件丢失", "未找到源文件：\n" + fullPath + "\n\n可能已被手动删除或移动。");
