@@ -1379,51 +1379,63 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
         pwdMenu->setStyleSheet(menu.styleSheet());
 
         pwdMenu->addAction("设置", [this, catId]() {
-            auto* dlg = new CategoryPasswordDialog("设置密码", this);
-            connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
-                DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
-                refreshSidebar();
-                refreshData();
-            });
-            dlg->show();
-            dlg->activateWindow();
-            dlg->raise();
-        });
-        pwdMenu->addAction("修改", [this, catId]() {
-            auto* verifyDlg = new FramelessInputDialog("验证旧密码", "请输入当前密码:", "", this);
-            connect(verifyDlg, &FramelessInputDialog::accepted, [this, catId, verifyDlg]() {
-                if (DatabaseManager::instance().verifyCategoryPassword(catId, verifyDlg->text())) {
-                    auto* dlg = new CategoryPasswordDialog("修改密码", this);
-                    QString currentHint;
-                    auto cats = DatabaseManager::instance().getAllCategories();
-                for(const auto& c : std::as_const(cats)) if(c.value("id").toInt() == catId) currentHint = c.value("password_hint").toString();
-                    dlg->setInitialData(currentHint);
-                    connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
-                        DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
-                        refreshSidebar();
-                        refreshData();
-                    });
-                    dlg->show();
-                    dlg->activateWindow();
-                    dlg->raise();
-                } else {
-                    QMessageBox::warning(this, "错误", "旧密码验证失败");
-                }
-            });
-            verifyDlg->show();
-        });
-        pwdMenu->addAction("移除", [this, catId]() {
-            auto* dlg = new FramelessInputDialog("验证密码", "请输入当前密码以移除保护:", "", this);
-            connect(dlg, &FramelessInputDialog::accepted, [this, catId, dlg]() {
-                if (DatabaseManager::instance().verifyCategoryPassword(catId, dlg->text())) {
-                    DatabaseManager::instance().removeCategoryPassword(catId);
+            QTimer::singleShot(0, [this, catId]() {
+                auto* dlg = new CategoryPasswordDialog("设置密码", this);
+                connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
+                    DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
                     refreshSidebar();
                     refreshData();
-                } else {
-                    QMessageBox::warning(this, "错误", "密码错误");
-                }
+                });
+                dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
             });
-            dlg->show();
+        });
+        pwdMenu->addAction("修改", [this, catId]() {
+            QTimer::singleShot(0, [this, catId]() {
+                auto* verifyDlg = new FramelessInputDialog("验证旧密码", "请输入当前密码:", "", this);
+                verifyDlg->setEchoMode(QLineEdit::Password);
+                connect(verifyDlg, &FramelessInputDialog::accepted, [this, catId, verifyDlg]() {
+                    if (DatabaseManager::instance().verifyCategoryPassword(catId, verifyDlg->text())) {
+                        auto* dlg = new CategoryPasswordDialog("修改密码", this);
+                        QString currentHint;
+                        auto cats = DatabaseManager::instance().getAllCategories();
+                        for(const auto& c : std::as_const(cats)) if(c.value("id").toInt() == catId) currentHint = c.value("password_hint").toString();
+                        dlg->setInitialData(currentHint);
+                        connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
+                            DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
+                            refreshSidebar();
+                            refreshData();
+                        });
+                        dlg->show();
+                        dlg->activateWindow();
+                        dlg->raise();
+                    } else {
+                        QMessageBox::warning(this, "错误", "旧密码验证失败");
+                    }
+                });
+                verifyDlg->show();
+                verifyDlg->activateWindow();
+                verifyDlg->raise();
+            });
+        });
+        pwdMenu->addAction("移除", [this, catId]() {
+            QTimer::singleShot(0, [this, catId]() {
+                auto* dlg = new FramelessInputDialog("验证密码", "请输入当前密码以移除保护:", "", this);
+                dlg->setEchoMode(QLineEdit::Password);
+                connect(dlg, &FramelessInputDialog::accepted, [this, catId, dlg]() {
+                    if (DatabaseManager::instance().verifyCategoryPassword(catId, dlg->text())) {
+                        DatabaseManager::instance().removeCategoryPassword(catId);
+                        refreshSidebar();
+                        refreshData();
+                    } else {
+                        QMessageBox::warning(this, "错误", "密码错误");
+                    }
+                });
+                dlg->show();
+                dlg->activateWindow();
+                dlg->raise();
+            });
         });
         pwdMenu->addAction("立即锁定", [this, catId]() {
             DatabaseManager::instance().lockCategory(catId);
@@ -1685,7 +1697,7 @@ void QuickWindow::keyPressEvent(QKeyEvent* event) {
         hide();
         return;
     }
-    if (event->key() == Qt::Key_Space) {
+    if (event->key() == Qt::Key_Space && event->modifiers() == Qt::NoModifier) {
         doPreview();
         return;
     }
@@ -1723,7 +1735,7 @@ bool QuickWindow::eventFilter(QObject* watched, QEvent* event) {
                 return true;
             }
         }
-        if (keyEvent->key() == Qt::Key_Space) {
+        if (keyEvent->key() == Qt::Key_Space && keyEvent->modifiers() == Qt::NoModifier) {
             if (watched == m_listView) {
                 doPreview();
                 return true;

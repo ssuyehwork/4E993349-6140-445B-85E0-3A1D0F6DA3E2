@@ -27,6 +27,7 @@
 #include <QTextEdit>
 #include <QToolTip>
 #include <QDateTime>
+#include <QTimer>
 #include <QGraphicsDropShadowEffect>
 #include <QApplication>
 #include <QClipboard>
@@ -379,48 +380,60 @@ void MainWindow::initUI() {
             pwdMenu->setStyleSheet(menu.styleSheet());
             
             pwdMenu->addAction("设置", [this, catId]() {
-                auto* dlg = new CategoryPasswordDialog("设置密码", this);
-                connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
-                    DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
-                    refreshData();
+                QTimer::singleShot(0, [this, catId]() {
+                    auto* dlg = new CategoryPasswordDialog("设置密码", this);
+                    connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
+                        DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
+                        refreshData();
+                    });
+                    dlg->show();
+                    dlg->activateWindow();
+                    dlg->raise();
                 });
-                dlg->show();
-                dlg->activateWindow();
-                dlg->raise();
             });
             pwdMenu->addAction("修改", [this, catId]() {
-                auto* verifyDlg = new FramelessInputDialog("验证旧密码", "请输入当前密码:", "", this);
-                connect(verifyDlg, &FramelessInputDialog::accepted, [this, catId, verifyDlg]() {
-                    if (DatabaseManager::instance().verifyCategoryPassword(catId, verifyDlg->text())) {
-                        auto* dlg = new CategoryPasswordDialog("修改密码", this);
-                        QString currentHint;
-                        auto cats = DatabaseManager::instance().getAllCategories();
-                        for(const auto& c : std::as_const(cats)) if(c.value("id").toInt() == catId) currentHint = c.value("password_hint").toString();
-                        dlg->setInitialData(currentHint);
-                        connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
-                            DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
-                            refreshData();
-                        });
-                        dlg->show();
-                        dlg->activateWindow();
-                        dlg->raise();
-                    } else {
-                        QMessageBox::warning(this, "错误", "旧密码验证失败");
-                    }
+                QTimer::singleShot(0, [this, catId]() {
+                    auto* verifyDlg = new FramelessInputDialog("验证旧密码", "请输入当前密码:", "", this);
+                    verifyDlg->setEchoMode(QLineEdit::Password);
+                    connect(verifyDlg, &FramelessInputDialog::accepted, [this, catId, verifyDlg]() {
+                        if (DatabaseManager::instance().verifyCategoryPassword(catId, verifyDlg->text())) {
+                            auto* dlg = new CategoryPasswordDialog("修改密码", this);
+                            QString currentHint;
+                            auto cats = DatabaseManager::instance().getAllCategories();
+                            for(const auto& c : std::as_const(cats)) if(c.value("id").toInt() == catId) currentHint = c.value("password_hint").toString();
+                            dlg->setInitialData(currentHint);
+                            connect(dlg, &QDialog::accepted, [this, catId, dlg]() {
+                                DatabaseManager::instance().setCategoryPassword(catId, dlg->password(), dlg->passwordHint());
+                                refreshData();
+                            });
+                            dlg->show();
+                            dlg->activateWindow();
+                            dlg->raise();
+                        } else {
+                            QMessageBox::warning(this, "错误", "旧密码验证失败");
+                        }
+                    });
+                    verifyDlg->show();
+                    verifyDlg->activateWindow();
+                    verifyDlg->raise();
                 });
-                verifyDlg->show();
             });
             pwdMenu->addAction("移除", [this, catId]() {
-                auto* dlg = new FramelessInputDialog("验证密码", "请输入当前密码以移除保护:", "", this);
-                connect(dlg, &FramelessInputDialog::accepted, [this, catId, dlg]() {
-                    if (DatabaseManager::instance().verifyCategoryPassword(catId, dlg->text())) {
-                        DatabaseManager::instance().removeCategoryPassword(catId);
-                        refreshData();
-                    } else {
-                        QMessageBox::warning(this, "错误", "密码错误");
-                    }
+                QTimer::singleShot(0, [this, catId]() {
+                    auto* dlg = new FramelessInputDialog("验证密码", "请输入当前密码以移除保护:", "", this);
+                    dlg->setEchoMode(QLineEdit::Password);
+                    connect(dlg, &FramelessInputDialog::accepted, [this, catId, dlg]() {
+                        if (DatabaseManager::instance().verifyCategoryPassword(catId, dlg->text())) {
+                            DatabaseManager::instance().removeCategoryPassword(catId);
+                            refreshData();
+                        } else {
+                            QMessageBox::warning(this, "错误", "密码错误");
+                        }
+                    });
+                    dlg->show();
+                    dlg->activateWindow();
+                    dlg->raise();
                 });
-                dlg->show();
             });
             pwdMenu->addAction("立即锁定", [this, catId]() {
                 DatabaseManager::instance().lockCategory(catId);
@@ -1218,7 +1231,7 @@ void MainWindow::onSelectionChanged(const QItemSelection& selected, const QItemS
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_Space) {
+    if (event->key() == Qt::Key_Space && event->modifiers() == Qt::NoModifier) {
         doPreview();
         return;
     }
@@ -1235,7 +1248,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
             doDeleteSelected(modifiers & Qt::ControlModifier);
             return true;
         }
-        if (key == Qt::Key_Space) {
+        if (key == Qt::Key_Space && modifiers == Qt::NoModifier) {
             doPreview();
             return true;
         }
@@ -1486,13 +1499,13 @@ void MainWindow::doDeleteSelected(bool physical) {
         QString msg = QString("确定要永久删除选中的 %1 条数据吗？此操作不可逆。").arg(selected.count());
         if (QMessageBox::question(this, "确认彻底删除", msg) == QMessageBox::Yes) {
             QList<int> ids;
-            for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+            for (const auto& index : std::as_const(selected)) ids << index.data(NoteModel::IdRole).toInt();
             DatabaseManager::instance().deleteNotesBatch(ids);
             refreshData();
         }
     } else {
         QList<int> ids;
-        for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+        for (const auto& index : std::as_const(selected)) ids << index.data(NoteModel::IdRole).toInt();
         DatabaseManager::instance().softDeleteNotes(ids);
         refreshData();
     }
@@ -1501,7 +1514,7 @@ void MainWindow::doDeleteSelected(bool physical) {
 void MainWindow::doToggleFavorite() {
     auto selected = m_noteList->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
-    for (const auto& index : selected) {
+    for (const auto& index : std::as_const(selected)) {
         int id = index.data(NoteModel::IdRole).toInt();
         DatabaseManager::instance().toggleNoteState(id, "is_favorite");
     }
@@ -1511,7 +1524,7 @@ void MainWindow::doToggleFavorite() {
 void MainWindow::doTogglePin() {
     auto selected = m_noteList->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
-    for (const auto& index : selected) {
+    for (const auto& index : std::as_const(selected)) {
         int id = index.data(NoteModel::IdRole).toInt();
         DatabaseManager::instance().toggleNoteState(id, "is_pinned");
     }
@@ -1522,12 +1535,11 @@ void MainWindow::doLockSelected() {
     auto selected = m_noteList->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
     
-    int firstId = selected.first().data(NoteModel::IdRole).toInt();
     bool firstState = selected.first().data(NoteModel::LockedRole).toBool();
     bool targetState = !firstState;
 
     QList<int> ids;
-    for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+    for (const auto& index : std::as_const(selected)) ids << index.data(NoteModel::IdRole).toInt();
     
     DatabaseManager::instance().updateNoteStateBatch(ids, "is_locked", targetState);
     refreshData();
@@ -1543,7 +1555,7 @@ void MainWindow::doExtractContent() {
     auto selected = m_noteList->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
     QStringList texts;
-    for (const auto& index : selected) {
+    for (const auto& index : std::as_const(selected)) {
         int id = index.data(NoteModel::IdRole).toInt();
         QVariantMap note = DatabaseManager::instance().getNoteById(id);
         if (note.value("item_type").toString() == "text" || note.value("item_type").toString().isEmpty()) {
@@ -1567,7 +1579,7 @@ void MainWindow::doEditSelected() {
 void MainWindow::doSetRating(int rating) {
     auto selected = m_noteList->selectionModel()->selectedIndexes();
     if (selected.isEmpty()) return;
-    for (const auto& index : selected) {
+    for (const auto& index : std::as_const(selected)) {
         int id = index.data(NoteModel::IdRole).toInt();
         DatabaseManager::instance().updateNoteState(id, "rating", rating);
     }
@@ -1579,7 +1591,7 @@ void MainWindow::doMoveToCategory(int catId) {
     if (selected.isEmpty()) return;
 
     QList<int> ids;
-    for (const auto& index : selected) ids << index.data(NoteModel::IdRole).toInt();
+    for (const auto& index : std::as_const(selected)) ids << index.data(NoteModel::IdRole).toInt();
     
     DatabaseManager::instance().moveNotesToCategory(ids, catId);
     refreshData();

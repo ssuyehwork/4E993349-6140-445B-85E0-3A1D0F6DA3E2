@@ -1,5 +1,7 @@
 #include <QApplication>
 #include <QFile>
+#include <QToolTip>
+#include <QCursor>
 #include <QMessageBox>
 #include <QCoreApplication>
 #include <QDir>
@@ -21,6 +23,7 @@
 #include "ui/TimePasteWindow.h"
 #include "ui/PasswordGeneratorWindow.h"
 #include "ui/OCRWindow.h"
+#include "ui/PathAcquisitionWindow.h"
 #include "ui/ScreenshotTool.h"
 #include "ui/SettingsWindow.h"
 #include "core/KeyboardHook.h"
@@ -81,6 +84,7 @@ int main(int argc, char *argv[]) {
     TimePasteWindow* timePasteWin = new TimePasteWindow();
     PasswordGeneratorWindow* passwordGenWin = new PasswordGeneratorWindow();
     OCRWindow* ocrWin = new OCRWindow();
+    PathAcquisitionWindow* pathAcqWin = new PathAcquisitionWindow();
 
     auto toggleWindow = [](QWidget* win, QWidget* parentWin = nullptr) {
         if (win->isVisible()) {
@@ -107,6 +111,7 @@ int main(int argc, char *argv[]) {
     QObject::connect(toolbox, &Toolbox::showTimePasteRequested, [=](){ toggleWindow(timePasteWin); });
     QObject::connect(toolbox, &Toolbox::showPasswordGeneratorRequested, [=](){ toggleWindow(passwordGenWin); });
     QObject::connect(toolbox, &Toolbox::showOCRRequested, [=](){ toggleWindow(ocrWin); });
+    QObject::connect(toolbox, &Toolbox::showPathAcquisitionRequested, [=](){ toggleWindow(pathAcqWin); });
 
     // 统一显示主窗口的逻辑，处理启动锁定状态
     auto showMainWindow = [=]() {

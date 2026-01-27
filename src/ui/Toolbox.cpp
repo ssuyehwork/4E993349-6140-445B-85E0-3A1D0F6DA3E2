@@ -92,6 +92,10 @@ void Toolbox::initUI() {
     connect(btnOCR, &QPushButton::clicked, this, &Toolbox::showOCRRequested);
     contentLayout->addWidget(btnOCR);
 
+    auto* btnPath = createToolButton("路径提取 (拖拽)");
+    connect(btnPath, &QPushButton::clicked, this, &Toolbox::showPathAcquisitionRequested);
+    contentLayout->addWidget(btnPath);
+
     contentLayout->addStretch();
 }
 

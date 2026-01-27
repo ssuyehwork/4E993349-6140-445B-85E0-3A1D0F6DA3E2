@@ -39,6 +39,7 @@ set(SOURCES
     src/ui/TimePasteWindow.cpp
     src/ui/PasswordGeneratorWindow.cpp
     src/ui/OCRWindow.cpp
+    src/ui/PathAcquisitionWindow.cpp
     src/ui/SystemTray.cpp
     src/ui/SettingsWindow.h
     src/ui/SettingsWindow.cpp

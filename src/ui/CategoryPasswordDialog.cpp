@@ -79,8 +79,8 @@ CategoryPasswordDialog::CategoryPasswordDialog(const QString& title, QWidget* pa
 
 void CategoryPasswordDialog::showEvent(QShowEvent* event) {
     FramelessDialog::showEvent(event);
-    // 使用 QTimer 确保在窗口完全显示后获取焦点
-    QTimer::singleShot(0, m_pwdEdit, qOverload<>(&QWidget::setFocus));
+    // 使用 QTimer 确保在窗口完全显示后获取焦点，增加延迟至 100ms 以应对复杂的菜单关闭场景
+    QTimer::singleShot(100, m_pwdEdit, qOverload<>(&QWidget::setFocus));
 }
 
 void CategoryPasswordDialog::setInitialData(const QString& hint) {

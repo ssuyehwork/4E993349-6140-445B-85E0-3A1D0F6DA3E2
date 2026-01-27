@@ -122,7 +122,8 @@ FramelessInputDialog::FramelessInputDialog(const QString& title, const QString& 
 
 void FramelessInputDialog::showEvent(QShowEvent* event) {
     FramelessDialog::showEvent(event);
-    QTimer::singleShot(0, m_edit, qOverload<>(&QWidget::setFocus));
+    // 增加延迟至 100ms 确保焦点稳定
+    QTimer::singleShot(100, m_edit, qOverload<>(&QWidget::setFocus));
 }
 
 // ----------------------------------------------------------------------------
