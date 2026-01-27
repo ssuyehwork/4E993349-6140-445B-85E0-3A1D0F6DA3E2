@@ -31,6 +31,7 @@ private:
     void processStorage(const QStringList& paths);
     void storeFile(const QString& path);
     void storeFolder(const QString& path);
+    void storeArchive(const QStringList& paths);
 
     QLabel* m_dropHint;
     QListWidget* m_statusList;

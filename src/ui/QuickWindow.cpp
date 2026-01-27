@@ -898,11 +898,31 @@ void QuickWindow::activateNote(const QModelIndex& index) {
 
     QString itemType = note.value("item_type").toString();
     QString content = note.value("content").toString();
+    QByteArray blob = note.value("data_blob").toByteArray();
     
     if (itemType == "image") {
         QImage img;
-        img.loadFromData(note.value("data_blob").toByteArray());
+        img.loadFromData(blob);
         QApplication::clipboard()->setImage(img);
+    } else if (!blob.isEmpty() && (itemType == "file" || itemType == "folder")) {
+        // 1. 导出实际存储的文件数据到临时目录
+        QString title = note.value("title").toString();
+        QString exportDir = QDir::tempPath() + "/RapidNotes_Export";
+        QDir().mkpath(exportDir);
+        QString tempPath = exportDir + "/" + title;
+
+        QFile f(tempPath);
+        if (f.open(QIODevice::WriteOnly)) {
+            f.write(blob);
+            f.close();
+
+            // 2. 将临时文件路径放入剪贴板
+            QMimeData* mimeData = new QMimeData();
+            mimeData->setUrls({QUrl::fromLocalFile(tempPath)});
+            QApplication::clipboard()->setMimeData(mimeData);
+        } else {
+            QApplication::clipboard()->setText(content);
+        }
     } else if (itemType != "text" && !itemType.isEmpty()) {
         QStringList rawPaths = content.split(';', Qt::SkipEmptyParts);
         QList<QUrl> validUrls;

@@ -122,13 +122,67 @@ void FileStorageWindow::dropEvent(QDropEvent* event) {
 
 void FileStorageWindow::processStorage(const QStringList& paths) {
     m_statusList->clear();
+    if (paths.isEmpty()) return;
+
+    if (paths.size() == 1) {
+        QFileInfo info(paths.first());
+        if (info.isDir()) {
+            storeFolder(paths.first());
+        } else {
+            storeFile(paths.first());
+        }
+    } else {
+        storeArchive(paths);
+    }
+}
+
+void FileStorageWindow::storeArchive(const QStringList& paths) {
+    QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    QString zipName = QString("批量存储_%1.zip").arg(timestamp);
+    QString tempZip = QDir::tempPath() + "/" + zipName;
+
+    QStringList args;
+    args << "-caf" << tempZip;
     for (const QString& path : paths) {
         QFileInfo info(path);
-        if (info.isDir()) {
-            storeFolder(path);
+        args << "-C" << info.absolutePath() << info.fileName();
+    }
+
+    QProcess proc;
+    proc.start("tar", args);
+    if (!proc.waitForFinished(60000)) { // 60s timeout for multi files
+        m_statusList->addItem("❌ 失败: 压缩超时 - " + zipName);
+        return;
+    }
+
+    if (proc.exitCode() != 0) {
+        m_statusList->addItem("❌ 失败: tar 错误 - " + zipName);
+        return;
+    }
+
+    QFile zipFile(tempZip);
+    if (zipFile.open(QIODevice::ReadOnly)) {
+        QByteArray data = zipFile.readAll();
+        zipFile.close();
+        QFile::remove(tempZip);
+
+        bool ok = DatabaseManager::instance().addNote(
+            zipName,
+            QString("[已存入实际项目(打包): %1个项目]").arg(paths.size()),
+            {"批量存储"},
+            "#34495e",
+            m_categoryId,
+            "file",
+            data
+        );
+
+        if (ok) {
+            m_statusList->addItem("✅ 成功: " + zipName + " (" + QString::number(data.size() / 1024) + " KB)");
         } else {
-            storeFile(path);
+            m_statusList->addItem("❌ 失败: 数据库写入错误");
         }
+    } else {
+        m_statusList->addItem("❌ 失败: 无法读取 ZIP");
     }
 }
 
