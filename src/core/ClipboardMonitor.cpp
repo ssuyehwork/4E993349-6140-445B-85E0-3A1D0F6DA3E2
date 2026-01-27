@@ -24,6 +24,8 @@ ClipboardMonitor::ClipboardMonitor(QObject* parent) : QObject(parent) {
 #endif
 
 void ClipboardMonitor::onClipboardChanged() {
+    emit clipboardChanged();
+
     // 1. 过滤本程序自身的复制
     QWidget* activeWin = QApplication::activeWindow();
     if (activeWin) return;

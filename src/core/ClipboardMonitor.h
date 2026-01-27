@@ -15,6 +15,7 @@ public:
 signals:
     void newContentDetected(const QString& content, const QString& type, const QByteArray& data = QByteArray(),
                             const QString& sourceApp = "", const QString& sourceTitle = "");
+    void clipboardChanged();
 
 private slots:
     void onClipboardChanged();
