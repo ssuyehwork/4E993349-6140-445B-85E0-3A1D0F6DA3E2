@@ -10,6 +10,11 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+// Helper to get random double in range [min, max)
+static double randomDouble(double min, double max) {
+    return min + QRandomGenerator::global()->generateDouble() * (max - min);
+}
+
 Particle::Particle() : gravity(0), drag(0.92), size(2.0), decay(4.0), alpha(255.0), age(0),
     index(0), total(1), rotation(0), spin(0), widthFactor(1.0), phase(0), amp(0) {}
 
@@ -43,8 +48,8 @@ bool Particle::update() {
             double dist = std::sqrt(std::pow(pos.x() - initialPos.x(), 2) + std::pow(pos.y() - initialPos.y(), 2));
             if (dist < 5) {
                 mode = "boom";
-                double angle = QRandomGenerator::global()->bounded(M_PI * 2);
-                double speed = QRandomGenerator::global()->bounded(2.0, 8.0);
+                double angle = randomDouble(0, M_PI * 2);
+                double speed = randomDouble(2.0, 8.0);
                 vel = QPointF(std::cos(angle) * speed, std::sin(angle) * speed);
                 color = Qt::white;
             }
@@ -136,53 +141,53 @@ void FireworksOverlay::initParticle(Particle& p, const QPoint& pos, const QStrin
     p.total = total;
 
     if (style == "butterfly") {
-        double angle = QRandomGenerator::global()->bounded(M_PI * 2);
-        double speed = QRandomGenerator::global()->bounded(1.0, 3.0);
+        double angle = randomDouble(0, M_PI * 2);
+        double speed = randomDouble(1.0, 3.0);
         p.vel = QPointF(std::cos(angle) * speed, std::sin(angle) * speed);
         p.gravity = 0.01;
         p.drag = 0.96;
         p.color = QColor::fromHsv(QRandomGenerator::global()->bounded(360), 220, 255);
-        p.size = QRandomGenerator::global()->bounded(3.0, 5.0);
+        p.size = randomDouble(3.0, 5.0);
         p.decay = 2.0;
-        p.phase = QRandomGenerator::global()->bounded(M_PI);
+        p.phase = randomDouble(0, M_PI);
     } else if (style == "matrix") {
         static QString chars = "01COPYX";
         p.character = chars.at(QRandomGenerator::global()->bounded(chars.length()));
-        p.vel = QPointF(0, QRandomGenerator::global()->bounded(3.0, 6.0));
+        p.vel = QPointF(0, randomDouble(3.0, 6.0));
         p.color = QColor(0, 255, 70);
         p.size = QRandomGenerator::global()->bounded(8, 12);
         p.decay = 5.0;
     } else if (style == "dna") {
-        p.vel = QPointF(0, -QRandomGenerator::global()->bounded(1.0, 3.0));
+        p.vel = QPointF(0, -randomDouble(1.0, 3.0));
         p.phase = (double(index) / total) * 4 * M_PI;
-        p.amp = QRandomGenerator::global()->bounded(10.0, 15.0);
+        p.amp = randomDouble(10.0, 15.0);
         p.decay = 3.0;
         p.color = (index % 2 == 0) ? QColor(0, 200, 255) : QColor(255, 0, 150);
     } else if (style == "lightning") {
-        double angle = QRandomGenerator::global()->bounded(M_PI * 2);
-        double dist = QRandomGenerator::global()->bounded(20.0, 60.0);
+        double angle = randomDouble(0, M_PI * 2);
+        double dist = randomDouble(20.0, 60.0);
         QPointF target(pos.x() + std::cos(angle) * dist, pos.y() + std::sin(angle) * dist);
         int steps = 4;
         for (int i = 0; i < steps; ++i) {
             double t = double(i + 1) / steps;
-            QPointF next(pos.x() + (target.x() - pos.x()) * t + QRandomGenerator::global()->bounded(-10.0, 10.0),
-                         pos.y() + (target.y() - pos.y()) * t + QRandomGenerator::global()->bounded(-10.0, 10.0));
+            QPointF next(pos.x() + (target.x() - pos.x()) * t + randomDouble(-10.0, 10.0),
+                         pos.y() + (target.y() - pos.y()) * t + randomDouble(-10.0, 10.0));
             p.lightningPoints.append(next);
         }
         p.color = QColor(220, 220, 255);
         p.decay = 20.0;
     } else if (style == "confetti") {
-        double angle = QRandomGenerator::global()->bounded(M_PI * 2);
-        double speed = QRandomGenerator::global()->bounded(2.0, 6.0);
+        double angle = randomDouble(0, M_PI * 2);
+        double speed = randomDouble(2.0, 6.0);
         p.vel = QPointF(std::cos(angle) * speed, std::sin(angle) * speed);
         p.gravity = 0.2;
         p.drag = 0.92;
-        p.spin = QRandomGenerator::global()->bounded(-0.2, 0.2);
+        p.spin = randomDouble(-0.2, 0.2);
         p.color = QColor::fromHsv(QRandomGenerator::global()->bounded(360), 200, 255);
-        p.size = QRandomGenerator::global()->bounded(4.0, 7.0);
+        p.size = randomDouble(4.0, 7.0);
     } else if (style == "void") {
-        double angle = QRandomGenerator::global()->bounded(M_PI * 2);
-        double dist = QRandomGenerator::global()->bounded(40.0, 80.0);
+        double angle = randomDouble(0, M_PI * 2);
+        double dist = randomDouble(40.0, 80.0);
         p.pos = QPointF(pos.x() + std::cos(angle) * dist, pos.y() + std::sin(angle) * dist);
         p.vel = (QPointF(pos) - p.pos) * 0.15;
         p.color = QColor(150, 0, 255);
@@ -190,7 +195,7 @@ void FireworksOverlay::initParticle(Particle& p, const QPoint& pos, const QStrin
         p.decay = 0;
     } else if (style == "heart") {
         double t = (double(index) / total) * 2 * M_PI;
-        double scale = QRandomGenerator::global()->bounded(1.0, 1.8);
+        double scale = randomDouble(1.0, 1.8);
         p.vel = QPointF((16 * std::pow(std::sin(t), 3)) * 0.1 * scale,
                         -(13 * std::cos(t) - 5 * std::cos(2*t) - 2 * std::cos(3*t) - std::cos(4*t)) * 0.1 * scale);
         p.gravity = 0.02;
@@ -198,34 +203,34 @@ void FireworksOverlay::initParticle(Particle& p, const QPoint& pos, const QStrin
         p.decay = 3.0;
     } else if (style == "galaxy") {
         int arm = index % 3;
-        double angle = (arm * 2.09) + (double(index) / total) + QRandomGenerator::global()->bounded(-0.2, 0.2);
-        double speed = QRandomGenerator::global()->bounded(1.0, 3.0);
+        double angle = (arm * 2.09) + (double(index) / total) + randomDouble(-0.2, 0.2);
+        double speed = randomDouble(1.0, 3.0);
         p.vel = QPointF(std::cos(angle) * speed, std::sin(angle) * speed);
         p.color = QColor::fromHsv(QRandomGenerator::global()->bounded(200, 301), 220, 255);
         p.decay = 4.0;
     } else if (style == "frozen") {
-        double angle = QRandomGenerator::global()->bounded(M_PI * 2);
-        double speed = QRandomGenerator::global()->bounded(5.0, 12.0);
+        double angle = randomDouble(0, M_PI * 2);
+        double speed = randomDouble(5.0, 12.0);
         p.vel = QPointF(std::cos(angle) * speed, std::sin(angle) * speed);
         p.gravity = 0.05;
         p.drag = 0.80;
         p.color = QColor(200, 255, 255);
         p.decay = 5.0;
     } else if (style == "phoenix") {
-        double angle = QRandomGenerator::global()->bounded(M_PI + 0.5, 2 * M_PI - 0.5);
-        double speed = QRandomGenerator::global()->bounded(1.0, 4.0);
+        double angle = randomDouble(M_PI + 0.5, 2 * M_PI - 0.5);
+        double speed = randomDouble(1.0, 4.0);
         p.vel = QPointF(std::cos(angle) * speed, std::sin(angle) * speed);
         p.gravity = -0.1;
-        p.color = QColor(255, QRandomGenerator::global()->bounded(150, 256), 50);
+        p.color = QColor(255, int(randomDouble(150, 256)), 50);
         p.decay = 4.0;
     } else if (style == "chaos") {
-        p.vel = QPointF(QRandomGenerator::global()->bounded(-2.0, 2.0), QRandomGenerator::global()->bounded(-2.0, 2.0));
+        p.vel = QPointF(randomDouble(-2.0, 2.0), randomDouble(-2.0, 2.0));
         p.drag = 0.98;
         p.color = QColor(255, 50, 50);
         p.decay = 6.0;
     } else {
-        double angle = QRandomGenerator::global()->bounded(M_PI * 2);
-        double speed = QRandomGenerator::global()->bounded(1.0, 5.0);
+        double angle = randomDouble(0, M_PI * 2);
+        double speed = randomDouble(1.0, 5.0);
         p.vel = QPointF(std::cos(angle) * speed, std::sin(angle) * speed);
         p.gravity = 0.15;
         if (style == "gold") {
@@ -266,7 +271,7 @@ void FireworksOverlay::paintEvent(QPaintEvent* event) {
         int alphaVal = int(pt.alpha);
         // Shimmer logic
         if (pt.style != "matrix") {
-            double flicker = QRandomGenerator::global()->bounded(0.6, 1.0);
+            double flicker = randomDouble(0.6, 1.0);
             alphaVal = int(pt.alpha * flicker);
         }
 
