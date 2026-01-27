@@ -9,6 +9,7 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QDir>
+#include <utility>
 #include <QApplication>
 #include <QCoreApplication>
 #include <QGraphicsDropShadowEffect>
@@ -135,7 +136,7 @@ bool FileStorageWindow::copyRecursively(const QString& srcStr, const QString& ds
     }
 
     // 1. 复制所有文件
-    for (const QString& file : srcDir.entryList(QDir::Files)) {
+    for (const QString& file : std::as_const(srcDir.entryList(QDir::Files))) {
         QString srcFile = srcDir.filePath(file);
         QString dstFile = dstDir.filePath(file);
         if (!QFile::copy(srcFile, dstFile)) {
@@ -144,7 +145,7 @@ bool FileStorageWindow::copyRecursively(const QString& srcStr, const QString& ds
     }
 
     // 2. 递归复制子文件夹
-    for (const QString& dir : srcDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+    for (const QString& dir : std::as_const(srcDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot))) {
         QString srcSub = srcDir.filePath(dir);
         QString dstSub = dstDir.filePath(dir);
         if (!copyRecursively(srcSub, dstSub)) {
@@ -174,7 +175,7 @@ void FileStorageWindow::dropEvent(QDropEvent* event) {
     const QMimeData* mimeData = event->mimeData();
     if (mimeData->hasUrls()) {
         QStringList paths;
-        for (const QUrl& url : mimeData->urls()) {
+        for (const QUrl& url : std::as_const(mimeData->urls())) {
             if (url.isLocalFile()) paths << url.toLocalFile();
         }
 
@@ -284,7 +285,7 @@ void FileStorageWindow::storeArchive(const QStringList& paths) {
     m_statusList->addItem("📦 正在处理 " + QString::number(paths.size()) + " 个项目...");
     QApplication::processEvents();
 
-    for (const QString& srcPath : paths) {
+    for (const QString& srcPath : std::as_const(paths)) {
         QFileInfo srcInfo(srcPath);
         QString destPath = destDir + "/" + srcInfo.fileName();
 
