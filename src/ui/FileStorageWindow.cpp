@@ -9,9 +9,8 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QDir>
-#include <QProcess>
-#include <QTemporaryFile>
 #include <QApplication>
+#include <QCoreApplication>
 #include <QGraphicsDropShadowEffect>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -62,7 +61,7 @@ void FileStorageWindow::initUI() {
     iconLabel->setPixmap(IconHelper::getIcon("save", "#f1c40f").pixmap(20, 20));
     titleLayout->addWidget(iconLabel);
 
-    auto* titleLabel = new QLabel("存储文件 (存入数据库)");
+    auto* titleLabel = new QLabel("存储文件 (文件系统托管)");
     titleLabel->setStyleSheet("color: #f1c40f; font-weight: bold; font-size: 13px;");
     titleLayout->addWidget(titleLabel);
     titleLayout->addStretch();
@@ -77,7 +76,7 @@ void FileStorageWindow::initUI() {
     contentLayout->addWidget(titleBar);
 
     // Drop Area
-    m_dropHint = new QPushButton("拖拽文件或文件夹到这里\n数据将完整存入笔记库");
+    m_dropHint = new QPushButton("拖拽文件或文件夹到这里\n数据将完整拷贝至存储库");
     m_dropHint->setObjectName("DropArea");
     m_dropHint->setStyleSheet("QPushButton#DropArea { color: #888; font-size: 12px; border: 2px dashed #444; border-radius: 8px; padding: 20px; background: #181818; outline: none; } "
                                "QPushButton#DropArea:hover { border-color: #f1c40f; color: #f1c40f; background-color: rgba(241, 196, 15, 0.05); }");
@@ -91,22 +90,84 @@ void FileStorageWindow::initUI() {
                                 "QListWidget::item { padding: 4px; border-bottom: 1px solid #2d2d2d; }");
     contentLayout->addWidget(m_statusList);
 
-    auto* tipLabel = new QLabel("文件夹将自动打包为 ZIP 格式存储");
+    auto* tipLabel = new QLabel("文件将直接复制到 attachments 文件夹");
     tipLabel->setStyleSheet("color: #666; font-size: 10px;");
     tipLabel->setAlignment(Qt::AlignCenter);
     contentLayout->addWidget(tipLabel);
 }
 
+// ==========================================
+// 1. 辅助工具函数
+// ==========================================
+
+QString FileStorageWindow::getStorageRoot() {
+    QString path = QCoreApplication::applicationDirPath() + "/attachments";
+    QDir dir(path);
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+    return path;
+}
+
+QString FileStorageWindow::getUniqueFilePath(const QString& dirPath, const QString& fileName) {
+    QDir dir(dirPath);
+    QString baseName = QFileInfo(fileName).completeBaseName();
+    QString suffix = QFileInfo(fileName).suffix();
+    if (!suffix.isEmpty()) suffix = "." + suffix;
+
+    QString finalName = fileName;
+    int counter = 1;
+
+    while (dir.exists(finalName)) {
+        finalName = QString("%1_%2%3").arg(baseName).arg(counter).arg(suffix);
+        counter++;
+    }
+    return dir.filePath(finalName);
+}
+
+bool FileStorageWindow::copyRecursively(const QString& srcStr, const QString& dstStr) {
+    QDir srcDir(srcStr);
+    if (!srcDir.exists()) return false;
+
+    QDir dstDir(dstStr);
+    if (!dstDir.exists()) {
+        dstDir.mkpath(".");
+    }
+
+    // 1. 复制所有文件
+    for (const QString& file : srcDir.entryList(QDir::Files)) {
+        QString srcFile = srcDir.filePath(file);
+        QString dstFile = dstDir.filePath(file);
+        if (!QFile::copy(srcFile, dstFile)) {
+            return false;
+        }
+    }
+
+    // 2. 递归复制子文件夹
+    for (const QString& dir : srcDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        QString srcSub = srcDir.filePath(dir);
+        QString dstSub = dstDir.filePath(dir);
+        if (!copyRecursively(srcSub, dstSub)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// ==========================================
+// 2. 核心存储逻辑
+// ==========================================
+
 void FileStorageWindow::dragEnterEvent(QDragEnterEvent* event) {
     if (event->mimeData()->hasUrls()) {
         event->acceptProposedAction();
-        m_dropHint->setStyleSheet("color: #f1c40f; font-size: 12px; border: 2px dashed #f1c40f; border-radius: 8px; padding: 20px; background-color: rgba(241, 196, 15, 0.05);");
+        m_dropHint->setStyleSheet("QPushButton#DropArea { color: #f1c40f; font-size: 12px; border: 2px dashed #f1c40f; border-radius: 8px; padding: 20px; background-color: rgba(241, 196, 15, 0.05); }");
     }
 }
 
 void FileStorageWindow::dragLeaveEvent(QDragLeaveEvent* event) {
     Q_UNUSED(event);
-    m_dropHint->setStyleSheet("color: #888; font-size: 12px; border: 2px dashed #444; border-radius: 8px; padding: 20px; background: #181818;");
+    m_dropHint->setStyleSheet("QPushButton#DropArea { color: #888; font-size: 12px; border: 2px dashed #444; border-radius: 8px; padding: 20px; background: #181818; outline: none; }");
 }
 
 void FileStorageWindow::dropEvent(QDropEvent* event) {
@@ -121,7 +182,7 @@ void FileStorageWindow::dropEvent(QDropEvent* event) {
             processStorage(paths);
         }
     }
-    m_dropHint->setStyleSheet("color: #888; font-size: 12px; border: 2px dashed #444; border-radius: 8px; padding: 20px; background: #181818;");
+    m_dropHint->setStyleSheet("QPushButton#DropArea { color: #888; font-size: 12px; border: 2px dashed #444; border-radius: 8px; padding: 20px; background: #181818; outline: none; }");
 }
 
 void FileStorageWindow::processStorage(const QStringList& paths) {
@@ -140,132 +201,126 @@ void FileStorageWindow::processStorage(const QStringList& paths) {
     }
 }
 
-void FileStorageWindow::storeArchive(const QStringList& paths) {
-    QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
-    QString zipName = QString("批量存储_%1.zip").arg(timestamp);
-    QString tempZip = QDir::tempPath() + "/" + zipName;
+void FileStorageWindow::storeFile(const QString& path) {
+    QFileInfo info(path);
+    QString storageDir = getStorageRoot();
+    QString destPath = getUniqueFilePath(storageDir, info.fileName());
 
-    QStringList args;
-    args << "-caf" << tempZip;
-    for (const QString& path : paths) {
-        QFileInfo info(path);
-        args << "-C" << info.absolutePath() << info.fileName();
-    }
-
-    QProcess proc;
-    proc.start("tar", args);
-    if (!proc.waitForFinished(60000)) { // 60s timeout for multi files
-        m_statusList->addItem("❌ 失败: 压缩超时 - " + zipName);
-        return;
-    }
-
-    if (proc.exitCode() != 0) {
-        m_statusList->addItem("❌ 失败: tar 错误 - " + zipName);
-        return;
-    }
-
-    QFile zipFile(tempZip);
-    if (zipFile.open(QIODevice::ReadOnly)) {
-        QByteArray data = zipFile.readAll();
-        zipFile.close();
-        QFile::remove(tempZip);
+    if (QFile::copy(path, destPath)) {
+        QFileInfo destInfo(destPath);
+        QString relativePath = "attachments/" + destInfo.fileName();
 
         bool ok = DatabaseManager::instance().addNote(
-            zipName,
-            QString("[已存入实际项目(打包): %1个项目]").arg(paths.size()),
-            {"批量存储"},
-            "#34495e",
+            info.fileName(),
+            relativePath,
+            {"文件链接"},
+            "#2c3e50",
             m_categoryId,
-            "file",
-            data
+            "local_file",
+            QByteArray(),
+            "FileStorage",
+            info.absoluteFilePath()
         );
 
         if (ok) {
-            m_statusList->addItem("✅ 成功: " + zipName + " (" + QString::number(data.size() / 1024) + " KB)");
+            m_statusList->addItem("✅ 已归档: " + info.fileName());
         } else {
-            m_statusList->addItem("❌ 失败: 数据库写入错误");
+            m_statusList->addItem("❌ 数据库错误: " + info.fileName());
+            QFile::remove(destPath);
         }
     } else {
-        m_statusList->addItem("❌ 失败: 无法读取 ZIP");
-    }
-}
-
-void FileStorageWindow::storeFile(const QString& path) {
-    QFileInfo info(path);
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
-        m_statusList->addItem("❌ 失败: 无法读取 " + info.fileName());
-        return;
-    }
-
-    QByteArray data = file.readAll();
-    file.close();
-
-    bool ok = DatabaseManager::instance().addNote(
-        info.fileName(),
-        QString("[已存入实际文件: %1]").arg(info.fileName()),
-        {"文件存储"},
-        "#2c3e50",
-        m_categoryId,
-        "file",
-        data
-    );
-
-    if (ok) {
-        m_statusList->addItem("✅ 成功: " + info.fileName() + " (" + QString::number(data.size() / 1024) + " KB)");
-    } else {
-        m_statusList->addItem("❌ 失败: 数据库写入错误 - " + info.fileName());
+        m_statusList->addItem("❌ 复制失败: 权限不足或文件被占用");
     }
 }
 
 void FileStorageWindow::storeFolder(const QString& path) {
     QFileInfo info(path);
-    QString folderName = info.fileName();
-    QString parentDir = info.absolutePath();
+    QString storageDir = getStorageRoot();
+    QString destDir = getUniqueFilePath(storageDir, info.fileName());
 
-    // 创建临时 zip 路径
-    QString tempZip = QDir::tempPath() + "/" + folderName + "_" + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".zip";
+    m_statusList->addItem("📂 正在导入文件夹: " + info.fileName() + "...");
+    QApplication::processEvents();
 
-    // 使用 tar 压缩 (Windows 10+ 自带 tar)
-    // tar -caf dest.zip -C parent folder
-    QStringList args;
-    args << "-caf" << tempZip << "-C" << parentDir << folderName;
-
-    QProcess proc;
-    proc.start("tar", args);
-    if (!proc.waitForFinished(30000)) { // 30s timeout
-        m_statusList->addItem("❌ 失败: 压缩超时 - " + folderName);
-        return;
-    }
-
-    if (proc.exitCode() != 0) {
-        m_statusList->addItem("❌ 失败: tar 错误 - " + folderName);
-        return;
-    }
-
-    QFile zipFile(tempZip);
-    if (zipFile.open(QIODevice::ReadOnly)) {
-        QByteArray data = zipFile.readAll();
-        zipFile.close();
-        QFile::remove(tempZip); // 删除临时文件
+    if (copyRecursively(path, destDir)) {
+        QDir d(destDir);
+        QString relativePath = "attachments/" + d.dirName();
 
         bool ok = DatabaseManager::instance().addNote(
-            folderName + ".zip",
-            QString("[已存入实际文件夹(打包): %1]").arg(folderName),
-            {"文件夹存储"},
+            info.fileName(),
+            relativePath,
+            {"文件夹链接"},
             "#8e44ad",
             m_categoryId,
-            "file",
-            data
+            "local_folder",
+            QByteArray(),
+            "FileStorage",
+            info.absoluteFilePath()
         );
 
         if (ok) {
-            m_statusList->addItem("✅ 成功(打包): " + folderName + " (" + QString::number(data.size() / 1024) + " KB)");
+            m_statusList->addItem("✅ 文件夹归档成功");
         } else {
-            m_statusList->addItem("❌ 失败: 数据库写入错误 - " + folderName);
+            m_statusList->addItem("❌ 数据库错误");
+            QDir(destDir).removeRecursively();
         }
     } else {
-        m_statusList->addItem("❌ 失败: 无法读取生成的 ZIP - " + folderName);
+        m_statusList->addItem("❌ 文件夹复制失败");
+    }
+}
+
+void FileStorageWindow::storeArchive(const QStringList& paths) {
+    QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    QString folderName = "批量导入_" + timestamp;
+
+    QString storageRoot = getStorageRoot();
+    QString destDir = storageRoot + "/" + folderName;
+
+    if (!QDir().mkpath(destDir)) {
+        m_statusList->addItem("❌ 无法创建存储目录");
+        return;
+    }
+
+    int successCount = 0;
+    m_statusList->addItem("📦 正在处理 " + QString::number(paths.size()) + " 个项目...");
+    QApplication::processEvents();
+
+    for (const QString& srcPath : paths) {
+        QFileInfo srcInfo(srcPath);
+        QString destPath = destDir + "/" + srcInfo.fileName();
+
+        bool copyOk = false;
+        if (srcInfo.isDir()) {
+            copyOk = copyRecursively(srcPath, destPath);
+        } else {
+            copyOk = QFile::copy(srcPath, destPath);
+        }
+
+        if (copyOk) successCount++;
+    }
+
+    if (successCount > 0) {
+        QString relativePath = "attachments/" + folderName;
+
+        bool ok = DatabaseManager::instance().addNote(
+            folderName,
+            relativePath,
+            {"批量导入"},
+            "#34495e",
+            m_categoryId,
+            "local_batch",
+            QByteArray(),
+            "FileStorage",
+            ""
+        );
+
+        if (ok) {
+            m_statusList->addItem(QString("✅ 成功归档 %1/%2 个项目").arg(successCount).arg(paths.size()));
+        } else {
+            m_statusList->addItem("❌ 数据库写入失败");
+        }
+    } else {
+        m_statusList->addItem("❌ 所有项目导入失败");
+        QDir(destDir).removeRecursively();
     }
 }
 

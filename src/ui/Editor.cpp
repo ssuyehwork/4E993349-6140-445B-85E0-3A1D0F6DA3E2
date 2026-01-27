@@ -208,9 +208,18 @@ void Editor::setNote(const QVariantMap& note, bool isPreview) {
             cursor.insertImage(img);
             cursor.insertText("\n\n");
         }
+    } else if (type == "local_file" || type == "local_folder" || type == "local_batch") {
+        QTextCharFormat linkFmt;
+        linkFmt.setForeground(QColor("#569CD6"));
+        linkFmt.setFontUnderline(true);
+        cursor.setCharFormat(linkFmt);
+        cursor.insertText("📂 本地托管项目: " + title + "\n");
+        cursor.setCharFormat(QTextCharFormat());
+        cursor.insertText("相对路径: " + content + "\n\n");
+        cursor.insertText("(双击左侧列表项可直接在资源管理器中打开)\n\n");
+    } else {
+        cursor.insertText(content);
     }
-
-    cursor.insertText(content);
     
     // 滚动到顶部
     m_edit->moveCursor(QTextCursor::Start);

@@ -29,7 +29,9 @@
 #include <QDateTime>
 #include <QTimer>
 #include <QGraphicsDropShadowEffect>
+#include <QDesktopServices>
 #include <QApplication>
+#include <QCoreApplication>
 #include <QClipboard>
 #include <QMimeData>
 #include <QPlainTextEdit>
@@ -578,6 +580,22 @@ void MainWindow::initUI() {
     connect(m_noteList, &QListView::doubleClicked, this, [this](const QModelIndex& index){
         if (!index.isValid()) return;
         int id = index.data(NoteModel::IdRole).toInt();
+        QVariantMap note = DatabaseManager::instance().getNoteById(id);
+        QString type = note.value("item_type").toString();
+
+        if (type == "local_file" || type == "local_folder" || type == "local_batch") {
+            QString relativePath = note.value("content").toString();
+            QString fullPath = QCoreApplication::applicationDirPath() + "/" + relativePath;
+
+            QFileInfo info(fullPath);
+            if (info.exists()) {
+                QDesktopServices::openUrl(QUrl::fromLocalFile(fullPath));
+            } else {
+                QMessageBox::warning(this, "文件丢失", "未找到源文件：\n" + fullPath + "\n\n可能已被手动删除或移动。");
+            }
+            return;
+        }
+
         NoteEditWindow* win = new NoteEditWindow(id);
         connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
         win->show();

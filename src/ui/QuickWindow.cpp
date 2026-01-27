@@ -31,6 +31,8 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QFile>
+#include <QDesktopServices>
+#include <QCoreApplication>
 #include <QLineEdit>
 #include <QTextEdit>
 #include <QPlainTextEdit>
@@ -906,8 +908,23 @@ void QuickWindow::activateNote(const QModelIndex& index) {
         QImage img;
         img.loadFromData(blob);
         QApplication::clipboard()->setImage(img);
+    } else if (itemType == "local_file" || itemType == "local_folder" || itemType == "local_batch") {
+        // 文件系统托管模式：从相对路径恢复绝对路径
+        QString fullPath = QCoreApplication::applicationDirPath() + "/" + content;
+        QFileInfo fi(fullPath);
+        if (fi.exists()) {
+            QMimeData* mimeData = new QMimeData();
+            mimeData->setUrls({QUrl::fromLocalFile(fullPath)});
+            QApplication::clipboard()->setMimeData(mimeData);
+
+            // 可选：同时尝试打开它（根据用户习惯，QuickWindow通常是发送，MainWindow通常是打开）
+            // 这里我们优先保证“发送”逻辑，即存入剪贴板
+        } else {
+            QApplication::clipboard()->setText(content);
+            QToolTip::showText(QCursor::pos(), "⚠️ 文件已丢失或被移动", this);
+        }
     } else if (!blob.isEmpty() && (itemType == "file" || itemType == "folder")) {
-        // 1. 导出实际存储的文件数据到临时目录
+        // 旧的数据库存储模式：导出到临时目录
         QString title = note.value("title").toString();
         QString exportDir = QDir::tempPath() + "/RapidNotes_Export";
         QDir().mkpath(exportDir);
@@ -918,7 +935,6 @@ void QuickWindow::activateNote(const QModelIndex& index) {
             f.write(blob);
             f.close();
 
-            // 2. 将临时文件路径放入剪贴板
             QMimeData* mimeData = new QMimeData();
             mimeData->setUrls({QUrl::fromLocalFile(tempPath)});
             QApplication::clipboard()->setMimeData(mimeData);
