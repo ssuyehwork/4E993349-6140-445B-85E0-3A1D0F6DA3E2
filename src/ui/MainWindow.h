@@ -17,6 +17,7 @@
 #include "DropTreeView.h"
 #include "FilterPanel.h"
 #include "CategoryLockWidget.h"
+#include "FileStorageWindow.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -98,6 +99,7 @@ private:
     int m_pageSize = 50;
     bool m_autoCategorizeClipboard = false;
     QTimer* m_searchTimer;
+    FileStorageWindow* m_fileStorageWindow = nullptr;
 };
 
 #endif // MAINWINDOW_H
