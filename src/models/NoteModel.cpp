@@ -55,10 +55,10 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
                 }
                 iconName = "image";
                 iconColor = "#9b59b6";
-            } else if (type == "file" || type == "files") {
+            } else if (type == "file" || type == "files" || type == "local_file" || type == "local_batch") {
                 iconName = "file";
                 iconColor = "#f1c40f";
-            } else if (type == "folder") {
+            } else if (type == "folder" || type == "local_folder") {
                 iconName = "folder";
                 iconColor = "#e67e22";
             } else {
