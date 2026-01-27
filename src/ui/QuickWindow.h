@@ -98,6 +98,7 @@ public:
     void showListContextMenu(const QPoint& pos);
     void showSidebarMenu(const QPoint& pos);
     void showToolboxMenu(const QPoint& pos);
+    void handleTagInput();
     
     SearchLineEdit* m_searchEdit;
     QListView* m_listView;
@@ -116,6 +117,7 @@ public:
     QSplitter* m_splitter;
     QuickToolbar* m_toolbar;
     QLabel* m_statusLabel;
+    QLineEdit* m_tagEdit;
 
     int m_currentPage = 1;
     int m_totalPages = 1;
