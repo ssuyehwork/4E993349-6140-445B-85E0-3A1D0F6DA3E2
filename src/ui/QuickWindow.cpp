@@ -29,6 +29,8 @@
 #include <QImage>
 #include <QMap>
 #include <QFileInfo>
+#include <QDir>
+#include <QFile>
 #include <QLineEdit>
 #include <QTextEdit>
 #include <QPlainTextEdit>
