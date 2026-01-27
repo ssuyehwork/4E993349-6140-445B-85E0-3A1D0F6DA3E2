@@ -14,7 +14,7 @@ PathAcquisitionWindow::PathAcquisitionWindow(QWidget* parent) : QWidget(parent) 
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_StyledBackground);
     setAcceptDrops(true);
-    resize(450, 500);
+    resize(400, 350);
 
     initUI();
 }
@@ -52,13 +52,13 @@ void PathAcquisitionWindow::initUI() {
     iconLabel->setPixmap(IconHelper::getIcon("branch", "#3a90ff").pixmap(20, 20));
     titleLayout->addWidget(iconLabel);
 
-    auto* titleLabel = new QLabel("路径提取 (拖拽投喂)");
-    titleLabel->setStyleSheet("color: #3a90ff; font-weight: bold; font-size: 14px;");
+    auto* titleLabel = new QLabel("路径提取 (拖拽即复制)");
+    titleLabel->setStyleSheet("color: #3a90ff; font-weight: bold; font-size: 13px;");
     titleLayout->addWidget(titleLabel);
     titleLayout->addStretch();
 
     auto* btnClose = new QPushButton();
-    btnClose->setFixedSize(28, 28);
+    btnClose->setFixedSize(24, 24);
     btnClose->setIcon(IconHelper::getIcon("close", "#888888"));
     btnClose->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 4px; } QPushButton:hover { background-color: #e74c3c; }");
     connect(btnClose, &QPushButton::clicked, this, &PathAcquisitionWindow::hide);
@@ -67,75 +67,55 @@ void PathAcquisitionWindow::initUI() {
     contentLayout->addWidget(titleBar);
 
     // Drop Area / Hint
-    m_dropHint = new QLabel("请将文件或文件夹拖拽至此处");
+    m_dropHint = new QLabel("投喂文件或文件夹到这里\n(将自动提取并存入剪贴板)");
     m_dropHint->setAlignment(Qt::AlignCenter);
-    m_dropHint->setStyleSheet("color: #666; font-size: 13px; border: 2px dashed #444; border-radius: 8px; padding: 20px;");
-    m_dropHint->setFixedHeight(80);
+    m_dropHint->setStyleSheet("color: #666; font-size: 12px; border: 2px dashed #444; border-radius: 8px; padding: 10px; background: #181818;");
+    m_dropHint->setFixedHeight(60);
     contentLayout->addWidget(m_dropHint);
 
     // List
     m_pathList = new QListWidget();
-    m_pathList->setStyleSheet("QListWidget { background-color: #252526; border: 1px solid #333; border-radius: 6px; color: #CCC; padding: 5px; font-size: 12px; } "
-                              "QListWidget::item { padding: 5px; border-bottom: 1px solid #333; } "
+    m_pathList->setStyleSheet("QListWidget { background-color: #252526; border: 1px solid #333; border-radius: 6px; color: #AAA; padding: 5px; font-size: 11px; } "
+                              "QListWidget::item { padding: 4px; border-bottom: 1px solid #2d2d2d; } "
                               "QListWidget::item:selected { background-color: #3E3E42; color: #FFF; }");
     contentLayout->addWidget(m_pathList);
 
-    // Buttons
-    auto* btnLayout = new QHBoxLayout();
-
-    auto* btnClear = new QPushButton("清空列表");
-    btnClear->setStyleSheet("QPushButton { background-color: #333; color: #CCC; border: none; border-radius: 4px; padding: 8px 15px; } "
-                            "QPushButton:hover { background-color: #444; }");
-    connect(btnClear, &QPushButton::clicked, this, &PathAcquisitionWindow::clearList);
-    btnLayout->addWidget(btnClear);
-
-    btnLayout->addStretch();
-
-    auto* btnCopy = new QPushButton("复制所有路径");
-    btnCopy->setStyleSheet("QPushButton { background-color: #3a90ff; color: #FFF; border: none; border-radius: 4px; padding: 8px 20px; font-weight: bold; } "
-                           "QPushButton:hover { background-color: #5a9fff; }");
-    connect(btnCopy, &QPushButton::clicked, this, &PathAcquisitionWindow::copyToClipboard);
-    btnLayout->addWidget(btnCopy);
-
-    contentLayout->addLayout(btnLayout);
+    auto* tipLabel = new QLabel("提示：每次拖拽都会覆盖旧内容并自动复制");
+    tipLabel->setStyleSheet("color: #555; font-size: 11px;");
+    tipLabel->setAlignment(Qt::AlignCenter);
+    contentLayout->addWidget(tipLabel);
 }
 
 void PathAcquisitionWindow::dragEnterEvent(QDragEnterEvent* event) {
     if (event->mimeData()->hasUrls()) {
         event->acceptProposedAction();
-        m_dropHint->setStyleSheet("color: #3a90ff; font-size: 13px; border: 2px dashed #3a90ff; border-radius: 8px; padding: 20px; background-color: rgba(58, 144, 255, 0.05);");
+        m_dropHint->setStyleSheet("color: #3a90ff; font-size: 12px; border: 2px dashed #3a90ff; border-radius: 8px; padding: 10px; background-color: rgba(58, 144, 255, 0.05);");
     }
 }
 
 void PathAcquisitionWindow::dropEvent(QDropEvent* event) {
     const QMimeData* mimeData = event->mimeData();
     if (mimeData->hasUrls()) {
+        m_pathList->clear();
+
+        QStringList paths;
         QList<QUrl> urlList = mimeData->urls();
         for (const QUrl& url : urlList) {
             QString path = url.toLocalFile();
             if (!path.isEmpty()) {
                 m_pathList->addItem(path);
+                paths << path;
             }
         }
+
+        if (!paths.isEmpty()) {
+            QApplication::clipboard()->setText(paths.join("\n"));
+            QToolTip::showText(QCursor::pos(), "✅ 已提取并复制 " + QString::number(paths.size()) + " 条路径", this);
+        }
+
         m_pathList->scrollToBottom();
     }
-    m_dropHint->setStyleSheet("color: #666; font-size: 13px; border: 2px dashed #444; border-radius: 8px; padding: 20px;");
-}
-
-void PathAcquisitionWindow::copyToClipboard() {
-    if (m_pathList->count() == 0) return;
-
-    QStringList paths;
-    for (int i = 0; i < m_pathList->count(); ++i) {
-        paths << m_pathList->item(i)->text();
-    }
-
-    QApplication::clipboard()->setText(paths.join("\n"));
-    QToolTip::showText(QCursor::pos(), "✅ 已复制 " + QString::number(paths.size()) + " 条路径到剪贴板");
-}
-
-void PathAcquisitionWindow::clearList() {
-    m_pathList->clear();
+    m_dropHint->setStyleSheet("color: #666; font-size: 12px; border: 2px dashed #444; border-radius: 8px; padding: 10px; background: #181818;");
 }
 
 void PathAcquisitionWindow::mousePressEvent(QMouseEvent* event) {

@@ -22,8 +22,6 @@ protected:
 
 private:
     void initUI();
-    void copyToClipboard();
-    void clearList();
 
     QListWidget* m_pathList;
     QLabel* m_dropHint;
