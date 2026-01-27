@@ -293,5 +293,7 @@ int main(int argc, char *argv[]) {
         DatabaseManager::instance().addNoteAsync(title, content, tags, "", catId, type, data, sourceApp, sourceTitle);
     });
 
-    return a.exec();
+    int result = a.exec();
+    CoUninitialize();
+    return result;
 }

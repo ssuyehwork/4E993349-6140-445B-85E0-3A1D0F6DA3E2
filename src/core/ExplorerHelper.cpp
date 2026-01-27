@@ -8,12 +8,9 @@
 QStringList ExplorerHelper::getSelectedPaths() {
     QStringList paths;
 
-    // 获取当前前台窗口及所属的顶层窗口
+    // 获取当前前台窗口
     HWND hwndForeground = GetForegroundWindow();
     if (!hwndForeground) return paths;
-
-    // 使用 GA_ROOTOWNER 确保获取到的是顶层拥有者窗口（如 CabinetWClass）
-    HWND hwndRoot = GetAncestor(hwndForeground, GA_ROOTOWNER);
 
     IShellWindows* psw = nullptr;
     HRESULT hr = CoCreateInstance(CLSID_ShellWindows, nullptr, CLSCTX_ALL, IID_IShellWindows, (void**)&psw);
@@ -34,27 +31,20 @@ QStringList ExplorerHelper::getSelectedPaths() {
                     HWND hwndWba = 0;
                     pwba->get_HWND((LONG_PTR*)&hwndWba);
 
-                    // 匹配逻辑：IWebBrowserApp 的 HWND 应该是我们前台窗口的根窗口
-                    if (hwndWba == hwndRoot) {
+                    // 匹配逻辑：检查前台窗口是否属于该 Shell 窗口
+                    if (hwndWba != NULL && (hwndWba == hwndForeground || IsChild(hwndWba, hwndForeground))) {
                         IServiceProvider* psp = nullptr;
                         if (SUCCEEDED(pwba->QueryInterface(IID_IServiceProvider, (void**)&psp))) {
                             IShellBrowser* psb = nullptr;
                             if (SUCCEEDED(psp->QueryService(SID_STopLevelBrowser, IID_IShellBrowser, (void**)&psb))) {
                                 IShellView* psv = nullptr;
                                 if (SUCCEEDED(psb->QueryActiveShellView(&psv))) {
-
-                                    // 关键：检查 View 窗口是否可见且是前台窗口的祖先或本身
-                                    // 这能有效解决 Windows 11 多标签页下所有标签共享同一个 Root HWND 的问题
                                     HWND hwndView = NULL;
                                     if (SUCCEEDED(psv->GetWindow(&hwndView))) {
-                                        bool isActiveView = (hwndView == hwndForeground || IsChild(hwndView, hwndForeground));
-
-                                        // 如果不是直接子孙，尝试检查可见性（回退方案）
-                                        if (!isActiveView) {
-                                            isActiveView = IsWindowVisible(hwndView);
-                                        }
-
-                                        if (isActiveView) {
+                                        // 针对 Windows 11 标签页：
+                                        // 只有当前可见的标签页视图才是活动的。
+                                        // 另外，某些情况下 hwndForeground 可能是视图本身或其子窗口。
+                                        if (IsWindowVisible(hwndView)) {
                                             IFolderView* pfv = nullptr;
                                             if (SUCCEEDED(psv->QueryInterface(IID_IFolderView, (void**)&pfv))) {
                                                 IShellItemArray* psia = nullptr;
@@ -76,6 +66,16 @@ QStringList ExplorerHelper::getSelectedPaths() {
                                                 }
                                                 pfv->Release();
                                             }
+
+                                            // 既然找到了可见的 View 且它是前台窗口的父级，
+                                            // 那么无论有没有选中项，这都是我们要找的那个“活动”标签页。
+                                            psv->Release();
+                                            psb->Release();
+                                            psp->Release();
+                                            pwba->Release();
+                                            pdisp->Release();
+                                            psw->Release();
+                                            return paths;
                                         }
                                     }
                                     psv->Release();
@@ -83,13 +83,6 @@ QStringList ExplorerHelper::getSelectedPaths() {
                                 psb->Release();
                             }
                             psp->Release();
-                        }
-
-                        // 如果找到了路径，说明这就是激活的窗口/标签，可以退出循环
-                        if (!paths.isEmpty()) {
-                            pwba->Release();
-                            pdisp->Release();
-                            break;
                         }
                     }
                     pwba->Release();
@@ -107,15 +100,16 @@ bool ExplorerHelper::isForegroundExplorer() {
     HWND hwnd = GetForegroundWindow();
     if (!hwnd) return false;
 
-    // 获取根窗口
+    // 向上查找根窗口
     HWND root = GetAncestor(hwnd, GA_ROOTOWNER);
 
     char className[MAX_PATH];
     if (GetClassNameA(root, className, MAX_PATH)) {
         QString name = QString(className);
-        // 支持标准资源管理器窗口和桌面
-        return (name == "CabinetWClass" || name == "ExploreWClass" ||
-                name == "Progman" || name == "WorkerW");
+        if (name == "CabinetWClass" || name == "ExploreWClass" ||
+            name == "Progman" || name == "WorkerW") {
+            return true;
+        }
     }
     return false;
 }
