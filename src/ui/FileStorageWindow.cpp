@@ -302,8 +302,18 @@ void FileStorageWindow::storeArchive(const QStringList& paths) {
     if (successCount > 0) {
         QString relativePath = "attachments/" + folderName;
         
+        // 构建描述性标题：[数量个项目] 文件1, 文件2...
+        QStringList names;
+        for (const QString& p : paths) {
+            names << QFileInfo(p).fileName();
+        }
+        QString descriptiveTitle = QString("[%1个项目] %2").arg(paths.size()).arg(names.join(", "));
+        if (descriptiveTitle.length() > 120) {
+            descriptiveTitle = descriptiveTitle.left(117) + "...";
+        }
+
         bool ok = DatabaseManager::instance().addNote(
-            folderName,
+            descriptiveTitle,
             relativePath,
             {"批量导入"},
             "#34495e",
