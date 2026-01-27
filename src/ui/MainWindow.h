@@ -6,6 +6,7 @@
 #include <QListView>
 #include <QSplitter>
 #include <QStandardItemModel>
+#include <QTimer>
 #include "../models/NoteModel.h"
 #include "../models/CategoryModel.h"
 #include "Editor.h"
@@ -96,6 +97,7 @@ private:
     int m_currentPage = 1;
     int m_pageSize = 50;
     bool m_autoCategorizeClipboard = false;
+    QTimer* m_searchTimer;
 };
 
 #endif // MAINWINDOW_H

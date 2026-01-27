@@ -52,6 +52,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindo
     setMouseTracking(true);
     setAttribute(Qt::WA_Hover);
     initUI();
+
+    m_searchTimer = new QTimer(this);
+    m_searchTimer->setSingleShot(true);
+    connect(m_searchTimer, &QTimer::timeout, this, &MainWindow::refreshData);
+
     refreshData();
 
     // 【关键修改】区分两种信号
@@ -81,7 +86,7 @@ void MainWindow::initUI() {
     connect(m_header, &HeaderBar::searchChanged, this, [this](const QString& text){
         m_currentKeyword = text;
         m_currentPage = 1;
-        refreshData();
+        m_searchTimer->start(300);
     });
     connect(m_header, &HeaderBar::pageChanged, this, [this](int page){
         m_currentPage = page;
