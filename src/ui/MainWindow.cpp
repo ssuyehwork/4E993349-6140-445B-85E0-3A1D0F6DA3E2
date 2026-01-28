@@ -996,7 +996,7 @@ void MainWindow::initUI() {
     auto* actionFilter = new QAction(this);
     actionFilter->setShortcut(QKeySequence("Ctrl+G"));
     connect(actionFilter, &QAction::triggered, this, [this](){
-        m_header->toggleSidebar(); 
+        emit m_header->filterRequested();
     });
     addAction(actionFilter);
 
@@ -1339,18 +1339,18 @@ void MainWindow::showContextMenu(const QPoint& pos) {
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
     if (selCount == 1) {
-        menu.addAction(IconHelper::getIcon("eye", "#1abc9c", 18), "预览 (Space)", this, &MainWindow::doPreview);
+        menu.addAction(IconHelper::getIcon("eye", "#aaaaaa", 18), "预览 (Space)", this, &MainWindow::doPreview);
     }
     
-    menu.addAction(IconHelper::getIcon("copy", "#1abc9c", 18), QString("复制内容 (%1)").arg(selCount), this, &MainWindow::doExtractContent);
+    menu.addAction(IconHelper::getIcon("copy", "#aaaaaa", 18), QString("复制内容 (%1)").arg(selCount), this, &MainWindow::doExtractContent);
     menu.addSeparator();
 
     if (selCount == 1) {
-        menu.addAction(IconHelper::getIcon("edit", "#4a90e2", 18), "编辑 (Ctrl+B)", this, &MainWindow::doEditSelected);
+        menu.addAction(IconHelper::getIcon("edit", "#aaaaaa", 18), "编辑 (Ctrl+B)", this, &MainWindow::doEditSelected);
         menu.addSeparator();
     }
 
-    auto* ratingMenu = menu.addMenu(IconHelper::getIcon("star", "#f39c12", 18), QString("设置星级 (%1)").arg(selCount));
+    auto* ratingMenu = menu.addMenu(IconHelper::getIcon("star", "#aaaaaa", 18), QString("设置星级 (%1)").arg(selCount));
     ratingMenu->setStyleSheet(menu.styleSheet());
     auto* starGroup = new QActionGroup(this);
     int currentRating = (selCount == 1) ? selected.first().data(NoteModel::RatingRole).toInt() : -1;
@@ -1366,15 +1366,15 @@ void MainWindow::showContextMenu(const QPoint& pos) {
     ratingMenu->addAction("清除评级", [this]() { doSetRating(0); });
 
     bool isFavorite = (selCount == 1) && selected.first().data(NoteModel::FavoriteRole).toBool();
-    menu.addAction(IconHelper::getIcon(isFavorite ? "bookmark_filled" : "bookmark", "#ff6b81", 18), 
+    menu.addAction(IconHelper::getIcon(isFavorite ? "bookmark_filled" : "bookmark", "#aaaaaa", 18),
                    isFavorite ? "取消书签" : "添加书签 (Ctrl+E)", this, &MainWindow::doToggleFavorite);
 
     bool isPinned = (selCount == 1) && selected.first().data(NoteModel::PinnedRole).toBool();
-    menu.addAction(IconHelper::getIcon(isPinned ? "pin_vertical" : "pin_tilted", isPinned ? "#e74c3c" : "#aaaaaa", 18), 
+    menu.addAction(IconHelper::getIcon(isPinned ? "pin_vertical" : "pin_tilted", "#aaaaaa", 18),
                    isPinned ? "取消置顶" : "置顶选中项 (Ctrl+P)", this, &MainWindow::doTogglePin);
     
     bool isLocked = (selCount == 1) && selected.first().data(NoteModel::LockedRole).toBool();
-    menu.addAction(IconHelper::getIcon("lock", isLocked ? "#2ecc71" : "#aaaaaa", 18), 
+    menu.addAction(IconHelper::getIcon("lock", "#aaaaaa", 18),
                    isLocked ? "解锁选中项" : "锁定选中项 (Ctrl+S)", this, &MainWindow::doLockSelected);
     
     menu.addSeparator();

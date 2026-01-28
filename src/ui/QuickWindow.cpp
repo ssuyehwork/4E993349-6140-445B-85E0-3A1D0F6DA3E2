@@ -983,7 +983,6 @@ void QuickWindow::activateNote(const QModelIndex& index) {
             }
         }
     } else {
-        ClipboardMonitor::instance().skipNext();
         StringUtils::copyNoteToClipboard(content);
     }
 
@@ -1139,9 +1138,11 @@ void QuickWindow::doExtractContent() {
     if (selected.isEmpty()) return;
     QStringList texts;
     for (const auto& index : std::as_const(selected)) {
-        QString type = index.data(NoteModel::TypeRole).toString();
+        int id = index.data(NoteModel::IdRole).toInt();
+        QVariantMap note = DatabaseManager::instance().getNoteById(id);
+        QString type = note.value("item_type").toString();
         if (type == "text" || type.isEmpty()) {
-            QString content = index.data(NoteModel::ContentRole).toString();
+            QString content = note.value("content").toString();
             texts << StringUtils::htmlToPlainText(content);
         }
     }
@@ -1271,18 +1272,18 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
     if (selCount == 1) {
-        menu.addAction(IconHelper::getIcon("eye", "#1abc9c", 18), "预览 (Space)", this, &QuickWindow::doPreview);
+        menu.addAction(IconHelper::getIcon("eye", "#aaaaaa", 18), "预览 (Space)", this, &QuickWindow::doPreview);
     }
     
-    menu.addAction(IconHelper::getIcon("copy", "#1abc9c", 18), QString("复制内容 (%1)").arg(selCount), this, &QuickWindow::doExtractContent);
+    menu.addAction(IconHelper::getIcon("copy", "#aaaaaa", 18), QString("复制内容 (%1)").arg(selCount), this, &QuickWindow::doExtractContent);
     menu.addSeparator();
 
     if (selCount == 1) {
-        menu.addAction(IconHelper::getIcon("edit", "#4a90e2", 18), "编辑 (Ctrl+B)", this, &QuickWindow::doEditSelected);
+        menu.addAction(IconHelper::getIcon("edit", "#aaaaaa", 18), "编辑 (Ctrl+B)", this, &QuickWindow::doEditSelected);
         menu.addSeparator();
     }
 
-    auto* ratingMenu = menu.addMenu(IconHelper::getIcon("star", "#f39c12", 18), QString("设置星级 (%1)").arg(selCount));
+    auto* ratingMenu = menu.addMenu(IconHelper::getIcon("star", "#aaaaaa", 18), QString("设置星级 (%1)").arg(selCount));
     ratingMenu->setStyleSheet(menu.styleSheet());
     auto* starGroup = new QActionGroup(this);
     int currentRating = (selCount == 1) ? selected.first().data(NoteModel::RatingRole).toInt() : -1;
@@ -1298,15 +1299,15 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
     ratingMenu->addAction("清除评级", [this]() { doSetRating(0); });
 
     bool isFavorite = selected.first().data(NoteModel::FavoriteRole).toBool();
-    menu.addAction(IconHelper::getIcon(isFavorite ? "bookmark_filled" : "bookmark", "#ff6b81", 18), 
+    menu.addAction(IconHelper::getIcon(isFavorite ? "bookmark_filled" : "bookmark", "#aaaaaa", 18),
                    isFavorite ? "取消书签" : "添加书签 (Ctrl+E)", this, &QuickWindow::doToggleFavorite);
 
     bool isPinned = selected.first().data(NoteModel::PinnedRole).toBool();
-    menu.addAction(IconHelper::getIcon(isPinned ? "pin_vertical" : "pin_tilted", isPinned ? "#e74c3c" : "#aaaaaa", 18), 
+    menu.addAction(IconHelper::getIcon(isPinned ? "pin_vertical" : "pin_tilted", "#aaaaaa", 18),
                    isPinned ? "取消置顶" : "置顶选中项 (Ctrl+P)", this, &QuickWindow::doTogglePin);
     
     bool isLocked = selected.first().data(NoteModel::LockedRole).toBool();
-    menu.addAction(IconHelper::getIcon("lock", isLocked ? "#2ecc71" : "#aaaaaa", 18), 
+    menu.addAction(IconHelper::getIcon("lock", "#aaaaaa", 18),
                    isLocked ? "解锁选中项" : "锁定选中项 (Ctrl+S)", this, &QuickWindow::doLockSelected);
     
     menu.addSeparator();
