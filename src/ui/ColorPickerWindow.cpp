@@ -102,7 +102,8 @@ public:
         hint->setAlignment(Qt::AlignCenter);
         l->addWidget(hint);
 
-        if (screen) m_infoWin->move(screen->geometry().right() - 240, screen->geometry().bottom() - 420);
+        QScreen *pScreen = QGuiApplication::primaryScreen();
+        if (pScreen) m_infoWin->move(pScreen->geometry().right() - 240, pScreen->geometry().bottom() - 420);
         m_infoWin->show();
     }
 
@@ -225,7 +226,8 @@ public:
         m_infoLabel->setWordWrap(true);
         l->addWidget(m_infoLabel);
 
-        if (screen) m_infoWin->move(screen->geometry().center().x() - 150, 30);
+        QScreen *pScreen = QGuiApplication::primaryScreen();
+        if (pScreen) m_infoWin->move(pScreen->geometry().center().x() - 150, 30);
         m_infoWin->show();
     }
 
