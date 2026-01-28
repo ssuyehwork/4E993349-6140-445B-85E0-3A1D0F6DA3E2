@@ -19,6 +19,8 @@ signals:
     void showPathAcquisitionRequested();
     void showTagManagerRequested();
     void showFileStorageRequested();
+    void showFileSearchRequested();
+    void showColorPickerRequested();
 
 protected:
     void mousePressEvent(QMouseEvent* event) override;

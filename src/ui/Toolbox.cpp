@@ -109,6 +109,14 @@ void Toolbox::initUI() {
     connect(btnFile, &QPushButton::clicked, this, &Toolbox::showFileStorageRequested);
     contentLayout->addWidget(btnFile);
 
+    auto* btnSearchFile = createToolButton("查找文件");
+    connect(btnSearchFile, &QPushButton::clicked, this, &Toolbox::showFileSearchRequested);
+    contentLayout->addWidget(btnSearchFile);
+
+    auto* btnPicker = createToolButton("吸取颜色");
+    connect(btnPicker, &QPushButton::clicked, this, &Toolbox::showColorPickerRequested);
+    contentLayout->addWidget(btnPicker);
+
     contentLayout->addStretch();
 }
 

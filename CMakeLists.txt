@@ -44,6 +44,10 @@ set(SOURCES
     src/ui/FileStorageWindow.h
     src/ui/FileStorageWindow.cpp
     src/ui/TagManagerWindow.cpp
+    src/ui/FileSearchWindow.h
+    src/ui/FileSearchWindow.cpp
+    src/ui/ColorPickerWindow.h
+    src/ui/ColorPickerWindow.cpp
     src/ui/FireworksOverlay.h
     src/ui/FireworksOverlay.cpp
     src/ui/SystemTray.cpp
