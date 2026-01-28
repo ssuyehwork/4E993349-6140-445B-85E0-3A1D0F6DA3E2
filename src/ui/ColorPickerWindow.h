@@ -102,12 +102,16 @@ private:
     QWidget* m_favContent;
     QWidget* m_gradContent;
     QWidget* m_extractContent;
+
     QWidget* m_dropHintContainer;
+    QWidget* m_favGridContainer;
+    QWidget* m_gradGridContainer;
+    QWidget* m_extractGridContainer;
 
     // 状态
     QString m_currentColor = "#D64260";
     QStringList m_favorites;
-    QLabel* m_notification = nullptr;
+    QFrame* m_notification = nullptr;
 };
 
 #endif // COLORPICKERWINDOW_H

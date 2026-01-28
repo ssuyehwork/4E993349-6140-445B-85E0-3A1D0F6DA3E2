@@ -25,6 +25,7 @@
 #include <QFile>
 #include <QPainterPath>
 #include <cmath>
+ #include <algorithm>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -243,7 +244,7 @@ protected:
         f.setBold(true);
         f.setPointSize(12);
         painter.setFont(f);
-        painter.drawText(QRect(mid.x() - 70, mid.y() - 20, 140, 40), Qt::AlignCenter, QString("📏 %1 px").arg(distance, 0, 'f', 1));
+        painter.drawText(QRect(mid.x() - 70, mid.y() - 20, 140, 40), Qt::AlignCenter, QString("%1 px").arg(distance, 0, 'f', 1));
     }
 
     void mousePressEvent(QMouseEvent* event) override {
@@ -511,7 +512,8 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
         entry->setFixedHeight(32);
         connect(entry, &QLineEdit::returnPressed, this, onReturn);
         row->addWidget(entry);
-        auto* btn = new QPushButton("📋");
+        auto* btn = new QPushButton();
+        btn->setIcon(IconHelper::getIcon("copy", "#FFFFFF"));
         btn->setFixedSize(32, 32);
         connect(btn, &QPushButton::clicked, this, onCopy);
         row->addWidget(btn);
@@ -530,7 +532,8 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
     rgbRow->addWidget(m_rEntry);
     rgbRow->addWidget(m_gEntry);
     rgbRow->addWidget(m_bEntry);
-    auto* btnCopyRgb = new QPushButton("📋");
+    auto* btnCopyRgb = new QPushButton();
+    btnCopyRgb->setIcon(IconHelper::getIcon("copy", "#FFFFFF"));
     btnCopyRgb->setFixedSize(32, 32);
     connect(btnCopyRgb, &QPushButton::clicked, this, &ColorPickerWindow::copyRgbValue);
     rgbRow->addWidget(btnCopyRgb);
@@ -539,20 +542,21 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
     l->addLayout(topRow);
 
     auto* toolsFrame = new QHBoxLayout();
-    auto createToolBtn = [&](const QString& icon, std::function<void()> cmd, QString color, QString tip) {
-        auto* btn = new QPushButton(icon);
+    auto createToolBtn = [&](const QString& iconName, std::function<void()> cmd, QString color, QString tip) {
+        auto* btn = new QPushButton();
+        btn->setIcon(IconHelper::getIcon(iconName, "#FFFFFF"));
+        btn->setIconSize(QSize(28, 28));
         btn->setFixedSize(52, 52);
-        btn->setFont(QFont("Segoe UI Emoji", 24));
         btn->setStyleSheet(QString("QPushButton { background: %1; border: none; border-radius: 4px; } QPushButton:hover { opacity: 0.8; }").arg(color));
         btn->setToolTip(tip);
         connect(btn, &QPushButton::clicked, cmd);
         toolsFrame->addWidget(btn);
     };
-    createToolBtn("🎨", [this](){ openColorPicker(); }, "#3b8ed0", "打开专业色盘");
-    createToolBtn("🖱️", [this](){ startScreenPicker(); }, "#3b8ed0", "吸取屏幕颜色");
-    createToolBtn("📏", [this](){ openPixelRuler(); }, "#9b59b6", "屏幕像素测量");
-    createToolBtn("📷", [this](){ extractFromImage(); }, "#2ecc71", "从图片提取颜色");
-    createToolBtn("⭐", [this](){ addToFavorites(); }, "#f39c12", "收藏当前颜色");
+    createToolBtn("palette", [this](){ openColorPicker(); }, "#3b8ed0", "打开专业色盘");
+    createToolBtn("zap", [this](){ startScreenPicker(); }, "#3b8ed0", "吸取屏幕颜色");
+    createToolBtn("grip_diagonal", [this](){ openPixelRuler(); }, "#9b59b6", "屏幕像素测量");
+    createToolBtn("image", [this](){ extractFromImage(); }, "#2ecc71", "从图片提取颜色");
+    createToolBtn("star", [this](){ addToFavorites(); }, "#f39c12", "收藏当前颜色");
     l->addLayout(toolsFrame);
 
     auto* gradBox = new QFrame();
@@ -646,16 +650,41 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
     m_gradScroll = createScroll(m_gradContent);
     m_extractScroll = createScroll(m_extractContent);
 
+    // 收藏容器
+    auto* fl = new QVBoxLayout(m_favContent);
+    m_favGridContainer = new QWidget();
+    fl->addWidget(m_favGridContainer);
+    fl->addStretch();
+
+    // 渐变容器
+    auto* gl = new QVBoxLayout(m_gradContent);
+    m_gradGridContainer = new QWidget();
+    gl->addWidget(m_gradGridContainer);
+    gl->addStretch();
+
+    // 提取容器
     auto* el = new QVBoxLayout(m_extractContent);
+    el->setContentsMargins(10, 10, 10, 10);
+
     m_dropHintContainer = new QFrame();
     m_dropHintContainer->setStyleSheet("background: transparent; border: 3px dashed #555; border-radius: 15px;");
     m_dropHintContainer->setFixedHeight(250);
     auto* hl = new QVBoxLayout(m_dropHintContainer);
-    auto* hint = new QLabel("📁 拖放图片到软件任意位置\n\n或\n\nCtrl+V 粘贴\n点击左侧相机图标");
+
+    auto* iconHint = new QLabel();
+    iconHint->setPixmap(IconHelper::getIcon("image", "#444444").pixmap(48, 48));
+    iconHint->setAlignment(Qt::AlignCenter);
+    iconHint->setStyleSheet("border: none;");
+    hl->addWidget(iconHint);
+
+    auto* hint = new QLabel("拖放图片到软件任意位置\n\n或\n\nCtrl+V 粘贴\n点击左侧相机图标");
     hint->setStyleSheet("color: #666; font-size: 18px; border: none;");
     hint->setAlignment(Qt::AlignCenter);
     hl->addWidget(hint);
     el->addWidget(m_dropHintContainer);
+
+    m_extractGridContainer = new QWidget();
+    el->addWidget(m_extractGridContainer);
     el->addStretch();
 
     m_stack->addWidget(m_favScroll);
@@ -753,17 +782,18 @@ void ColorPickerWindow::removeFavorite(const QString& color) {
 }
 
 void ColorPickerWindow::updateFavoritesDisplay() {
-    qDeleteAll(m_favContent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
-    auto* layout = qobject_cast<QVBoxLayout*>(m_favContent->layout());
-    if (!layout) layout = new QVBoxLayout(m_favContent);
-    layout->setContentsMargins(15, 15, 15, 15);
-    layout->setSpacing(15);
+    qDeleteAll(m_favGridContainer->findChildren<QWidget*>());
+
+    if (m_favGridContainer->layout()) delete m_favGridContainer->layout();
+
+    auto* layout = new QVBoxLayout(m_favGridContainer);
+    layout->setContentsMargins(0, 0, 0, 0);
 
     if (m_favorites.isEmpty()) {
         auto* lbl = new QLabel("暂无收藏\n右键点击任何颜色块即可收藏");
-        lbl->setStyleSheet("color: #666; font-size: 16px;");
+        lbl->setStyleSheet("color: #666; font-size: 16px; border: none;");
         lbl->setAlignment(Qt::AlignCenter);
-        layout->addWidget(lbl, 1, Qt::AlignCenter);
+        layout->addWidget(lbl, 0, Qt::AlignCenter);
         return;
     }
 
@@ -771,14 +801,13 @@ void ColorPickerWindow::updateFavoritesDisplay() {
     grid->setSpacing(15);
     for (int i = 0; i < 4; ++i) grid->setColumnStretch(i, 1);
     for (int i = 0; i < m_favorites.size(); ++i) {
-        createFavoriteTile(m_favContent, m_favorites[i], i % 4, i / 4);
-        grid->addWidget(m_favContent->findChildren<QFrame*>().last(), i / 4, i % 4);
+        QWidget* tile = createFavoriteTile(m_favGridContainer, m_favorites[i]);
+        grid->addWidget(tile, i / 4, i % 4);
     }
     layout->addLayout(grid);
-    layout->addStretch();
 }
 
-void ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& color, int col, int row) {
+QWidget* ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& color) {
     auto* tile = new QFrame(parent);
     tile->setStyleSheet("background: #333; border-radius: 10px;");
     auto* l = new QVBoxLayout(tile);
@@ -786,18 +815,21 @@ void ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& color
     auto* btn = new QPushButton("");
     btn->setFixedHeight(80);
     btn->setStyleSheet(QString("background: %1; border-radius: 8px; border: none;").arg(color));
+    btn->setCursor(Qt::PointingHandCursor);
     connect(btn, &QPushButton::clicked, [this, color](){ useColor(color); copyHexValue(); });
     l->addWidget(btn);
     auto* info = new QHBoxLayout();
     auto* lbl = new QLabel(color);
-    lbl->setStyleSheet("font-weight: bold; font-size: 12px; border: none;");
+    lbl->setStyleSheet("font-weight: bold; font-size: 12px; border: none; background: transparent;");
     info->addWidget(lbl);
-    auto* del = new QPushButton("×");
+    auto* del = new QPushButton();
+    del->setIcon(IconHelper::getIcon("close", "#888888"));
     del->setFixedSize(25, 25);
-    del->setStyleSheet("QPushButton { color: gray; font-size: 16px; border: none; background: transparent; } QPushButton:hover { color: white; background: #c0392b; }");
+    del->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: #c0392b; }");
     connect(del, &QPushButton::clicked, [this, color](){ removeFavorite(color); });
     info->addWidget(del);
     l->addLayout(info);
+    return tile;
 }
 
 void ColorPickerWindow::generateGradient() {
@@ -817,7 +849,7 @@ void ColorPickerWindow::generateGradient() {
             QColor c;
             if (m_gradMode == "变暗") c = QColor::fromHsvF(h, s, v * (1 - ratio * 0.7));
             else if (m_gradMode == "变亮") c = QColor::fromHsvF(h, s, v + (1 - v) * ratio);
-            else if (m_gradMode == "饱和") c = QColor::fromHsvF(h, std::min(1.0, std::max(0.0, s + (1 - s) * ratio * (s < 0.5 ? 1 : -1))), v);
+            else if (m_gradMode == "饱和") c = QColor::fromHsvF(h, std::min(1.0f, std::max(0.0f, s + (1 - s) * (float)ratio * (s < 0.5f ? 1.0f : -1.0f))), v);
             colors << c.name().toUpper();
         }
     } else {
@@ -832,25 +864,26 @@ void ColorPickerWindow::generateGradient() {
             colors << QColor(red, green, blue).name().toUpper();
         }
     }
-    qDeleteAll(m_gradContent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
-    auto* layout = new QVBoxLayout(m_gradContent);
-    layout->setContentsMargins(15, 15, 15, 15);
+
+    qDeleteAll(m_gradGridContainer->findChildren<QWidget*>());
+    if (m_gradGridContainer->layout()) delete m_gradGridContainer->layout();
+
+    auto* layout = new QVBoxLayout(m_gradGridContainer);
     auto* title = new QLabel("生成结果 (左键应用 / 右键收藏)");
-    title->setStyleSheet("font-weight: bold; font-size: 16px; border: none;");
+    title->setStyleSheet("font-weight: bold; font-size: 16px; border: none; background: transparent;");
     layout->addWidget(title, 0, Qt::AlignCenter);
     auto* grid = new QGridLayout();
     grid->setSpacing(8);
     for (int i = 0; i < 5; ++i) grid->setColumnStretch(i, 1);
     for (int i = 0; i < colors.size(); ++i) {
-        createColorTile(m_gradContent, colors[i], i % 5, i / 5);
-        grid->addWidget(m_gradContent->findChildren<QFrame*>().last(), i / 5, i % 5);
+        QWidget* tile = createColorTile(m_gradGridContainer, colors[i]);
+        grid->addWidget(tile, i / 5, i % 5);
     }
     layout->addLayout(grid);
-    layout->addStretch();
     switchView("渐变预览");
 }
 
-void ColorPickerWindow::createColorTile(QWidget* parent, const QString& color, int col, int row) {
+QWidget* ColorPickerWindow::createColorTile(QWidget* parent, const QString& color) {
     auto* tile = new QFrame(parent);
     tile->setStyleSheet("background: #333; border-radius: 12px;");
     auto* l = new QVBoxLayout(tile);
@@ -871,6 +904,7 @@ void ColorPickerWindow::createColorTile(QWidget* parent, const QString& color, i
     clbl->installEventFilter(this);
     cf->setProperty("color", color);
     clbl->setProperty("color", color);
+    return tile;
 }
 
 void ColorPickerWindow::extractFromImage() {
@@ -889,23 +923,27 @@ void ColorPickerWindow::processImage(const QString& filePath, const QImage& imag
     m_imagePreviewLabel->setPixmap(QPixmap::fromImage(img).scaled(360, 200, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     m_imagePreviewLabel->setText("");
 
-    qDeleteAll(m_extractContent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
     m_dropHintContainer->hide();
-    auto* layout = qobject_cast<QVBoxLayout*>(m_extractContent->layout());
-    if (!layout) layout = new QVBoxLayout(m_extractContent);
+    m_extractGridContainer->show();
+    qDeleteAll(m_extractGridContainer->findChildren<QWidget*>());
+    if (m_extractGridContainer->layout()) delete m_extractGridContainer->layout();
+
+    auto* layout = new QVBoxLayout(m_extractGridContainer);
     auto* title = new QLabel("提取的调色板 (点击应用)");
-    title->setStyleSheet("font-weight: bold; font-size: 18px; border: none;");
+    title->setStyleSheet("font-weight: bold; font-size: 18px; border: none; background: transparent;");
     layout->addWidget(title, 0, Qt::AlignCenter);
+
     auto* grid = new QGridLayout();
     grid->setSpacing(8);
     for (int i = 0; i < 5; ++i) grid->setColumnStretch(i, 1);
+
     QStringList colors = extractDominantColors(img, 20);
     for (int i = 0; i < colors.size(); ++i) {
-        createColorTile(m_extractContent, colors[i], i % 5, i / 5);
-        grid->addWidget(m_extractContent->findChildren<QFrame*>().last(), i / 5, i % 5);
+        QWidget* tile = createColorTile(m_extractGridContainer, colors[i]);
+        grid->addWidget(tile, i / 5, i % 5);
     }
     layout->addLayout(grid);
-    layout->addStretch();
+
     switchView("图片提取");
     showNotification("图片已加载，调色板生成完毕");
 }
@@ -937,15 +975,34 @@ QStringList ColorPickerWindow::extractDominantColors(const QImage& img, int num)
 }
 
 void ColorPickerWindow::showNotification(const QString& message, bool isError) {
-    if (m_notification) m_notification->deleteLater();
-    m_notification = new QLabel(this);
+    if (m_notification) {
+        m_notification->hide();
+        m_notification->deleteLater();
+    }
+
+    m_notification = new QFrame(this);
     m_notification->setObjectName("notification");
-    m_notification->setStyleSheet(QString("background: %1; border-radius: 20px; color: white; font-weight: bold; padding: 10px 20px;")
+    m_notification->setStyleSheet(QString("QFrame#notification { background: %1; border-radius: 20px; }")
         .arg(isError ? "#e74c3c" : "#2ecc71"));
-    m_notification->setText((isError ? "❌ " : "✅ ") + message);
+
+    auto* l = new QHBoxLayout(m_notification);
+    l->setContentsMargins(15, 8, 15, 8);
+    l->setSpacing(10);
+
+    auto* icon = new QLabel();
+    icon->setPixmap(IconHelper::getIcon(isError ? "close" : "select", "#FFFFFF").pixmap(20, 20));
+    icon->setStyleSheet("border: none; background: transparent;");
+    l->addWidget(icon);
+
+    auto* lbl = new QLabel(message);
+    lbl->setStyleSheet("color: white; font-weight: bold; font-size: 14px; border: none; background: transparent;");
+    l->addWidget(lbl);
+
     m_notification->adjustSize();
     m_notification->move(width()/2 - m_notification->width()/2, height() - 100);
     m_notification->show();
+    m_notification->raise();
+
     QTimer::singleShot(2000, m_notification, &QWidget::hide);
 }
 
