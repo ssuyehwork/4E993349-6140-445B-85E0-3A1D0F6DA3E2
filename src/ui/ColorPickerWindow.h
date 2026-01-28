@@ -11,7 +11,7 @@
 #include <QButtonGroup>
 
 /**
- * @brief 专业拾色器窗口：支持屏幕吸色、色彩理论建议、变体生成及多格式导出
+ * @brief 专业拾色器窗口：支持屏幕吸色、色彩理论建议、变体生成、多格式导出、无障碍检查及色盲模拟
  */
 class ColorPickerWindow : public FramelessDialog {
     Q_OBJECT
@@ -29,6 +29,7 @@ private slots:
     void onColorSelected(QListWidgetItem* item);
     void clearFavorites();
     void copySpecificFormat();
+    void exportPaletteAsCSS();
 
 private:
     void initUI();
@@ -41,10 +42,17 @@ private:
     void addToHistory(const QString& hex);
     void loadHistory();
 
-    // 色彩辅助逻辑
+    // 专业色彩辅助逻辑
     void updateVariations(const QColor& color);
     void updateHarmony(const QColor& color);
     void updateFormats(const QColor& color);
+    void updateAccessibility(const QColor& color);
+    void updateBlindnessSimulation(const QColor& color);
+
+    // 辅助计算
+    double getLuminance(const QColor& c);
+    double getContrastRatio(const QColor& c1, const QColor& c2);
+    QColor simulateBlindness(const QColor& color, const double matrix[3][3]);
 
     // UI 组件
     QLabel* m_colorPreview;
@@ -59,6 +67,12 @@ private:
 
     QWidget* m_shadesContainer;
     QWidget* m_harmonyContainer;
+
+    // 无障碍与模拟组件
+    QLabel* m_contrastLabel;
+    QLabel* m_aaLabel;
+    QLabel* m_aaaLabel;
+    QWidget* m_blindnessContainer;
 
     QColor m_currentColor;
 };

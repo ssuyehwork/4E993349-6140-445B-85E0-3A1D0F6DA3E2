@@ -56,6 +56,7 @@ CategoryPasswordDialog::CategoryPasswordDialog(const QString& title, QWidget* pa
 
     // 保存按钮
     auto* btnSave = new QPushButton("保存密码设置");
+    btnSave->setAutoDefault(false);
     btnSave->setFixedHeight(44);
     btnSave->setCursor(Qt::PointingHandCursor);
     btnSave->setStyleSheet(
