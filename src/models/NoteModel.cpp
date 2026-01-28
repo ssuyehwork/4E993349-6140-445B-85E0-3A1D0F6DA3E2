@@ -2,6 +2,7 @@
 #include <QDateTime>
 #include <QIcon>
 #include "../ui/IconHelper.h"
+#include "../ui/StringUtils.h"
 #include "../core/DatabaseManager.h"
 #include <QFileInfo>
 #include <QBuffer>
@@ -167,7 +168,8 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             QString title = note.value("title").toString();
             QString content = note.value("content").toString();
             if (type == "text" || type.isEmpty()) {
-                QString display = content.replace('\n', ' ').replace('\r', ' ').trimmed().left(150);
+                QString plain = StringUtils::htmlToPlainText(content);
+                QString display = plain.replace('\n', ' ').replace('\r', ' ').trimmed().left(150);
                 return display.isEmpty() ? title : display;
             }
             return title;
@@ -218,7 +220,8 @@ QStringList NoteModel::mimeTypes() const {
 QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
     QMimeData* mimeData = new QMimeData();
     QStringList ids;
-    QStringList texts;
+    QStringList plainTexts;
+    QStringList htmlTexts;
     QList<QUrl> urls;
 
     for (const QModelIndex& index : indexes) {
@@ -229,7 +232,13 @@ QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
             QString type = data(index, TypeRole).toString();
             
             if (type == "text" || type.isEmpty()) {
-                texts << content;
+                if (StringUtils::isHtml(content)) {
+                    plainTexts << StringUtils::htmlToPlainText(content);
+                    htmlTexts << content;
+                } else {
+                    plainTexts << content;
+                    htmlTexts << content.toHtmlEscaped().replace("\n", "<br>");
+                }
             } else if (type == "file" || type == "folder" || type == "files") {
                 QStringList rawPaths = content.split(';', Qt::SkipEmptyParts);
                 for (const QString& p : rawPaths) {
@@ -238,28 +247,35 @@ QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
                         urls << QUrl::fromLocalFile(path);
                     }
                 }
-                texts << content; // 同时也作为文本
+                plainTexts << content;
+                htmlTexts << content.toHtmlEscaped().replace("\n", "<br>");
             }
         }
     }
     
     mimeData->setData("application/x-note-ids", ids.join(",").toUtf8());
-    if (!texts.isEmpty()) {
-        // 【核心修复】使用 Windows 标准换行符 \r\n，这是 100% 兼容网页输入框的关键
-        QString plainText = texts.join("\n---\n").replace("\n", "\r\n");
-        mimeData->setText(plainText);
+
+    if (!plainTexts.isEmpty()) {
+        // 1. 设置纯文本格式 (使用 \r\n 换行)
+        QString combinedPlain = plainTexts.join("\n---\n").replace("\n", "\r\n");
+        mimeData->setText(combinedPlain);
         
-        // 深度对齐专业工具：增加标准的 HTML 5 片段包裹，提升与网页富文本编辑器的兼容性
-        QString htmlContent = QString(
-            "<html>"
-            "<head><meta charset='utf-8'></head>"
-            "<body>"
-            "<div>%1</div>"
-            "</body>"
-            "</html>"
-        ).arg(plainText.toHtmlEscaped().replace("\r\n", "<br>"));
-        mimeData->setHtml(htmlContent);
+        // 2. 设置 HTML 格式
+        if (indexes.size() == 1 && StringUtils::isHtml(data(indexes.first(), ContentRole).toString())) {
+            // 单个 HTML 笔记：保持原汁原味
+            mimeData->setHtml(data(indexes.first(), ContentRole).toString());
+        } else {
+            // 多个笔记或普通文本：组合后包装
+            QString combinedHtml = htmlTexts.join("<br><hr><br>");
+            mimeData->setHtml(QString(
+                "<html>"
+                "<head><meta charset='utf-8'></head>"
+                "<body>%1</body>"
+                "</html>"
+            ).arg(combinedHtml));
+        }
     }
+
     if (!urls.isEmpty()) {
         mimeData->setUrls(urls);
     }
