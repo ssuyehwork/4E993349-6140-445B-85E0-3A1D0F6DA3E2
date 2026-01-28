@@ -48,11 +48,20 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
     titleLayout->addWidget(m_titleLabel);
     titleLayout->addStretch();
 
+    auto* minBtn = new QPushButton();
+    minBtn->setObjectName("minBtn");
+    minBtn->setFixedSize(32, 36);
+    minBtn->setIcon(IconHelper::getIcon("minimize", "#888888", 14));
+    minBtn->setCursor(Qt::PointingHandCursor);
+    minBtn->setStyleSheet("QPushButton { border: none; border-radius: 0px; } QPushButton:hover { background-color: rgba(255,255,255,0.1); }");
+    connect(minBtn, &QPushButton::clicked, this, &QDialog::showMinimized);
+    titleLayout->addWidget(minBtn);
+
     auto* closeBtn = new QPushButton();
-    closeBtn->setFixedSize(24, 24);
+    closeBtn->setFixedSize(32, 36);
     closeBtn->setIcon(IconHelper::getIcon("close", "#888888", 14));
     closeBtn->setCursor(Qt::PointingHandCursor);
-    closeBtn->setStyleSheet("QPushButton { border: none; border-radius: 4px; } QPushButton:hover { background-color: #e74c3c; }");
+    closeBtn->setStyleSheet("QPushButton { border: none; border-top-right-radius: 10px; } QPushButton:hover { background-color: #e74c3c; }");
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::reject);
     titleLayout->addWidget(closeBtn);
 

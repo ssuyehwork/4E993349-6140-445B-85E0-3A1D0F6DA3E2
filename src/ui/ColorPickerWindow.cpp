@@ -80,7 +80,7 @@ private:
 ColorPickerWindow::ColorPickerWindow(QWidget* parent)
     : FramelessDialog("吸取颜色", parent)
 {
-    resize(400, 550);
+    resize(400, 580);
     setAcceptDrops(true);
     initUI();
     loadFavorites();
@@ -88,12 +88,52 @@ ColorPickerWindow::ColorPickerWindow(QWidget* parent)
 }
 
 void ColorPickerWindow::initUI() {
-    auto* layout = new QVBoxLayout(m_contentArea);
-    layout->setContentsMargins(20, 10, 20, 20);
-    layout->setSpacing(15);
+    // 基础 QSS 应用
+    setStyleSheet(R"(
+        QWidget {
+            font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+            color: #E0E0E0;
+            outline: none;
+        }
+        QLineEdit {
+            background-color: #333333;
+            border: 1px solid #444444;
+            color: #FFFFFF;
+            border-radius: 6px;
+            padding: 8px;
+        }
+        QPushButton {
+            background-color: #333;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 5px;
+        }
+        QPushButton:hover {
+            background-color: #444;
+        }
+        QPushButton#PickBtn {
+            background-color: #007ACC;
+            color: white;
+            border: none;
+            font-weight: bold;
+        }
+        QPushButton#PickBtn:hover {
+            background-color: #0062A3;
+        }
+        QListWidget {
+            background-color: #181818;
+            border: 1px solid #333;
+            border-radius: 6px;
+        }
+        QLabel {
+            font-size: 12px;
+            color: #888;
+        }
+    )");
 
-    // 微软雅黑字体
-    this->setFont(QFont("Microsoft YaHei", 10));
+    auto* layout = new QVBoxLayout(m_contentArea);
+    layout->setContentsMargins(24, 15, 24, 24);
+    layout->setSpacing(16);
 
     // 1. 颜色显示与 Hex 输入
     auto* topLayout = new QHBoxLayout();
@@ -105,11 +145,13 @@ void ColorPickerWindow::initUI() {
     auto* infoLayout = new QVBoxLayout();
     m_hexEdit = new QLineEdit();
     m_hexEdit->setReadOnly(true);
-    m_hexEdit->setStyleSheet("QLineEdit { background: #2A2A2A; border: 1px solid #444; color: #EEE; font-size: 16px; padding: 5px; border-radius: 4px; }");
+    m_hexEdit->setAlignment(Qt::AlignCenter);
+    m_hexEdit->setStyleSheet("font-size: 18px; font-weight: bold; color: #007ACC;");
 
     auto* pickBtn = new QPushButton(" 屏幕吸色");
+    pickBtn->setObjectName("PickBtn");
     pickBtn->setIcon(IconHelper::getIcon("zap", "#FFFFFF"));
-    pickBtn->setStyleSheet("QPushButton { background: #0078d4; color: white; border: none; border-radius: 4px; height: 36px; font-weight: bold; } QPushButton:hover { background: #1086e0; }");
+    pickBtn->setFixedHeight(36);
     connect(pickBtn, &QPushButton::clicked, this, &ColorPickerWindow::startPickColor);
 
     infoLayout->addWidget(m_hexEdit);

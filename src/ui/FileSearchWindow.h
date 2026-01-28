@@ -5,8 +5,20 @@
 #include <QListWidget>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QComboBox>
 #include <QFutureWatcher>
+
+class ResizeHandle : public QWidget {
+    Q_OBJECT
+public:
+    explicit ResizeHandle(QWidget* target, QWidget* parent = nullptr);
+protected:
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+private:
+    QWidget* m_target;
+    QPoint m_startPos;
+    QSize m_startSize;
+};
 
 class FileSearchWindow : public FramelessDialog {
     Q_OBJECT
@@ -25,12 +37,16 @@ private:
 
     QLineEdit* m_pathEdit;
     QLineEdit* m_searchEdit;
-    QComboBox* m_extFilter;
+    QLineEdit* m_extEdit;
     QListWidget* m_fileList;
+    QLabel* m_infoLabel;
     QPushButton* m_searchBtn;
 
     QStringList m_allFiles; // 存储所有找到的文件完整路径
     QFutureWatcher<QStringList> m_watcher;
+    ResizeHandle* m_resizeHandle;
+
+    void resizeEvent(QResizeEvent* event) override;
 };
 
 #endif // FILESEARCHWINDOW_H
