@@ -53,11 +53,15 @@ public:
     {
         setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
         setAttribute(Qt::WA_TranslucentBackground);
-        setCursor(Qt::CrossCursor);
+
+        // 使用吸管光标
+        QPixmap cursorPix = IconHelper::getIcon("screen_picker", "#FFFFFF", 32).pixmap(32, 32);
+        setCursor(QCursor(cursorPix, 2, 30)); // 热点设在吸管尖端 (左下)
+
         setMouseTracking(true);
 
-        QScreen *screen = QGuiApplication::primaryScreen();
-        if (screen) setGeometry(screen->geometry());
+        // 覆盖所有屏幕
+        setGeometry(QGuiApplication::primaryScreen()->virtualGeometry());
 
         m_infoWin = new QWidget(nullptr, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
         m_infoWin->setFixedSize(220, 380);
@@ -142,8 +146,13 @@ private:
         QScreen *screen = QGuiApplication::screenAt(pos);
         if (!screen) return;
 
+        // 修复：Qt 6 grabWindow 坐标是相对于该屏幕的
+        QRect screenRect = screen->geometry();
+        int localX = pos.x() - screenRect.x();
+        int localY = pos.y() - screenRect.y();
+
         int size = 21;
-        QPixmap screenshot = screen->grabWindow(0, pos.x() - size/2, pos.y() - size/2, size, size);
+        QPixmap screenshot = screen->grabWindow(0, localX - size/2, localY - size/2, size, size);
         if (screenshot.isNull()) return;
 
         QImage img = screenshot.toImage();
@@ -169,6 +178,16 @@ private:
         m_hexLabel->setText(m_selectedHex);
         m_rgbLabel->setText(QString("RGB: %1, %2, %3").arg(centerColor.red()).arg(centerColor.green()).arg(centerColor.blue()));
         m_posLabel->setText(QString("X: %1  Y: %2").arg(pos.x()).arg(pos.y()));
+
+        // 信息窗跟随鼠标
+        int infoX = pos.x() + 20;
+        int infoY = pos.y() + 20;
+        // 防止出界
+        QRect virtualGeo = QGuiApplication::primaryScreen()->virtualGeometry();
+        if (infoX + m_infoWin->width() > virtualGeo.right()) infoX = pos.x() - m_infoWin->width() - 20;
+        if (infoY + m_infoWin->height() > virtualGeo.bottom()) infoY = pos.y() - m_infoWin->height() - 20;
+        m_infoWin->move(infoX, infoY);
+        m_infoWin->raise();
     }
 
     std::function<void(QString)> m_callback;
@@ -192,8 +211,7 @@ public:
         setAttribute(Qt::WA_TranslucentBackground);
         setCursor(Qt::CrossCursor);
 
-        QScreen *screen = QGuiApplication::primaryScreen();
-        if (screen) setGeometry(screen->geometry());
+        setGeometry(QGuiApplication::primaryScreen()->virtualGeometry());
 
         m_infoWin = new QWidget(nullptr, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
         m_infoWin->setAttribute(Qt::WA_TranslucentBackground);
