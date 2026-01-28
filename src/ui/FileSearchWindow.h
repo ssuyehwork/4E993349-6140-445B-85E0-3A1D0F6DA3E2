@@ -7,6 +7,7 @@
 #include <QPushButton>
 #include <QThread>
 #include <QPair>
+#include <atomic>
 
 /**
  * @brief 扫描线程：实现增量扫描与目录剪枝
@@ -26,7 +27,7 @@ protected:
 
 private:
     QString m_folderPath;
-    bool m_isRunning = true;
+    std::atomic<bool> m_isRunning{true};
 };
 
 /**

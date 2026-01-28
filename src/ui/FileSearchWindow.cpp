@@ -187,7 +187,6 @@ void FileSearchWindow::initUI() {
     m_pathInput = new QLineEdit();
     m_pathInput->setPlaceholderText("在此粘贴文件夹路径 (Ctrl+V)，然后按回车...");
     m_pathInput->setClearButtonEnabled(true);
-    m_pathInput->setAutoDefault(false);
     connect(m_pathInput, &QLineEdit::returnPressed, this, &FileSearchWindow::onPathReturnPressed);
 
     auto* btnBrowse = new QPushButton("浏览");
