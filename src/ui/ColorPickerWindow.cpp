@@ -584,12 +584,15 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
     addGradInput("起始色", m_gradStart);
     addGradInput("结束色", m_gradEnd);
     auto* stepsRow = new QHBoxLayout();
+    stepsRow->addStretch();
     auto* stepslbl = new QLabel("步数");
     stepslbl->setStyleSheet("color: white; border: none; background: transparent;");
-    stepsRow->addWidget(stepslbl, 0);
-    m_gradSteps = new QLineEdit("7"); m_gradSteps->setFixedWidth(40);
+    stepsRow->addWidget(stepslbl);
+    m_gradSteps = new QLineEdit("7");
+    m_gradSteps->setFixedWidth(40);
+    m_gradSteps->setAlignment(Qt::AlignCenter);
     stepsRow->addWidget(m_gradSteps);
-    stepsRow->addStretch();
+    stepsRow->addSpacing(20);
     auto* btnMode = new QPushButton("变暗");
     connect(btnMode, &QPushButton::clicked, [this, btnMode](){
         if (m_gradMode == "变暗") m_gradMode = "变亮";
@@ -598,6 +601,7 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
         btnMode->setText(m_gradMode);
     });
     stepsRow->addWidget(btnMode);
+    stepsRow->addStretch();
     gl->addLayout(stepsRow);
     auto* btnGrad = new QPushButton("生成渐变");
     btnGrad->setFixedHeight(36);
@@ -620,7 +624,7 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
         m_imagePreviewFrame->hide();
         m_imagePreviewLabel->setPixmap(QPixmap());
         m_imagePreviewLabel->setText("暂无图片");
-        qDeleteAll(m_extractGridContainer->findChildren<QWidget*>());
+        qDeleteAll(m_extractGridContainer->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
         m_dropHintContainer->show();
         showNotification("已重置图片提取");
     });
@@ -752,11 +756,13 @@ void ColorPickerWindow::copyRgbValue() {
 
 void ColorPickerWindow::startScreenPicker() {
     auto* picker = new ScreenColorPickerOverlay([this](QString hex){ useColor(hex); });
+    picker->setAttribute(Qt::WA_DeleteOnClose);
     picker->show();
 }
 
 void ColorPickerWindow::openPixelRuler() {
     auto* ruler = new PixelRulerOverlay();
+    ruler->setAttribute(Qt::WA_DeleteOnClose);
     ruler->show();
 }
 
@@ -788,9 +794,8 @@ void ColorPickerWindow::removeFavorite(const QString& color) {
 }
 
 void ColorPickerWindow::updateFavoritesDisplay() {
-    qDeleteAll(m_favGridContainer->findChildren<QWidget*>());
-
     if (m_favGridContainer->layout()) delete m_favGridContainer->layout();
+    qDeleteAll(m_favGridContainer->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
 
     auto* layout = new QVBoxLayout(m_favGridContainer);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -817,10 +822,10 @@ QWidget* ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& c
     auto* tile = new QFrame(parent);
     tile->setStyleSheet("background: #333; border-radius: 10px;");
     auto* l = new QVBoxLayout(tile);
-    l->setContentsMargins(5, 5, 5, 5);
+    l->setContentsMargins(6, 6, 6, 6);
     auto* btn = new QPushButton("");
-    btn->setFixedHeight(80);
-    btn->setStyleSheet(QString("background: %1; border-radius: 8px; border: none;").arg(color));
+    btn->setFixedHeight(30);
+    btn->setStyleSheet(QString("background: %1; border-radius: 6px; border: none;").arg(color));
     btn->setCursor(Qt::PointingHandCursor);
     connect(btn, &QPushButton::clicked, [this, color](){ useColor(color); copyHexValue(); });
     l->addWidget(btn);
@@ -871,8 +876,8 @@ void ColorPickerWindow::generateGradient() {
         }
     }
 
-    qDeleteAll(m_gradGridContainer->findChildren<QWidget*>());
     if (m_gradGridContainer->layout()) delete m_gradGridContainer->layout();
+    qDeleteAll(m_gradGridContainer->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
 
     auto* layout = new QVBoxLayout(m_gradGridContainer);
     auto* title = new QLabel("生成结果 (左键应用 / 右键收藏)");
@@ -895,9 +900,10 @@ QWidget* ColorPickerWindow::createColorTile(QWidget* parent, const QString& colo
     auto* l = new QVBoxLayout(tile);
     l->setContentsMargins(6, 6, 6, 6);
     auto* cf = new QFrame();
-    cf->setFixedHeight(80);
-    cf->setStyleSheet(QString("border-radius: 10px; background: %1;").arg(color));
+    cf->setFixedHeight(30);
+    cf->setStyleSheet(QString("border-radius: 6px; background: %1;").arg(color));
     auto* cfl = new QVBoxLayout(cf);
+    cfl->setContentsMargins(0, 0, 0, 0);
     auto* clbl = new QLabel(color);
     clbl->setAlignment(Qt::AlignCenter);
     clbl->setCursor(Qt::PointingHandCursor);
@@ -931,8 +937,8 @@ void ColorPickerWindow::processImage(const QString& filePath, const QImage& imag
 
     m_dropHintContainer->hide();
     m_extractGridContainer->show();
-    qDeleteAll(m_extractGridContainer->findChildren<QWidget*>());
     if (m_extractGridContainer->layout()) delete m_extractGridContainer->layout();
+    qDeleteAll(m_extractGridContainer->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
 
     auto* layout = new QVBoxLayout(m_extractGridContainer);
     auto* title = new QLabel("提取的调色板 (点击应用)");

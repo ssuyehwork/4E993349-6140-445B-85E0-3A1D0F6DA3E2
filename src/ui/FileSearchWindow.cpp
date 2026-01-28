@@ -202,7 +202,7 @@ void FileSearchWindow::initUI() {
     // 第二行：搜索过滤与后缀名
     auto* searchLayout = new QHBoxLayout();
     m_searchInput = new QLineEdit();
-    m_searchInput->setPlaceholderText("🔍 输入文件名过滤...");
+    m_searchInput->setPlaceholderText("输入文件名过滤...");
     connect(m_searchInput, &QLineEdit::textChanged, this, &FileSearchWindow::refreshList);
 
     m_extInput = new QLineEdit();
@@ -239,7 +239,7 @@ void FileSearchWindow::onPathReturnPressed() {
     if (QDir(p).exists()) {
         startScan(p);
     } else {
-        m_infoLabel->setText("❌ 路径不存在");
+        m_infoLabel->setText("路径不存在");
         m_pathInput->setStyleSheet("border: 1px solid #FF3333;");
     }
 }
@@ -253,7 +253,7 @@ void FileSearchWindow::startScan(const QString& path) {
 
     m_fileList->clear();
     m_filesData.clear();
-    m_infoLabel->setText("🚀 正在扫描: " + path);
+    m_infoLabel->setText("正在扫描: " + path);
 
     m_scanThread = new ScannerThread(path, this);
     connect(m_scanThread, &ScannerThread::fileFound, this, &FileSearchWindow::onFileFound);
@@ -269,7 +269,7 @@ void FileSearchWindow::onFileFound(const QString& name, const QString& path) {
 }
 
 void FileSearchWindow::onScanFinished(int count) {
-    m_infoLabel->setText(QString("✅ 扫描结束，共 %1 个文件").arg(count));
+    m_infoLabel->setText(QString("扫描结束，共 %1 个文件").arg(count));
     refreshList();
 }
 
