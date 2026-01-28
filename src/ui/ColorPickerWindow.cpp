@@ -1,5 +1,6 @@
 #include "ColorPickerWindow.h"
 #include "IconHelper.h"
+#include "StringUtils.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QApplication>
@@ -7,7 +8,6 @@
 #include <QMouseEvent>
 #include <QClipboard>
 #include <QMimeData>
-#include <QColorDialog>
 #include <QSettings>
 #include <QPainter>
 #include <QBuffer>
@@ -16,528 +16,937 @@
 #include <QSet>
 #include <QScrollArea>
 #include <QFrame>
+#include <QTimer>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QFile>
+#include <QPainterPath>
+#include <cmath>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+#include <QPropertyAnimation>
+#include <QGraphicsOpacityEffect>
+#include <QColorDialog>
+#include <QGridLayout>
+#include <QStackedWidget>
+#include <QSlider>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 // ----------------------------------------------------------------------------
-// ScreenPickerOverlay: 全屏取色遮罩层
+// ScreenColorPickerOverlay: 屏幕取色器
 // ----------------------------------------------------------------------------
-class ScreenPickerOverlay : public QWidget {
+class ScreenColorPickerOverlay : public QWidget {
     Q_OBJECT
 public:
-    explicit ScreenPickerOverlay() {
+    explicit ScreenColorPickerOverlay(std::function<void(QString)> callback)
+        : m_callback(callback)
+    {
         setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+        setAttribute(Qt::WA_TranslucentBackground);
         setCursor(Qt::CrossCursor);
-
-        QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
-        if (!screen) screen = QGuiApplication::primaryScreen();
-
-        m_screenshot = screen->grabWindow(0, screen->geometry().x(), screen->geometry().y(),
-                                         screen->geometry().width(), screen->geometry().height());
-        setGeometry(screen->geometry());
         setMouseTracking(true);
+
+        QScreen *screen = QGuiApplication::primaryScreen();
+        setGeometry(screen->geometry());
+
+        m_infoWin = new QWidget(nullptr, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+        m_infoWin->setFixedSize(220, 380);
+        m_infoWin->setAttribute(Qt::WA_TranslucentBackground);
+        m_infoWin->setStyleSheet("QWidget { background: #1a1a1a; border-radius: 15px; border: 2px solid white; }");
+
+        auto* l = new QVBoxLayout(m_infoWin);
+        l->setContentsMargins(10, 10, 10, 10);
+
+        m_magnifier = new QLabel();
+        m_magnifier->setFixedSize(160, 160);
+        m_magnifier->setStyleSheet("background: #2b2b2b; border-radius: 0; border: none;");
+        m_magnifier->setAlignment(Qt::AlignCenter);
+        l->addWidget(m_magnifier, 0, Qt::AlignCenter);
+
+        m_preview = new QFrame();
+        m_preview->setFixedSize(100, 40);
+        m_preview->setStyleSheet("border-radius: 8px; background: white;");
+        l->addWidget(m_preview, 0, Qt::AlignCenter);
+
+        m_hexLabel = new QLabel("#FFFFFF");
+        m_hexLabel->setStyleSheet("color: white; font-size: 16px; font-weight: bold; border: none;");
+        m_hexLabel->setAlignment(Qt::AlignCenter);
+        l->addWidget(m_hexLabel);
+
+        m_rgbLabel = new QLabel("RGB: 255, 255, 255");
+        m_rgbLabel->setStyleSheet("color: white; font-family: Consolas; font-size: 12px; border: none;");
+        m_rgbLabel->setAlignment(Qt::AlignCenter);
+        l->addWidget(m_rgbLabel);
+
+        m_posLabel = new QLabel("X: 0  Y: 0");
+        m_posLabel->setStyleSheet("color: #888; font-family: Consolas; font-size: 12px; border: none;");
+        m_posLabel->setAlignment(Qt::AlignCenter);
+        l->addWidget(m_posLabel);
+
+        auto* hint = new QLabel("左键确认 | 右键/ESC取消");
+        hint->setStyleSheet("color: #666; font-size: 11px; border: none;");
+        hint->setAlignment(Qt::AlignCenter);
+        l->addWidget(hint);
+
+        m_infoWin->move(screen->geometry().right() - 240, screen->geometry().bottom() - 420);
+        m_infoWin->show();
     }
 
-signals:
-    void colorPicked(const QColor& color);
+    ~ScreenColorPickerOverlay() {
+        if (m_infoWin) m_infoWin->deleteLater();
+    }
 
 protected:
-    void paintEvent(QPaintEvent* event) override {
-        QPainter painter(this);
-        painter.drawPixmap(0, 0, m_screenshot);
-
-        QPoint pos = mapFromGlobal(QCursor::pos());
-        int size = 120;
-        QRect magRect(pos.x() + 20, pos.y() + 20, size, size);
-
-        if (magRect.right() > width()) magRect.moveLeft(pos.x() - size - 20);
-        if (magRect.bottom() > height()) magRect.moveTop(pos.y() - size - 20);
-
-        painter.setBrush(Qt::black);
-        painter.drawRect(magRect.adjusted(-2, -2, 2, 2));
-
-        QPixmap mag = m_screenshot.copy(pos.x() - 5, pos.y() - 5, 11, 11).scaled(size, size, Qt::KeepAspectRatio);
-        painter.drawPixmap(magRect.topLeft(), mag);
-
-        painter.setPen(QPen(Qt::white, 1));
-        painter.drawRect(magRect.center().x() - 5, magRect.center().y() - 5, 10, 10);
-
-        QColor c = m_screenshot.toImage().pixelColor(pos);
-        painter.fillRect(magRect.left(), magRect.bottom() + 5, size, 20, Qt::black);
-        painter.setPen(Qt::white);
-        painter.drawText(QRect(magRect.left(), magRect.bottom() + 5, size, 20), Qt::AlignCenter, c.name().toUpper());
+    void mouseMoveEvent(QMouseEvent* event) override {
+        updatePreview(event->globalPosition().toPoint());
     }
 
     void mousePressEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
-            QImage img = m_screenshot.toImage();
-            QPoint pos = event->pos();
-            if (pos.x() >= 0 && pos.x() < img.width() && pos.y() >= 0 && pos.y() < img.height()) {
-                emit colorPicked(img.pixelColor(pos));
-            }
+            m_callback(m_selectedHex);
+            close();
+        } else if (event->button() == Qt::RightButton) {
+            close();
         }
-        close();
     }
 
-    void mouseMoveEvent(QMouseEvent* event) override { update(); }
-    void keyPressEvent(QKeyEvent* event) override { if(event->key() == Qt::Key_Escape) close(); }
+    void keyPressEvent(QKeyEvent* event) override {
+        if (event->key() == Qt::Key_Escape) close();
+    }
 
 private:
-    QPixmap m_screenshot;
+    void updatePreview(QPoint pos) {
+        QScreen *screen = QGuiApplication::screenAt(pos);
+        if (!screen) return;
+
+        int size = 21;
+        QPixmap screenshot = screen->grabWindow(0, pos.x() - size/2, pos.y() - size/2, size, size);
+        QImage img = screenshot.toImage();
+        if (img.isNull()) return;
+
+        QColor centerColor = img.pixelColor(size/2, size/2);
+        m_selectedHex = centerColor.name().toUpper();
+
+        int magSize = 168;
+        QPixmap magnified = screenshot.scaled(magSize, magSize, Qt::KeepAspectRatio, Qt::FastTransformation);
+
+        QPainter p(&magnified);
+        p.setPen(QPen(Qt::gray, 1));
+        int gridSize = 8;
+        for (int i = 0; i <= magSize; i += gridSize) {
+            p.drawLine(i, 0, i, magSize);
+            p.drawLine(0, i, magSize, i);
+        }
+        p.setPen(QPen(Qt::white, 2));
+        p.drawRect(magSize/2 - gridSize, magSize/2 - gridSize, gridSize, gridSize);
+        p.end();
+
+        m_magnifier->setPixmap(magnified);
+        m_preview->setStyleSheet(QString("border-radius: 8px; background: %1;").arg(m_selectedHex));
+        m_hexLabel->setText(m_selectedHex);
+        m_rgbLabel->setText(QString("RGB: %1, %2, %3").arg(centerColor.red()).arg(centerColor.green()).arg(centerColor.blue()));
+        m_posLabel->setText(QString("X: %1  Y: %2").arg(pos.x()).arg(pos.y()));
+    }
+
+    std::function<void(QString)> m_callback;
+    QWidget* m_infoWin = nullptr;
+    QLabel* m_magnifier;
+    QFrame* m_preview;
+    QLabel* m_hexLabel;
+    QLabel* m_rgbLabel;
+    QLabel* m_posLabel;
+    QString m_selectedHex;
+};
+
+// ----------------------------------------------------------------------------
+// PixelRulerOverlay: 像素测量尺
+// ----------------------------------------------------------------------------
+class PixelRulerOverlay : public QWidget {
+    Q_OBJECT
+public:
+    explicit PixelRulerOverlay() {
+        setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+        setAttribute(Qt::WA_TranslucentBackground);
+        setCursor(Qt::CrossCursor);
+
+        QScreen *screen = QGuiApplication::primaryScreen();
+        setGeometry(screen->geometry());
+
+        m_infoWin = new QWidget(nullptr, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+        m_infoWin->setAttribute(Qt::WA_TranslucentBackground);
+        m_infoWin->setStyleSheet("background: #1a1a1a; border-radius: 20px;");
+        m_infoWin->setFixedSize(300, 150);
+
+        auto* l = new QVBoxLayout(m_infoWin);
+        m_infoLabel = new QLabel("点击起点，拖动到终点测量距离\nESC 或 右键退出");
+        m_infoLabel->setStyleSheet("color: #00ffff; font-size: 14px; font-weight: bold; border: none;");
+        m_infoLabel->setAlignment(Qt::AlignCenter);
+        m_infoLabel->setWordWrap(true);
+        l->addWidget(m_infoLabel);
+
+        m_infoWin->move(screen->geometry().center().x() - 150, 30);
+        m_infoWin->show();
+    }
+
+    ~PixelRulerOverlay() {
+        if (m_infoWin) m_infoWin->deleteLater();
+    }
+
+protected:
+    void paintEvent(QPaintEvent*) override {
+        QPainter painter(this);
+        painter.fillRect(rect(), QColor(0, 0, 0, 80));
+
+        if (m_startPoint.isNull() || m_endPoint.isNull()) return;
+
+        int x1 = m_startPoint.x(), y1 = m_startPoint.y();
+        int x2 = m_endPoint.x(), y2 = m_endPoint.y();
+        int dx = abs(x2 - x1);
+        int dy = abs(y2 - y1);
+        double distance = sqrt(pow(dx, 2) + pow(dy, 2));
+
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(QPen(Qt::cyan, 3));
+        painter.drawLine(m_startPoint, m_endPoint);
+
+        painter.setBrush(Qt::green);
+        painter.setPen(QPen(Qt::white, 2));
+        painter.drawEllipse(m_startPoint, 6, 6);
+        painter.setBrush(Qt::red);
+        painter.drawEllipse(m_endPoint, 6, 6);
+
+        QPen dashPen(Qt::yellow, 1, Qt::DashLine);
+        if (dx > 5) {
+            painter.setPen(dashPen);
+            painter.drawLine(x1, y1, x2, y1);
+            painter.drawText(QRect((x1+x2)/2 - 40, y1 - 25, 80, 20), Qt::AlignCenter, QString("%1 px").arg(dx));
+        }
+        if (dy > 5) {
+            painter.setPen(QPen(QColor(255, 165, 0), 1, Qt::DashLine));
+            painter.drawLine(x2, y1, x2, y2);
+            painter.drawText(QRect(x2 + 10, (y1+y2)/2 - 10, 80, 20), Qt::AlignLeft | Qt::AlignVCenter, QString("%1 px").arg(dy));
+        }
+
+        QPoint mid = (m_startPoint + m_endPoint) / 2;
+        painter.setPen(QPen(Qt::cyan, 2));
+        painter.setBrush(QColor(26, 26, 26));
+        painter.drawRect(mid.x() - 70, mid.y() - 20, 140, 40);
+        painter.setPen(Qt::cyan);
+        QFont f = font();
+        f.setBold(true);
+        f.setPointSize(12);
+        painter.setFont(f);
+        painter.drawText(QRect(mid.x() - 70, mid.y() - 20, 140, 40), Qt::AlignCenter, QString("📏 %1 px").arg(distance, 0, 'f', 1));
+    }
+
+    void mousePressEvent(QMouseEvent* event) override {
+        if (event->button() == Qt::LeftButton) {
+            m_startPoint = event->pos();
+            m_endPoint = m_startPoint;
+            update();
+        } else if (event->button() == Qt::RightButton) {
+            close();
+        }
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override {
+        if (event->buttons() & Qt::LeftButton) {
+            m_endPoint = event->pos();
+            int dx = abs(m_endPoint.x() - m_startPoint.x());
+            int dy = abs(m_endPoint.y() - m_startPoint.y());
+            double dist = sqrt(pow(dx, 2) + pow(dy, 2));
+            m_infoLabel->setText(QString("起点: (%1, %2)\n终点: (%3, %4)\n\n水平: %5 px | 垂直: %6 px\n对角线: %7 px")
+                .arg(m_startPoint.x()).arg(m_startPoint.y())
+                .arg(m_endPoint.x()).arg(m_endPoint.y())
+                .arg(dx).arg(dy).arg(dist, 0, 'f', 1));
+            update();
+        }
+    }
+
+    void keyPressEvent(QKeyEvent* event) override {
+        if (event->key() == Qt::Key_Escape) close();
+    }
+
+private:
+    QPoint m_startPoint;
+    QPoint m_endPoint;
+    QWidget* m_infoWin;
+    QLabel* m_infoLabel;
+};
+
+// ----------------------------------------------------------------------------
+// ColorWheel: 基于 HSV 的圆形色轮
+// ----------------------------------------------------------------------------
+class ColorWheel : public QWidget {
+    Q_OBJECT
+public:
+    explicit ColorWheel(QWidget* parent = nullptr) : QWidget(parent) {
+        setFixedSize(400, 400);
+        m_wheelImg = QImage(400, 400, QImage::Format_RGB32);
+        m_wheelImg.fill(QColor("#1a1a1a"));
+
+        int center = 200;
+        int radius = 190;
+        for (int y = 0; y < 400; ++y) {
+            for (int x = 0; x < 400; ++x) {
+                int dx = x - center;
+                int dy = y - center;
+                double dist = std::sqrt(dx*dx + dy*dy);
+                if (dist <= radius) {
+                    double angle = std::atan2(dy, dx);
+                    double hue = (angle + M_PI) / (2 * M_PI);
+                    double sat = dist / radius;
+                    QColor c = QColor::fromHsvF(hue, sat, 1.0);
+                    m_wheelImg.setPixelColor(x, y, c);
+                }
+            }
+        }
+    }
+
+signals:
+    void colorChanged(double hue, double sat);
+
+protected:
+    void paintEvent(QPaintEvent*) override {
+        QPainter p(this);
+        p.drawImage(0, 0, m_wheelImg);
+    }
+
+    void mousePressEvent(QMouseEvent* event) override { handleMouse(event); }
+    void mouseMoveEvent(QMouseEvent* event) override { if (event->buttons() & Qt::LeftButton) handleMouse(event); }
+
+private:
+    void handleMouse(QMouseEvent* event) {
+        int dx = event->pos().x() - 200;
+        int dy = event->pos().y() - 200;
+        double dist = std::sqrt(dx*dx + dy*dy);
+        if (dist <= 190) {
+            double angle = std::atan2(dy, dx);
+            double hue = (angle + M_PI) / (2 * M_PI);
+            double sat = std::min(dist / 190.0, 1.0);
+            emit colorChanged(hue, sat);
+        }
+    }
+    QImage m_wheelImg;
+};
+
+// ----------------------------------------------------------------------------
+// ColorPickerDialog: 独立选色弹窗
+// ----------------------------------------------------------------------------
+class ColorPickerDialog : public QDialog {
+    Q_OBJECT
+public:
+    ColorPickerDialog(QWidget* parent, std::function<void(QString)> callback)
+        : QDialog(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool), m_callback(callback)
+    {
+        setFixedSize(500, 550);
+        setAttribute(Qt::WA_TranslucentBackground);
+
+        auto* container = new QWidget(this);
+        container->setObjectName("container");
+        container->setStyleSheet("QWidget#container { background: #1a1a1a; border-radius: 15px; border: 1px solid #333; }");
+        auto* mainL = new QVBoxLayout(this);
+        mainL->setContentsMargins(0,0,0,0);
+        mainL->addWidget(container);
+
+        auto* l = new QVBoxLayout(container);
+        l->setContentsMargins(20, 20, 20, 20);
+        l->setSpacing(10);
+
+        auto* title = new QLabel("颜色选择器");
+        title->setStyleSheet("color: white; font-weight: bold; font-size: 16px; border: none;");
+        l->addWidget(title);
+
+        m_wheel = new ColorWheel();
+        connect(m_wheel, &ColorWheel::colorChanged, this, &ColorPickerDialog::onWheelChanged);
+        l->addWidget(m_wheel, 0, Qt::AlignCenter);
+
+        auto* bRow = new QHBoxLayout();
+        bRow->addWidget(new QLabel("亮度:"));
+        m_brightSlider = new QSlider(Qt::Horizontal);
+        m_brightSlider->setRange(0, 100);
+        m_brightSlider->setValue(100);
+        connect(m_brightSlider, &QSlider::valueChanged, this, &ColorPickerDialog::updatePreview);
+        bRow->addWidget(m_brightSlider);
+        l->addLayout(bRow);
+
+        m_preview = new QFrame();
+        m_preview->setFixedHeight(60);
+        m_preview->setStyleSheet("border-radius: 10px; background: white;");
+        auto* pl = new QVBoxLayout(m_preview);
+        m_hexLabel = new QLabel("#FFFFFF");
+        m_hexLabel->setStyleSheet("color: black; font-weight: bold; font-size: 18px; border: none; background: transparent;");
+        m_hexLabel->setAlignment(Qt::AlignCenter);
+        pl->addWidget(m_hexLabel);
+        l->addWidget(m_preview);
+
+        auto* btnConfirm = new QPushButton("确认选择");
+        btnConfirm->setFixedHeight(40);
+        btnConfirm->setStyleSheet("QPushButton { background: #3b8ed0; color: white; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: #1f6aa5; }");
+        connect(btnConfirm, &QPushButton::clicked, this, &ColorPickerDialog::onConfirm);
+        l->addWidget(btnConfirm);
+
+        auto* btnClose = new QPushButton("取消");
+        btnClose->setStyleSheet("color: #888; border: none; background: transparent;");
+        connect(btnClose, &QPushButton::clicked, this, &QDialog::reject);
+        l->addWidget(btnClose);
+    }
+
+private slots:
+    void onWheelChanged(double h, double s) { m_hue = h; m_sat = s; updatePreview(); }
+    void updatePreview() {
+        QColor c = QColor::fromHsvF(m_hue, m_sat, m_brightSlider->value() / 100.0);
+        m_selectedHex = c.name().toUpper();
+        m_preview->setStyleSheet(QString("border-radius: 10px; background: %1;").arg(m_selectedHex));
+        m_hexLabel->setText(m_selectedHex);
+        m_hexLabel->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 18px; border: none; background: transparent;")
+            .arg(c.lightness() > 128 ? "black" : "white"));
+    }
+    void onConfirm() { m_callback(m_selectedHex); accept(); }
+
+private:
+    std::function<void(QString)> m_callback;
+    ColorWheel* m_wheel;
+    QSlider* m_brightSlider;
+    QFrame* m_preview;
+    QLabel* m_hexLabel;
+    double m_hue = 0, m_sat = 0;
+    QString m_selectedHex = "#FFFFFF";
 };
 
 // ----------------------------------------------------------------------------
 // ColorPickerWindow 实现
 // ----------------------------------------------------------------------------
+
 ColorPickerWindow::ColorPickerWindow(QWidget* parent)
-    : FramelessDialog("吸取颜色", parent)
+    : FramelessDialog("专业颜色管理器 Pro", parent)
 {
-    resize(520, 800);
+    setFixedSize(1400, 900);
     setAcceptDrops(true);
+    m_favorites = loadFavorites();
     initUI();
-    loadFavorites();
-    loadHistory();
-    updateColorDisplay(QColor("#4A90E2"), false);
+    useColor("#D64260");
+}
+
+ColorPickerWindow::~ColorPickerWindow() {
+    saveFavorites();
 }
 
 void ColorPickerWindow::initUI() {
     setStyleSheet(R"(
         QWidget { font-family: "Microsoft YaHei", "Segoe UI", sans-serif; color: #E0E0E0; }
-        QLineEdit { background-color: #2A2A2A; border: 1px solid #444; color: #FFFFFF; border-radius: 6px; padding: 8px; font-weight: bold; }
-        QPushButton { background-color: #333; border: 1px solid #444; border-radius: 4px; padding: 6px; }
+        QLineEdit { background-color: #2A2A2A; border: 1px solid #444; color: #FFFFFF; border-radius: 6px; padding: 4px; font-weight: bold; }
+        QPushButton { background-color: #333; border: 1px solid #444; border-radius: 4px; padding: 6px; outline: none; }
         QPushButton:hover { background-color: #444; }
-        QPushButton#PickBtn { background-color: #007ACC; color: white; border: none; font-weight: bold; }
-        QPushButton#PickBtn:hover { background-color: #0062A3; }
-        QListWidget { background-color: #181818; border: 1px solid #333; border-radius: 6px; outline: none; }
-        QLabel#FormatLabel { color: #CCC; font-size: 13px; font-family: Consolas, monospace; }
-        QLabel#SectionTitle { color: #AAA; font-size: 12px; font-weight: bold; border-left: 3px solid #4A90E2; padding-left: 8px; margin-top: 12px; }
+        QScrollArea { background: transparent; border: none; }
+        QScrollBar:vertical { background: transparent; width: 8px; }
+        QScrollBar::handle:vertical { background: #444; border-radius: 4px; }
     )");
 
-    auto* scroll = new QScrollArea(m_contentArea);
-    scroll->setWidgetResizable(true);
-    scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setStyleSheet("QScrollArea { background: transparent; }");
+    auto* mainHLayout = new QHBoxLayout(m_contentArea);
+    mainHLayout->setContentsMargins(20, 20, 20, 20);
+    mainHLayout->setSpacing(15);
 
-    auto* mainContainer = new QWidget();
-    auto* layout = new QVBoxLayout(mainContainer);
-    layout->setContentsMargins(16, 12, 16, 16);
-    layout->setSpacing(12);
+    auto* leftContainer = new QWidget();
+    leftContainer->setObjectName("leftPanelContainer");
+    createLeftPanel(leftContainer);
 
-    auto* topLayout = new QHBoxLayout();
-    m_colorPreview = new QLabel();
-    m_colorPreview->setFixedSize(100, 100);
-    m_colorPreview->setStyleSheet("border-radius: 12px; border: 4px solid #333;");
+    createRightPanel(m_contentArea);
 
-    auto* mainInfoLayout = new QVBoxLayout();
-    m_hexEdit = new QLineEdit();
-    m_hexEdit->setAlignment(Qt::AlignCenter);
-    m_hexEdit->setStyleSheet("font-size: 24px; color: #007ACC; height: 40px;");
-
-    auto* pickBtn = new QPushButton(" 屏幕取色 (ESC 取消)");
-    pickBtn->setObjectName("PickBtn");
-    pickBtn->setAutoDefault(false);
-    pickBtn->setIcon(IconHelper::getIcon("zap", "#FFFFFF"));
-    pickBtn->setFixedHeight(40);
-    connect(pickBtn, &QPushButton::clicked, this, &ColorPickerWindow::startPickColor);
-
-    mainInfoLayout->addWidget(m_hexEdit);
-    mainInfoLayout->addWidget(pickBtn);
-    topLayout->addWidget(m_colorPreview);
-    topLayout->addLayout(mainInfoLayout);
-    layout->addLayout(topLayout);
-
-    auto* formatsFrame = new QFrame();
-    formatsFrame->setStyleSheet("background: #252526; border-radius: 8px; padding: 10px;");
-    auto* formatsLayout = new QGridLayout(formatsFrame);
-
-    auto addFormatRow = [&](const QString& name, QLabel*& label, int row) {
-        auto* btn = new QPushButton(name);
-        btn->setAutoDefault(false);
-        btn->setFixedSize(60, 26);
-        btn->setStyleSheet("font-size: 12px; font-weight: bold; color: #AAA; background: #333; border: 1px solid #444;");
-        btn->setCursor(Qt::PointingHandCursor);
-        connect(btn, &QPushButton::clicked, this, &ColorPickerWindow::copySpecificFormat);
-
-        label = new QLabel("---");
-        label->setObjectName("FormatLabel");
-        label->setTextInteractionFlags(Qt::TextSelectableByMouse);
-
-        formatsLayout->addWidget(btn, row, 0);
-        formatsLayout->addWidget(label, row, 1);
-    };
-
-    addFormatRow("RGB", m_rgbLabel, 0);
-    addFormatRow("HSV", m_hsvLabel, 1);
-    addFormatRow("CMYK", m_cmykLabel, 2);
-    layout->addWidget(formatsFrame);
-
-    auto* variationsTitle = new QLabel("色彩变体 (明暗变化)");
-    variationsTitle->setObjectName("SectionTitle");
-    layout->addWidget(variationsTitle);
-
-    m_shadesContainer = new QWidget();
-    new QHBoxLayout(m_shadesContainer);
-    m_shadesContainer->layout()->setContentsMargins(0, 0, 0, 0);
-    m_shadesContainer->layout()->setSpacing(4);
-    layout->addWidget(m_shadesContainer);
-
-    auto* harmonyTitle = new QLabel("色彩和谐 (配色理论)");
-    harmonyTitle->setObjectName("SectionTitle");
-    layout->addWidget(harmonyTitle);
-
-    m_harmonyContainer = new QWidget();
-    new QHBoxLayout(m_harmonyContainer);
-    m_harmonyContainer->layout()->setContentsMargins(0, 0, 0, 0);
-    m_harmonyContainer->layout()->setSpacing(8);
-    layout->addWidget(m_harmonyContainer);
-
-    auto* accessTitle = new QLabel("无障碍检查 (WCAG 2.1)");
-    accessTitle->setObjectName("SectionTitle");
-    layout->addWidget(accessTitle);
-
-    auto* accessFrame = new QFrame();
-    accessFrame->setStyleSheet("background: #252526; border-radius: 8px; padding: 12px;");
-    auto* accessLayout = new QHBoxLayout(accessFrame);
-    m_contrastLabel = new QLabel("对比度: ---");
-    m_contrastLabel->setStyleSheet("font-weight: bold; font-size: 14px;");
-    m_aaLabel = new QLabel("AA");
-    m_aaaLabel = new QLabel("AAA");
-    QString badgeStyle = "padding: 3px 10px; border-radius: 4px; font-weight: bold; font-size: 11px; color: #AAA; background: #383838;";
-    m_aaLabel->setStyleSheet(badgeStyle);
-    m_aaaLabel->setStyleSheet(badgeStyle);
-    accessLayout->addWidget(m_contrastLabel);
-    accessLayout->addStretch();
-    accessLayout->addWidget(m_aaLabel);
-    accessLayout->addWidget(m_aaaLabel);
-    layout->addWidget(accessFrame);
-
-    auto* blindTitle = new QLabel("视觉障碍模拟");
-    blindTitle->setObjectName("SectionTitle");
-    layout->addWidget(blindTitle);
-    m_blindnessContainer = new QWidget();
-    auto* bLayout = new QVBoxLayout(m_blindnessContainer);
-    bLayout->setContentsMargins(0, 0, 0, 0);
-    bLayout->setSpacing(4);
-    layout->addWidget(m_blindnessContainer);
-
-    auto* listsLayout = new QHBoxLayout();
-
-    auto* favCol = new QVBoxLayout();
-    favCol->addWidget(new QLabel("我的收藏:"));
-    m_favoriteList = new QListWidget();
-    m_favoriteList->setFixedHeight(120);
-    m_favoriteList->setFlow(QListWidget::LeftToRight);
-    m_favoriteList->setWrapping(true);
-    m_favoriteList->setSpacing(4);
-    connect(m_favoriteList, &QListWidget::itemClicked, this, &ColorPickerWindow::onColorSelected);
-    favCol->addWidget(m_favoriteList);
-    listsLayout->addLayout(favCol);
-
-    auto* histCol = new QVBoxLayout();
-    histCol->addWidget(new QLabel("最近拾取:"));
-    m_historyList = new QListWidget();
-    m_historyList->setFixedHeight(120);
-    m_historyList->setFlow(QListWidget::LeftToRight);
-    m_historyList->setWrapping(true);
-    m_historyList->setSpacing(4);
-    connect(m_historyList, &QListWidget::itemClicked, this, &ColorPickerWindow::onColorSelected);
-    histCol->addWidget(m_historyList);
-    listsLayout->addLayout(histCol);
-
-    layout->addLayout(listsLayout);
-
-    auto* bottomBtnLayout = new QHBoxLayout();
-    auto* wheelBtn = new QPushButton(" 色轮");
-    wheelBtn->setAutoDefault(false);
-    wheelBtn->setIcon(IconHelper::getIcon("palette", "#AAAAAA"));
-    connect(wheelBtn, &QPushButton::clicked, this, &ColorPickerWindow::openColorWheel);
-
-    auto* favBtn = new QPushButton(" 收藏");
-    favBtn->setAutoDefault(false);
-    favBtn->setIcon(IconHelper::getIcon("star", "#AAAAAA"));
-    connect(favBtn, &QPushButton::clicked, this, &ColorPickerWindow::addCurrentToFavorites);
-
-    auto* exportBtn = new QPushButton(" 导出方案");
-    exportBtn->setAutoDefault(false);
-    exportBtn->setIcon(IconHelper::getIcon("save", "#AAAAAA"));
-    connect(exportBtn, &QPushButton::clicked, this, &ColorPickerWindow::exportPaletteAsCSS);
-
-    auto* clearBtn = new QPushButton("清空收藏");
-    clearBtn->setAutoDefault(false);
-    clearBtn->setStyleSheet("color: #888; border: none; background: transparent; font-size: 11px;");
-    connect(clearBtn, &QPushButton::clicked, this, &ColorPickerWindow::clearFavorites);
-
-    bottomBtnLayout->addWidget(wheelBtn);
-    bottomBtnLayout->addWidget(favBtn);
-    bottomBtnLayout->addWidget(exportBtn);
-    bottomBtnLayout->addStretch();
-    bottomBtnLayout->addWidget(clearBtn);
-    layout->addLayout(bottomBtnLayout);
-
-    auto* imageTitle = new QLabel("图片解析 (拖拽图片至此)");
-    imageTitle->setObjectName("SectionTitle");
-    layout->addWidget(imageTitle);
-    m_extractedList = new QListWidget();
-    m_extractedList->setFixedHeight(100);
-    m_extractedList->setFlow(QListWidget::LeftToRight);
-    m_extractedList->setWrapping(true);
-    m_extractedList->setSpacing(4);
-    connect(m_extractedList, &QListWidget::itemClicked, this, &ColorPickerWindow::onColorSelected);
-    layout->addWidget(m_extractedList);
-
-    scroll->setWidget(mainContainer);
-    auto* finalLayout = new QVBoxLayout(m_contentArea);
-    finalLayout->setContentsMargins(0, 0, 0, 0);
-    finalLayout->addWidget(scroll);
+    mainHLayout->addWidget(leftContainer);
+    mainHLayout->addWidget(m_stack, 1);
 }
 
-void ColorPickerWindow::updateColorDisplay(const QColor& color, bool addToHist) {
-    if (!color.isValid()) return;
-    m_currentColor = color;
-    QString hex = color.name().toUpper();
-    m_hexEdit->setText(hex);
-    m_colorPreview->setStyleSheet(QString("background-color: %1; border-radius: 12px; border: 4px solid #333;").arg(hex));
+void ColorPickerWindow::createLeftPanel(QWidget* parent) {
+    auto* leftPanel = new QFrame(parent);
+    leftPanel->setObjectName("leftPanel");
+    leftPanel->setFixedWidth(400);
+    leftPanel->setStyleSheet("QFrame#leftPanel { background: #252526; border-radius: 15px; }");
 
-    updateFormats(color);
-    updateVariations(color);
-    updateHarmony(color);
-    updateAccessibility(color);
-    updateBlindnessSimulation(color);
+    auto* rootL = new QVBoxLayout(parent);
+    rootL->setContentsMargins(0,0,0,0);
+    rootL->addWidget(leftPanel);
 
-    if (addToHist) addToHistory(hex);
+    auto* l = new QVBoxLayout(leftPanel);
+    l->setContentsMargins(15, 20, 15, 20);
+    l->setSpacing(12);
 
-    QApplication::clipboard()->setText(hex);
-    QToolTip::showText(QCursor::pos(), "已拾取并复制 HEX: " + hex, this, QRect(), 1500);
-}
+    auto* topRow = new QHBoxLayout();
+    auto* previewContainer = new QFrame();
+    previewContainer->setFixedSize(130, 130);
+    previewContainer->setStyleSheet("background: #1e1e1e; border-radius: 12px;");
+    auto* pl = new QVBoxLayout(previewContainer);
+    m_colorDisplay = new QWidget();
+    m_colorDisplay->setObjectName("mainPreview");
+    m_colorDisplay->setStyleSheet("border-radius: 10px; background: #D64260;");
+    auto* cl = new QVBoxLayout(m_colorDisplay);
+    m_colorLabel = new QLabel("#D64260");
+    m_colorLabel->setCursor(Qt::PointingHandCursor);
+    m_colorLabel->setAlignment(Qt::AlignCenter);
+    m_colorLabel->setStyleSheet("font-family: Consolas; font-size: 20px; font-weight: bold; border: none; background: transparent;");
+    m_colorLabel->installEventFilter(this);
+    cl->addWidget(m_colorLabel);
+    pl->addWidget(m_colorDisplay);
+    topRow->addWidget(previewContainer);
 
-void ColorPickerWindow::updateFormats(const QColor& color) {
-    m_rgbLabel->setText(QString("rgb(%1, %2, %3)").arg(color.red()).arg(color.green()).arg(color.blue()));
-    m_hsvLabel->setText(QString("hsv(%1, %2%, %3%)").arg(color.hue() < 0 ? 0 : color.hue()).arg(int(color.saturationF()*100)).arg(int(color.valueF()*100)));
-    m_cmykLabel->setText(QString("cmyk(%1%, %2%, %3%, %4%)").arg(int(color.cyanF()*100)).arg(int(color.magentaF()*100)).arg(int(color.yellowF()*100)).arg(int(color.blackF()*100)));
-}
+    auto* inputCol = new QFrame();
+    inputCol->setStyleSheet("background: #333; border-radius: 12px;");
+    auto* icl = new QVBoxLayout(inputCol);
+    icl->setContentsMargins(10, 10, 10, 10);
 
-double ColorPickerWindow::getLuminance(const QColor& c) {
-    auto fix = [](double v) { return (v <= 0.03928) ? (v / 12.92) : pow((v + 0.055) / 1.055, 2.4); };
-    return 0.2126 * fix(c.redF()) + 0.7152 * fix(c.greenF()) + 0.0722 * fix(c.blueF());
-}
-
-double ColorPickerWindow::getContrastRatio(const QColor& c1, const QColor& c2) {
-    double l1 = getLuminance(c1), l2 = getLuminance(c2);
-    return (qMax(l1, l2) + 0.05) / (qMin(l1, l2) + 0.05);
-}
-
-void ColorPickerWindow::updateAccessibility(const QColor& color) {
-    double contrastWhite = getContrastRatio(color, Qt::white);
-    double contrastBlack = getContrastRatio(color, Qt::black);
-    double bestContrast = qMax(contrastWhite, contrastBlack);
-    m_contrastLabel->setText(QString("最高对比度: %1:1").arg(bestContrast, 0, 'f', 2));
-
-    auto updateBadge = [](QLabel* lbl, bool pass) {
-        if (pass) lbl->setStyleSheet("background: #27ae60; color: white; padding: 3px 10px; border-radius: 4px; font-weight: bold; font-size: 11px;");
-        else lbl->setStyleSheet("background: #c0392b; color: white; padding: 3px 10px; border-radius: 4px; font-weight: bold; font-size: 11px;");
-    };
-    updateBadge(m_aaLabel, bestContrast >= 4.5);
-    updateBadge(m_aaaLabel, bestContrast >= 7.0);
-}
-
-QColor ColorPickerWindow::simulateBlindness(const QColor& color, const double m[3][3]) {
-    double r = color.redF(), g = color.greenF(), b = color.blueF();
-    double nr = qBound(0.0, r * m[0][0] + g * m[0][1] + b * m[0][2], 1.0);
-    double ng = qBound(0.0, r * m[1][0] + g * m[1][1] + b * m[1][2], 1.0);
-    double nb = qBound(0.0, r * m[2][0] + g * m[2][1] + b * m[2][2], 1.0);
-    return QColor::fromRgbF(nr, ng, nb);
-}
-
-void ColorPickerWindow::updateBlindnessSimulation(const QColor& color) {
-    QLayoutItem* child;
-    while ((child = m_blindnessContainer->layout()->takeAt(0)) != nullptr) {
-        delete child->widget();
-        delete child;
-    }
-
-    static const struct { QString name; double m[3][3]; } types[] = {
-        {"红色盲 (Protanopia)", {{0.567, 0.433, 0.0}, {0.558, 0.442, 0.0}, {0.0, 0.242, 0.758}}},
-        {"绿色盲 (Deuteranopia)", {{0.625, 0.375, 0.0}, {0.70, 0.30, 0.0}, {0.0, 0.30, 0.70}}},
-        {"蓝色盲 (Tritanopia)", {{0.95, 0.05, 0.0}, {0.0, 0.433, 0.567}, {0.0, 0.475, 0.525}}}
-    };
-
-    for (const auto& t : types) {
+    auto createInputRow = [&](const QString& label, QLineEdit*& entry, std::function<void()> onReturn, std::function<void()> onCopy) {
         auto* row = new QHBoxLayout();
-        auto* lbl = new QLabel(t.name);
-        lbl->setStyleSheet("font-size: 11px; color: #888;");
-        auto* bar = new QFrame();
-        QColor simulated = simulateBlindness(color, t.m);
-        bar->setFixedHeight(14);
-        bar->setStyleSheet(QString("background: %1; border-radius: 3px; border: 1px solid #333;").arg(simulated.name()));
-        row->addWidget(lbl, 1);
-        row->addWidget(bar, 2);
-        static_cast<QVBoxLayout*>(m_blindnessContainer->layout())->addLayout(row);
-    }
-}
-
-void ColorPickerWindow::exportPaletteAsCSS() {
-    QStringList css;
-    css << "/* RapidNotes Generated Palette */";
-    css << ":root {";
-    css << QString("  --primary-color: %1;").arg(m_currentColor.name().toUpper());
-    for (int i = 0; i < m_shadesContainer->layout()->count(); ++i) {
-        if (auto* btn = qobject_cast<QPushButton*>(m_shadesContainer->layout()->itemAt(i)->widget())) {
-            css << QString("  --color-variant-%1: %2;").arg(i+1).arg(btn->styleSheet().section(":", 1).section(";", 0, 0).trimmed().toUpper());
-        }
-    }
-    css << "}";
-    QApplication::clipboard()->setText(css.join("\n"));
-    QToolTip::showText(QCursor::pos(), "配色方案已导出并存入剪贴板", this);
-}
-
-void ColorPickerWindow::copySpecificFormat() {
-    auto* btn = qobject_cast<QPushButton*>(sender());
-    if (!btn) return;
-    QString fmt = btn->text();
-    QString val;
-    if (fmt == "RGB") val = m_rgbLabel->text();
-    else if (fmt == "HSV") val = m_hsvLabel->text();
-    else if (fmt == "CMYK") val = m_cmykLabel->text();
-    if (!val.isEmpty()) {
-        QApplication::clipboard()->setText(val);
-        QToolTip::showText(QCursor::pos(), "已复制 " + fmt + " 格式", this);
-    }
-}
-
-void ColorPickerWindow::updateVariations(const QColor& color) {
-    QLayoutItem* child;
-    while ((child = m_shadesContainer->layout()->takeAt(0)) != nullptr) {
-        delete child->widget();
-        delete child;
-    }
-
-    for (int i = 1; i <= 7; ++i) {
-        QColor v = color;
-        if (i < 4) v = v.darker(100 + (4-i)*30);
-        else if (i > 4) v = v.lighter(100 + (i-4)*30);
-
-        auto* btn = new QPushButton();
-        btn->setAutoDefault(false);
-        btn->setFixedSize(60, 30);
-        btn->setCursor(Qt::PointingHandCursor);
-        btn->setStyleSheet(QString("background-color: %1; border: 1px solid #333;").arg(v.name()));
-        connect(btn, &QPushButton::clicked, this, [this, v](){ updateColorDisplay(v); });
-        m_shadesContainer->layout()->addWidget(btn);
-    }
-}
-
-void ColorPickerWindow::updateHarmony(const QColor& color) {
-    QLayoutItem* child;
-    while ((child = m_harmonyContainer->layout()->takeAt(0)) != nullptr) {
-        delete child->widget();
-        delete child;
-    }
-
-    auto addHarmonyBtn = [&](const QString& label, const QColor& c) {
-        auto* vCol = new QVBoxLayout();
-        auto* btn = new QPushButton();
-        btn->setAutoDefault(false);
-        btn->setFixedSize(50, 50);
-        btn->setCursor(Qt::PointingHandCursor);
-        btn->setStyleSheet(QString("background-color: %1; border-radius: 25px; border: 2px solid #333;").arg(c.name()));
-        connect(btn, &QPushButton::clicked, this, [this, c](){ updateColorDisplay(c); });
         auto* lbl = new QLabel(label);
-        lbl->setAlignment(Qt::AlignCenter);
-        lbl->setStyleSheet("font-size: 9px; color: #888;");
-        vCol->addWidget(btn);
-        vCol->addWidget(lbl);
-        m_harmonyContainer->layout()->addItem(vCol);
+        lbl->setFixedWidth(35);
+        lbl->setStyleSheet("font-weight: bold; font-size: 12px; border: none;");
+        row->addWidget(lbl);
+        entry = new QLineEdit();
+        entry->setFixedHeight(32);
+        connect(entry, &QLineEdit::returnPressed, this, onReturn);
+        row->addWidget(entry);
+        auto* btn = new QPushButton("📋");
+        btn->setFixedSize(32, 32);
+        connect(btn, &QPushButton::clicked, this, onCopy);
+        row->addWidget(btn);
+        icl->addLayout(row);
     };
 
-    QColor comp = QColor::fromHsv((color.hue() + 180) % 360, color.saturation(), color.value());
-    addHarmonyBtn("互补色", comp);
-    QColor ana1 = QColor::fromHsv((color.hue() + 330) % 360, color.saturation(), color.value());
-    QColor ana2 = QColor::fromHsv((color.hue() + 30) % 360, color.saturation(), color.value());
-    addHarmonyBtn("类比左", ana1);
-    addHarmonyBtn("类比右", ana2);
-    QColor tri1 = QColor::fromHsv((color.hue() + 120) % 360, color.saturation(), color.value());
-    QColor tri2 = QColor::fromHsv((color.hue() + 240) % 360, color.saturation(), color.value());
-    addHarmonyBtn("三分 A", tri1);
-    addHarmonyBtn("三分 B", tri2);
-    QColor split1 = QColor::fromHsv((color.hue() + 150) % 360, color.saturation(), color.value());
-    QColor split2 = QColor::fromHsv((color.hue() + 210) % 360, color.saturation(), color.value());
-    addHarmonyBtn("分裂左", split1);
-    addHarmonyBtn("分裂右", split2);
-    QColor sq = QColor::fromHsv((color.hue() + 90) % 360, color.saturation(), color.value());
-    addHarmonyBtn("方形", sq);
+    createInputRow("HEX", m_hexEntry, [this](){ applyHexColor(); }, [this](){ copyHexValue(); });
+
+    auto* rgbRow = new QHBoxLayout();
+    auto* rlbl = new QLabel("RGB");
+    rlbl->setFixedWidth(35); rlbl->setStyleSheet("font-weight: bold; font-size: 12px; border: none;");
+    rgbRow->addWidget(rlbl);
+    m_rEntry = new QLineEdit(); m_rEntry->setFixedWidth(42);
+    m_gEntry = new QLineEdit(); m_gEntry->setFixedWidth(42);
+    m_bEntry = new QLineEdit(); m_bEntry->setFixedWidth(42);
+    rgbRow->addWidget(m_rEntry);
+    rgbRow->addWidget(m_gEntry);
+    rgbRow->addWidget(m_bEntry);
+    auto* btnCopyRgb = new QPushButton("📋");
+    btnCopyRgb->setFixedSize(32, 32);
+    connect(btnCopyRgb, &QPushButton::clicked, this, &ColorPickerWindow::copyRgbValue);
+    rgbRow->addWidget(btnCopyRgb);
+    icl->addLayout(rgbRow);
+    topRow->addWidget(inputCol);
+    l->addLayout(topRow);
+
+    auto* toolsFrame = new QHBoxLayout();
+    auto createToolBtn = [&](const QString& icon, std::function<void()> cmd, QString color, QString tip) {
+        auto* btn = new QPushButton(icon);
+        btn->setFixedSize(52, 52);
+        btn->setFont(QFont("Segoe UI Emoji", 24));
+        btn->setStyleSheet(QString("QPushButton { background: %1; border: none; border-radius: 4px; } QPushButton:hover { opacity: 0.8; }").arg(color));
+        btn->setToolTip(tip);
+        connect(btn, &QPushButton::clicked, cmd);
+        toolsFrame->addWidget(btn);
+    };
+    createToolBtn("🎨", [this](){ openColorPicker(); }, "#3b8ed0", "打开专业色盘");
+    createToolBtn("🖱️", [this](){ startScreenPicker(); }, "#3b8ed0", "吸取屏幕颜色");
+    createToolBtn("📏", [this](){ openPixelRuler(); }, "#9b59b6", "屏幕像素测量");
+    createToolBtn("📷", [this](){ extractFromImage(); }, "#2ecc71", "从图片提取颜色");
+    createToolBtn("⭐", [this](){ addToFavorites(); }, "#f39c12", "收藏当前颜色");
+    l->addLayout(toolsFrame);
+
+    auto* gradBox = new QFrame();
+    gradBox->setStyleSheet("background: #333; border-radius: 12px;");
+    auto* gl = new QVBoxLayout(gradBox);
+    auto* gt = new QLabel("渐变生成器");
+    gt->setStyleSheet("font-weight: bold; font-size: 15px; border: none;");
+    gt->setAlignment(Qt::AlignCenter);
+    gl->addWidget(gt);
+    auto addGradInput = [&](const QString& label, QLineEdit*& entry) {
+        auto* row = new QHBoxLayout();
+        auto* lbl = new QLabel(label);
+        lbl->setFixedWidth(55);
+        lbl->setStyleSheet("font-size: 12px; border: none;");
+        row->addWidget(lbl);
+        entry = new QLineEdit();
+        entry->setFixedHeight(32);
+        row->addWidget(entry);
+        gl->addLayout(row);
+    };
+    addGradInput("起始色", m_gradStart);
+    addGradInput("结束色", m_gradEnd);
+    auto* stepsRow = new QHBoxLayout();
+    stepsRow->addWidget(new QLabel("步数"), 0);
+    m_gradSteps = new QLineEdit("7"); m_gradSteps->setFixedWidth(40);
+    stepsRow->addWidget(m_gradSteps);
+    stepsRow->addStretch();
+    auto* btnMode = new QPushButton("变暗");
+    connect(btnMode, &QPushButton::clicked, [this, btnMode](){
+        if (m_gradMode == "变暗") m_gradMode = "变亮";
+        else if (m_gradMode == "变亮") m_gradMode = "饱和";
+        else m_gradMode = "变暗";
+        btnMode->setText(m_gradMode);
+    });
+    stepsRow->addWidget(btnMode);
+    gl->addLayout(stepsRow);
+    auto* btnGrad = new QPushButton("生成渐变");
+    btnGrad->setFixedHeight(36);
+    btnGrad->setStyleSheet("background: #007ACC; font-weight: bold;");
+    connect(btnGrad, &QPushButton::clicked, this, &ColorPickerWindow::generateGradient);
+    gl->addWidget(btnGrad);
+    l->addWidget(gradBox);
+
+    m_imagePreviewFrame = new QFrame();
+    m_imagePreviewFrame->setStyleSheet("background: #1e1e1e; border: 2px solid #444; border-radius: 12px;");
+    m_imagePreviewFrame->setFixedSize(370, 220);
+    auto* ipl = new QVBoxLayout(m_imagePreviewFrame);
+    m_imagePreviewLabel = new QLabel("暂无图片");
+    m_imagePreviewLabel->setAlignment(Qt::AlignCenter);
+    m_imagePreviewLabel->setStyleSheet("color: #666; border: none;");
+    ipl->addWidget(m_imagePreviewLabel);
+    auto* btnClearImg = new QPushButton("清除图片 / 重置");
+    btnClearImg->setStyleSheet("color: #888; border: 1px solid #444; background: transparent; font-size: 11px;");
+    connect(btnClearImg, &QPushButton::clicked, [this](){
+        m_imagePreviewFrame->hide();
+        m_imagePreviewLabel->setPixmap(QPixmap());
+        m_imagePreviewLabel->setText("暂无图片");
+        qDeleteAll(m_extractContent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
+        m_dropHintContainer->show();
+        showNotification("已重置图片提取");
+    });
+    ipl->addWidget(btnClearImg);
+    l->addWidget(m_imagePreviewFrame);
+    m_imagePreviewFrame->hide();
+    l->addStretch();
+
+    auto* navBar = new QHBoxLayout();
+    auto createNavBtn = [&](const QString& text) {
+        auto* btn = new QPushButton(text);
+        btn->setFixedHeight(40);
+        btn->setStyleSheet("QPushButton { background: #333; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: #444; }");
+        connect(btn, &QPushButton::clicked, [this, text](){ switchView(text); });
+        return btn;
+    };
+    navBar->addWidget(createNavBtn("我的收藏"));
+    navBar->addWidget(createNavBtn("渐变预览"));
+    navBar->addWidget(createNavBtn("图片提取"));
+    l->addLayout(navBar);
 }
 
-void ColorPickerWindow::startPickColor() {
-    auto* picker = new ScreenPickerOverlay();
-    connect(picker, &ScreenPickerOverlay::colorPicked, this, [this](const QColor& c){ updateColorDisplay(c); });
+void ColorPickerWindow::createRightPanel(QWidget* parent) {
+    m_stack = new QStackedWidget();
+    auto createScroll = [&](QWidget*& content) {
+        auto* scroll = new QScrollArea();
+        scroll->setWidgetResizable(true);
+        content = new QWidget();
+        scroll->setWidget(content);
+        return scroll;
+    };
+    m_favScroll = createScroll(m_favContent);
+    m_gradScroll = createScroll(m_gradContent);
+    m_extractScroll = createScroll(m_extractContent);
+
+    auto* el = new QVBoxLayout(m_extractContent);
+    m_dropHintContainer = new QFrame();
+    m_dropHintContainer->setStyleSheet("background: transparent; border: 3px dashed #555; border-radius: 15px;");
+    m_dropHintContainer->setFixedHeight(250);
+    auto* hl = new QVBoxLayout(m_dropHintContainer);
+    auto* hint = new QLabel("📁 拖放图片到软件任意位置\n\n或\n\nCtrl+V 粘贴\n点击左侧相机图标");
+    hint->setStyleSheet("color: #666; font-size: 18px; border: none;");
+    hint->setAlignment(Qt::AlignCenter);
+    hl->addWidget(hint);
+    el->addWidget(m_dropHintContainer);
+    el->addStretch();
+
+    m_stack->addWidget(m_favScroll);
+    m_stack->addWidget(m_gradScroll);
+    m_stack->addWidget(m_extractScroll);
+}
+
+void ColorPickerWindow::switchView(const QString& value) {
+    if (value == "我的收藏") { m_stack->setCurrentWidget(m_favScroll); updateFavoritesDisplay(); }
+    else if (value == "渐变预览") { m_stack->setCurrentWidget(m_gradScroll); }
+    else if (value == "图片提取") { m_stack->setCurrentWidget(m_extractScroll); }
+}
+
+void ColorPickerWindow::updateColorDisplay() {
+    m_colorDisplay->setStyleSheet(QString("border-radius: 10px; background: %1;").arg(m_currentColor));
+    m_colorLabel->setText(m_currentColor);
+    QColor c = hexToColor(m_currentColor);
+    m_colorLabel->setStyleSheet(QString("font-family: Consolas; font-size: 20px; font-weight: bold; border: none; background: transparent; color: %1;")
+        .arg(c.lightness() > 128 ? "black" : "white"));
+    m_hexEntry->setText(m_currentColor);
+    m_rEntry->setText(QString::number(c.red()));
+    m_gEntry->setText(QString::number(c.green()));
+    m_bEntry->setText(QString::number(c.blue()));
+}
+
+void ColorPickerWindow::useColor(const QString& hex) {
+    m_currentColor = hex.toUpper();
+    updateColorDisplay();
+}
+
+void ColorPickerWindow::applyHexColor() {
+    QString h = m_hexEntry->text().trimmed();
+    if (!h.startsWith("#")) h = "#" + h;
+    QColor c(h);
+    if (c.isValid()) useColor(c.name().toUpper());
+    else showNotification("无效的 HEX 颜色代码", true);
+}
+
+void ColorPickerWindow::applyRgbColor() {
+    int r = m_rEntry->text().toInt();
+    int g = m_gEntry->text().toInt();
+    int b = m_bEntry->text().toInt();
+    QColor c(r, g, b);
+    if (c.isValid()) useColor(c.name().toUpper());
+    else showNotification("RGB 值必须在 0-255 之间", true);
+}
+
+void ColorPickerWindow::copyHexValue() {
+    QApplication::clipboard()->setText(m_currentColor);
+    showNotification("已复制 " + m_currentColor);
+}
+
+void ColorPickerWindow::copyRgbValue() {
+    QColor c = hexToColor(m_currentColor);
+    QString rgb = QString("rgb(%1, %2, %3)").arg(c.red()).arg(c.green()).arg(c.blue());
+    QApplication::clipboard()->setText(rgb);
+    showNotification("已复制 " + rgb);
+}
+
+void ColorPickerWindow::startScreenPicker() {
+    auto* picker = new ScreenColorPickerOverlay([this](QString hex){ useColor(hex); });
     picker->show();
 }
 
-void ColorPickerWindow::openColorWheel() {
-    QColor color = QColorDialog::getColor(m_currentColor, this, "选择颜色", QColorDialog::ShowAlphaChannel);
-    if (color.isValid()) updateColorDisplay(color);
+void ColorPickerWindow::openPixelRuler() {
+    auto* ruler = new PixelRulerOverlay();
+    ruler->show();
 }
 
-void ColorPickerWindow::onColorSelected(QListWidgetItem* item) {
-    if (item) updateColorDisplay(QColor(item->toolTip()), false);
+void ColorPickerWindow::openColorPicker() {
+    auto* dlg = new ColorPickerDialog(this, [this](QString hex){ useColor(hex); });
+    dlg->show();
 }
 
-void ColorPickerWindow::addCurrentToFavorites() {
-    saveFavorite(m_currentColor.name().toUpper());
-    loadFavorites();
+void ColorPickerWindow::addToFavorites() {
+    addSpecificColorToFavorites(m_currentColor);
 }
 
-void ColorPickerWindow::addToHistory(const QString& hex) {
-    QSettings settings("RapidNotes", "ColorPicker");
-    QStringList hist = settings.value("history").toStringList();
-    hist.removeAll(hex);
-    hist.prepend(hex);
-    if (hist.size() > 14) hist.removeLast();
-    settings.setValue("history", hist);
-    loadHistory();
-}
-
-void ColorPickerWindow::loadHistory() {
-    m_historyList->clear();
-    QSettings settings("RapidNotes", "ColorPicker");
-    QStringList hist = settings.value("history").toStringList();
-    for (const QString& hex : hist) {
-        auto* item = new QListWidgetItem();
-        item->setToolTip(hex);
-        item->setSizeHint(QSize(32, 32));
-        QPixmap pix(32, 32);
-        pix.fill(QColor(hex));
-        item->setIcon(QIcon(pix));
-        m_historyList->addItem(item);
+void ColorPickerWindow::addSpecificColorToFavorites(const QString& color) {
+    if (!m_favorites.contains(color)) {
+        m_favorites.prepend(color);
+        saveFavorites();
+        updateFavoritesDisplay();
+        QApplication::clipboard()->setText(color);
+        showNotification("已收藏并复制 " + color);
+    } else {
+        showNotification(color + " 已在收藏中", true);
     }
 }
 
-void ColorPickerWindow::saveFavorite(const QString& hex) {
-    QSettings settings("RapidNotes", "ColorPicker");
-    QStringList favs = settings.value("favorites").toStringList();
-    if (!favs.contains(hex)) {
-        favs.prepend(hex);
-        settings.setValue("favorites", favs);
+void ColorPickerWindow::removeFavorite(const QString& color) {
+    m_favorites.removeAll(color);
+    saveFavorites();
+    updateFavoritesDisplay();
+}
+
+void ColorPickerWindow::updateFavoritesDisplay() {
+    qDeleteAll(m_favContent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
+    auto* layout = qobject_cast<QVBoxLayout*>(m_favContent->layout());
+    if (!layout) layout = new QVBoxLayout(m_favContent);
+    layout->setContentsMargins(15, 15, 15, 15);
+    layout->setSpacing(15);
+
+    if (m_favorites.isEmpty()) {
+        auto* lbl = new QLabel("暂无收藏\n右键点击任何颜色块即可收藏");
+        lbl->setStyleSheet("color: #666; font-size: 16px;");
+        lbl->setAlignment(Qt::AlignCenter);
+        layout->addWidget(lbl, 1, Qt::AlignCenter);
+        return;
+    }
+
+    auto* grid = new QGridLayout();
+    grid->setSpacing(15);
+    for (int i = 0; i < 4; ++i) grid->setColumnStretch(i, 1);
+    for (int i = 0; i < m_favorites.size(); ++i) {
+        createFavoriteTile(m_favContent, m_favorites[i], i % 4, i / 4);
+        grid->addWidget(m_favContent->findChildren<QFrame*>().last(), i / 4, i % 4);
+    }
+    layout->addLayout(grid);
+    layout->addStretch();
+}
+
+void ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& color, int col, int row) {
+    auto* tile = new QFrame(parent);
+    tile->setStyleSheet("background: #333; border-radius: 10px;");
+    auto* l = new QVBoxLayout(tile);
+    l->setContentsMargins(5, 5, 5, 5);
+    auto* btn = new QPushButton("");
+    btn->setFixedHeight(80);
+    btn->setStyleSheet(QString("background: %1; border-radius: 8px; border: none;").arg(color));
+    connect(btn, &QPushButton::clicked, [this, color](){ useColor(color); copyHexValue(); });
+    l->addWidget(btn);
+    auto* info = new QHBoxLayout();
+    auto* lbl = new QLabel(color);
+    lbl->setStyleSheet("font-weight: bold; font-size: 12px; border: none;");
+    info->addWidget(lbl);
+    auto* del = new QPushButton("×");
+    del->setFixedSize(25, 25);
+    del->setStyleSheet("QPushButton { color: gray; font-size: 16px; border: none; background: transparent; } QPushButton:hover { color: white; background: #c0392b; }");
+    connect(del, &QPushButton::clicked, [this, color](){ removeFavorite(color); });
+    info->addWidget(del);
+    l->addLayout(info);
+}
+
+void ColorPickerWindow::generateGradient() {
+    QString startHex = m_gradStart->text().trimmed();
+    if (!startHex.startsWith("#")) startHex = "#" + startHex;
+    QColor start = QColor(startHex);
+    if (!start.isValid()) { showNotification("起始色无效", true); return; }
+    QString endHex = m_gradEnd->text().trimmed();
+    int steps = m_gradSteps->text().toInt();
+    if (steps < 2) steps = 2;
+    QStringList colors;
+    if (endHex.isEmpty()) {
+        float h, s, v;
+        start.getHsvF(&h, &s, &v);
+        for (int i = 0; i < steps; ++i) {
+            double ratio = (double)i / (steps - 1);
+            QColor c;
+            if (m_gradMode == "变暗") c = QColor::fromHsvF(h, s, v * (1 - ratio * 0.7));
+            else if (m_gradMode == "变亮") c = QColor::fromHsvF(h, s, v + (1 - v) * ratio);
+            else if (m_gradMode == "饱和") c = QColor::fromHsvF(h, std::min(1.0, std::max(0.0, s + (1 - s) * ratio * (s < 0.5 ? 1 : -1))), v);
+            colors << c.name().toUpper();
+        }
+    } else {
+        if (!endHex.startsWith("#")) endHex = "#" + endHex;
+        QColor end = QColor(endHex);
+        if (!end.isValid()) { showNotification("结束色无效", true); return; }
+        for (int i = 0; i < steps; ++i) {
+            double r = (double)i / (steps - 1);
+            int red = start.red() + (end.red() - start.red()) * r;
+            int green = start.green() + (end.green() - start.green()) * r;
+            int blue = start.blue() + (end.blue() - start.blue()) * r;
+            colors << QColor(red, green, blue).name().toUpper();
+        }
+    }
+    qDeleteAll(m_gradContent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
+    auto* layout = new QVBoxLayout(m_gradContent);
+    layout->setContentsMargins(15, 15, 15, 15);
+    auto* title = new QLabel("生成结果 (左键应用 / 右键收藏)");
+    title->setStyleSheet("font-weight: bold; font-size: 16px; border: none;");
+    layout->addWidget(title, 0, Qt::AlignCenter);
+    auto* grid = new QGridLayout();
+    grid->setSpacing(8);
+    for (int i = 0; i < 5; ++i) grid->setColumnStretch(i, 1);
+    for (int i = 0; i < colors.size(); ++i) {
+        createColorTile(m_gradContent, colors[i], i % 5, i / 5);
+        grid->addWidget(m_gradContent->findChildren<QFrame*>().last(), i / 5, i % 5);
+    }
+    layout->addLayout(grid);
+    layout->addStretch();
+    switchView("渐变预览");
+}
+
+void ColorPickerWindow::createColorTile(QWidget* parent, const QString& color, int col, int row) {
+    auto* tile = new QFrame(parent);
+    tile->setStyleSheet("background: #333; border-radius: 12px;");
+    auto* l = new QVBoxLayout(tile);
+    l->setContentsMargins(6, 6, 6, 6);
+    auto* cf = new QFrame();
+    cf->setFixedHeight(80);
+    cf->setStyleSheet(QString("border-radius: 10px; background: %1;").arg(color));
+    auto* cfl = new QVBoxLayout(cf);
+    auto* clbl = new QLabel(color);
+    clbl->setAlignment(Qt::AlignCenter);
+    clbl->setCursor(Qt::PointingHandCursor);
+    QColor c(color);
+    clbl->setStyleSheet(QString("font-weight: bold; font-size: 13px; border: none; background: transparent; color: %1;")
+        .arg(c.lightness() > 128 ? "black" : "white"));
+    cfl->addWidget(clbl);
+    l->addWidget(cf);
+    cf->installEventFilter(this);
+    clbl->installEventFilter(this);
+    cf->setProperty("color", color);
+    clbl->setProperty("color", color);
+}
+
+void ColorPickerWindow::extractFromImage() {
+    QString path = QFileDialog::getOpenFileName(this, "选择图片", "", "Images (*.png *.jpg *.jpeg *.bmp *.webp)");
+    if (!path.isEmpty()) processImage(path);
+}
+
+void ColorPickerWindow::processImage(const QString& filePath, const QImage& image) {
+    QImage img = image;
+    if (img.isNull() && !filePath.isEmpty()) {
+        img.load(filePath);
+    }
+    if (img.isNull()) return;
+
+    m_imagePreviewFrame->show();
+    m_imagePreviewLabel->setPixmap(QPixmap::fromImage(img).scaled(360, 200, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    m_imagePreviewLabel->setText("");
+
+    qDeleteAll(m_extractContent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
+    m_dropHintContainer->hide();
+    auto* layout = qobject_cast<QVBoxLayout*>(m_extractContent->layout());
+    if (!layout) layout = new QVBoxLayout(m_extractContent);
+    auto* title = new QLabel("提取的调色板 (点击应用)");
+    title->setStyleSheet("font-weight: bold; font-size: 18px; border: none;");
+    layout->addWidget(title, 0, Qt::AlignCenter);
+    auto* grid = new QGridLayout();
+    grid->setSpacing(8);
+    for (int i = 0; i < 5; ++i) grid->setColumnStretch(i, 1);
+    QStringList colors = extractDominantColors(img, 20);
+    for (int i = 0; i < colors.size(); ++i) {
+        createColorTile(m_extractContent, colors[i], i % 5, i / 5);
+        grid->addWidget(m_extractContent->findChildren<QFrame*>().last(), i / 5, i % 5);
+    }
+    layout->addLayout(grid);
+    layout->addStretch();
+    switchView("图片提取");
+    showNotification("图片已加载，调色板生成完毕");
+}
+
+void ColorPickerWindow::pasteImage() {
+    const QMimeData* mime = QApplication::clipboard()->mimeData();
+    if (mime->hasImage()) {
+        QImage img = qvariant_cast<QImage>(mime->imageData());
+        processImage("", img);
+    } else {
+        showNotification("剪贴板中没有图片", true);
     }
 }
 
-void ColorPickerWindow::loadFavorites() {
-    m_favoriteList->clear();
-    QSettings settings("RapidNotes", "ColorPicker");
-    QStringList favs = settings.value("favorites").toStringList();
-    for (const QString& hex : favs) {
-        auto* item = new QListWidgetItem();
-        item->setToolTip(hex);
-        item->setSizeHint(QSize(32, 32));
-        QPixmap pix(32, 32);
-        pix.fill(QColor(hex));
-        item->setIcon(QIcon(pix));
-        m_favoriteList->addItem(item);
+QStringList ColorPickerWindow::extractDominantColors(const QImage& img, int num) {
+    QImage small = img.scaled(150, 150, Qt::IgnoreAspectRatio, Qt::FastTransformation).convertToFormat(QImage::Format_RGB32);
+    QMap<QRgb, int> counts;
+    for (int y = 0; y < small.height(); ++y) {
+        for (int x = 0; x < small.width(); ++x) { counts[small.pixel(x, y)]++; }
     }
+    QList<QRgb> sorted = counts.keys();
+    std::sort(sorted.begin(), sorted.end(), [&](QRgb a, QRgb b){ return counts[a] > counts[b]; });
+    QStringList result;
+    for (QRgb rgb : sorted) {
+        QString hex = QColor(rgb).name().toUpper();
+        if (!result.contains(hex)) { result << hex; if (result.size() >= num) break; }
+    }
+    return result;
 }
 
-void ColorPickerWindow::clearFavorites() {
-    QSettings settings("RapidNotes", "ColorPicker");
-    settings.remove("favorites");
-    loadFavorites();
+void ColorPickerWindow::showNotification(const QString& message, bool isError) {
+    if (m_notification) m_notification->deleteLater();
+    m_notification = new QLabel(this);
+    m_notification->setObjectName("notification");
+    m_notification->setStyleSheet(QString("background: %1; border-radius: 20px; color: white; font-weight: bold; padding: 10px 20px;")
+        .arg(isError ? "#e74c3c" : "#2ecc71"));
+    m_notification->setText((isError ? "❌ " : "✅ ") + message);
+    m_notification->adjustSize();
+    m_notification->move(width()/2 - m_notification->width()/2, height() - 100);
+    m_notification->show();
+    QTimer::singleShot(2000, m_notification, &QWidget::hide);
 }
 
 void ColorPickerWindow::dragEnterEvent(QDragEnterEvent* event) {
@@ -545,38 +954,53 @@ void ColorPickerWindow::dragEnterEvent(QDragEnterEvent* event) {
 }
 
 void ColorPickerWindow::dropEvent(QDropEvent* event) {
-    const QMimeData* mime = event->mimeData();
-    if (mime->hasImage()) extractColorsFromImage(qvariant_cast<QImage>(mime->imageData()));
-    else if (mime->hasUrls()) {
-        for (const QUrl& url : mime->urls()) {
-            if (url.isLocalFile()) {
-                QImage img(url.toLocalFile());
-                if (!img.isNull()) { extractColorsFromImage(img); break; }
-            }
-        }
+    if (event->mimeData()->hasImage()) {
+        QImage img = qvariant_cast<QImage>(event->mimeData()->imageData());
+        if (!img.isNull()) processImage("", img);
+    } else if (event->mimeData()->hasUrls()) {
+        processImage(event->mimeData()->urls().first().toLocalFile());
     }
 }
 
-void ColorPickerWindow::extractColorsFromImage(const QImage& img) {
-    m_extractedList->clear();
-    if (img.isNull()) return;
+void ColorPickerWindow::keyPressEvent(QKeyEvent* event) {
+    if (event->key() == Qt::Key_V && (event->modifiers() & Qt::ControlModifier)) pasteImage();
+    else FramelessDialog::keyPressEvent(event);
+}
 
-    QSet<QString> colors;
-    for (int i = 1; i <= 5; ++i) {
-        for (int j = 1; j <= 5; ++j) {
-            colors.insert(img.pixelColor(img.width() * i / 6, img.height() * j / 6).name().toUpper());
+bool ColorPickerWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (event->type() == QEvent::MouseButtonPress) {
+        auto* me = static_cast<QMouseEvent*>(event);
+        QString color = watched->property("color").toString();
+        if (!color.isEmpty()) {
+            if (me->button() == Qt::LeftButton) {
+                useColor(color);
+                QApplication::clipboard()->setText(color);
+                showNotification("已应用并复制 " + color);
+            } else if (me->button() == Qt::RightButton) {
+                addSpecificColorToFavorites(color);
+            }
+            return true;
+        } else if (watched == m_colorLabel) {
+            if (me->button() == Qt::LeftButton) copyHexValue();
+            else if (me->button() == Qt::RightButton) addToFavorites();
+            return true;
         }
     }
+    return FramelessDialog::eventFilter(watched, event);
+}
 
-    for (const QString& hex : colors) {
-        auto* item = new QListWidgetItem();
-        item->setToolTip(hex);
-        item->setSizeHint(QSize(32, 32));
-        QPixmap pix(32, 32);
-        pix.fill(QColor(hex));
-        item->setIcon(QIcon(pix));
-        m_extractedList->addItem(item);
-    }
+QString ColorPickerWindow::rgbToHex(int r, int g, int b) { return QColor(r, g, b).name().toUpper(); }
+QColor ColorPickerWindow::hexToColor(const QString& hex) { return QColor(hex); }
+QString ColorPickerWindow::colorToHex(const QColor& c) { return c.name().toUpper(); }
+
+QStringList ColorPickerWindow::loadFavorites() {
+    QSettings s("RapidNotes", "ColorPicker");
+    return s.value("favorites").toStringList();
+}
+
+void ColorPickerWindow::saveFavorites() {
+    QSettings s("RapidNotes", "ColorPicker");
+    s.setValue("favorites", m_favorites);
 }
 
 #include "ColorPickerWindow.moc"

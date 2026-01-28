@@ -260,19 +260,27 @@ QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
         QString combinedPlain = plainTexts.join("\n---\n").replace("\n", "\r\n");
         mimeData->setText(combinedPlain);
         
-        // 2. 设置 HTML 格式
-        if (indexes.size() == 1 && StringUtils::isHtml(data(indexes.first(), ContentRole).toString())) {
-            // 单个 HTML 笔记：保持原汁原味
-            mimeData->setHtml(data(indexes.first(), ContentRole).toString());
-        } else {
-            // 多个笔记或普通文本：组合后包装
-            QString combinedHtml = htmlTexts.join("<br><hr><br>");
-            mimeData->setHtml(QString(
-                "<html>"
-                "<head><meta charset='utf-8'></head>"
-                "<body>%1</body>"
-                "</html>"
-            ).arg(combinedHtml));
+        // 2. 仅在确实包含 HTML 内容时提供 HTML 分支，防止纯文本拖拽时出现 HTML 源码泄漏
+        bool hasActualHtml = false;
+        for (const QModelIndex& index : indexes) {
+            if (StringUtils::isHtml(data(index, ContentRole).toString())) {
+                hasActualHtml = true;
+                break;
+            }
+        }
+
+        if (hasActualHtml) {
+            if (indexes.size() == 1) {
+                mimeData->setHtml(data(indexes.first(), ContentRole).toString());
+            } else {
+                QString combinedHtml = htmlTexts.join("<br><hr><br>");
+                mimeData->setHtml(QString(
+                    "<html>"
+                    "<head><meta charset='utf-8'></head>"
+                    "<body>%1</body>"
+                    "</html>"
+                ).arg(combinedHtml));
+            }
         }
     }
 
