@@ -5,8 +5,33 @@
 #include <QListWidget>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QFutureWatcher>
+#include <QThread>
+#include <QPair>
 
+/**
+ * @brief 扫描线程：实现增量扫描与目录剪枝
+ */
+class ScannerThread : public QThread {
+    Q_OBJECT
+public:
+    explicit ScannerThread(const QString& folderPath, QObject* parent = nullptr);
+    void stop();
+
+signals:
+    void fileFound(const QString& name, const QString& path);
+    void finished(int count);
+
+protected:
+    void run() override;
+
+private:
+    QString m_folderPath;
+    bool m_isRunning = true;
+};
+
+/**
+ * @brief 隐形调整大小手柄
+ */
 class ResizeHandle : public QWidget {
     Q_OBJECT
 public:
@@ -20,33 +45,45 @@ private:
     QSize m_startSize;
 };
 
+/**
+ * @brief 文件查找窗口：1:1 复刻 Python 版逻辑与视觉
+ */
 class FileSearchWindow : public FramelessDialog {
     Q_OBJECT
 public:
     explicit FileSearchWindow(QWidget* parent = nullptr);
+    ~FileSearchWindow();
 
 private slots:
-    void browseFolder();
-    void startSearch();
-    void onSearchFinished();
-    void filterResults();
-    void locateFile(QListWidgetItem* item);
+    void selectFolder();
+    void onPathReturnPressed();
+    void startScan(const QString& path);
+    void onFileFound(const QString& name, const QString& path);
+    void onScanFinished(int count);
+    void refreshList();
+    void openFileLocation(QListWidgetItem* item);
+
+protected:
+    void resizeEvent(QResizeEvent* event) override;
 
 private:
     void initUI();
+    void setupStyles();
 
-    QLineEdit* m_pathEdit;
-    QLineEdit* m_searchEdit;
-    QLineEdit* m_extEdit;
-    QListWidget* m_fileList;
+    QLineEdit* m_pathInput;
+    QLineEdit* m_searchInput;
+    QLineEdit* m_extInput;
     QLabel* m_infoLabel;
-    QPushButton* m_searchBtn;
+    QListWidget* m_fileList;
 
-    QStringList m_allFiles; // 存储所有找到的文件完整路径
-    QFutureWatcher<QStringList> m_watcher;
     ResizeHandle* m_resizeHandle;
+    ScannerThread* m_scanThread = nullptr;
 
-    void resizeEvent(QResizeEvent* event) override;
+    struct FileData {
+        QString name;
+        QString path;
+    };
+    QList<FileData> m_filesData;
 };
 
 #endif // FILESEARCHWINDOW_H

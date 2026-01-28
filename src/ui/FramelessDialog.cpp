@@ -21,7 +21,7 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
         "#DialogContainer {"
         "  background-color: #1e1e1e;"
         "  border: 1px solid #333333;"
-        "  border-radius: 10px;"
+        "  border-radius: 12px;"
         "}"
     );
     outerLayout->addWidget(container);
@@ -38,32 +38,36 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
 
     // 标题栏
     auto* titleBar = new QWidget();
-    titleBar->setFixedHeight(36);
-    titleBar->setStyleSheet("background-color: #252526; border-top-left-radius: 10px; border-top-right-radius: 10px;");
+    titleBar->setFixedHeight(45);
+    titleBar->setStyleSheet("background-color: transparent; border-bottom: 1px solid #2D2D2D;");
     auto* titleLayout = new QHBoxLayout(titleBar);
-    titleLayout->setContentsMargins(15, 0, 8, 0);
+    titleLayout->setContentsMargins(16, 0, 0, 0);
 
     m_titleLabel = new QLabel(title);
     m_titleLabel->setStyleSheet("color: #aaa; font-size: 12px; font-weight: bold; border: none;");
     titleLayout->addWidget(m_titleLabel);
     titleLayout->addStretch();
 
-    auto* minBtn = new QPushButton();
+    auto* minBtn = new QPushButton("─");
     minBtn->setObjectName("minBtn");
-    minBtn->setFixedSize(32, 36);
+    minBtn->setFixedSize(50, 45);
     minBtn->setAutoDefault(false);
-    minBtn->setIcon(IconHelper::getIcon("minimize", "#888888", 14));
     minBtn->setCursor(Qt::PointingHandCursor);
-    minBtn->setStyleSheet("QPushButton { border: none; border-radius: 0px; } QPushButton:hover { background-color: rgba(255,255,255,0.1); }");
+    minBtn->setStyleSheet(
+        "QPushButton { background: transparent; border: none; color: #AAAAAA; font-family: 'Segoe UI Symbol', 'Microsoft YaHei'; font-size: 12px; } "
+        "QPushButton:hover { background-color: #3E3E42; color: white; }"
+    );
     connect(minBtn, &QPushButton::clicked, this, &QDialog::showMinimized);
     titleLayout->addWidget(minBtn);
 
-    auto* closeBtn = new QPushButton();
-    closeBtn->setFixedSize(32, 36);
+    auto* closeBtn = new QPushButton("✕");
+    closeBtn->setFixedSize(50, 45);
     closeBtn->setAutoDefault(false);
-    closeBtn->setIcon(IconHelper::getIcon("close", "#888888", 14));
     closeBtn->setCursor(Qt::PointingHandCursor);
-    closeBtn->setStyleSheet("QPushButton { border: none; border-top-right-radius: 10px; } QPushButton:hover { background-color: #e74c3c; }");
+    closeBtn->setStyleSheet(
+        "QPushButton { background: transparent; border: none; color: #AAAAAA; border-top-right-radius: 12px; font-family: 'Segoe UI Symbol', 'Microsoft YaHei'; font-size: 14px; } "
+        "QPushButton:hover { background-color: #E81123; color: white; }"
+    );
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::reject);
     titleLayout->addWidget(closeBtn);
 

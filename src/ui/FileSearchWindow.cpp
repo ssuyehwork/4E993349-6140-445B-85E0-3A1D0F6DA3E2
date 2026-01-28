@@ -9,10 +9,57 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QProcess>
-#include <QSet>
-#include <QtConcurrent>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QDir>
+#include <functional>
+
+// ----------------------------------------------------------------------------
+// ScannerThread 实现
+// ----------------------------------------------------------------------------
+ScannerThread::ScannerThread(const QString& folderPath, QObject* parent)
+    : QThread(parent), m_folderPath(folderPath) {}
+
+void ScannerThread::stop() {
+    m_isRunning = false;
+    wait();
+}
+
+void ScannerThread::run() {
+    int count = 0;
+    if (m_folderPath.isEmpty() || !QDir(m_folderPath).exists()) {
+        emit finished(0);
+        return;
+    }
+
+    QStringList ignored = {".git", ".idea", "__pycache__", "node_modules", "$RECYCLE.BIN", "System Volume Information"};
+
+    // 使用 std::function 实现递归扫描，支持目录剪枝
+    std::function<void(const QString&)> scanDir = [&](const QString& currentPath) {
+        if (!m_isRunning) return;
+
+        QDir dir(currentPath);
+        // 1. 获取当前目录下所有文件
+        QFileInfoList files = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot | QDir::Hidden);
+        for (const auto& fi : files) {
+            if (!m_isRunning) return;
+            emit fileFound(fi.fileName(), fi.absoluteFilePath());
+            count++;
+        }
+
+        // 2. 获取子目录并递归 (排除忽略列表)
+        QFileInfoList subDirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden);
+        for (const auto& di : subDirs) {
+            if (!m_isRunning) return;
+            if (!ignored.contains(di.fileName())) {
+                scanDir(di.absoluteFilePath());
+            }
+        }
+    };
+
+    scanDir(m_folderPath);
+    emit finished(count);
+}
 
 // ----------------------------------------------------------------------------
 // ResizeHandle 实现
@@ -35,8 +82,8 @@ void ResizeHandle::mousePressEvent(QMouseEvent* event) {
 void ResizeHandle::mouseMoveEvent(QMouseEvent* event) {
     if (event->buttons() & Qt::LeftButton) {
         QPoint delta = event->globalPosition().toPoint() - m_startPos;
-        int newW = qMax(m_startSize.width() + delta.x(), 400);
-        int newH = qMax(m_startSize.height() + delta.y(), 300);
+        int newW = qMax(m_startSize.width() + delta.x(), 600);
+        int newH = qMax(m_startSize.height() + delta.y(), 400);
         m_target->resize(newW, newH);
         event->accept();
     }
@@ -48,18 +95,22 @@ void ResizeHandle::mouseMoveEvent(QMouseEvent* event) {
 FileSearchWindow::FileSearchWindow(QWidget* parent)
     : FramelessDialog("查找文件", parent)
 {
-    resize(850, 600);
+    resize(900, 650);
+    setupStyles();
     initUI();
     m_resizeHandle = new ResizeHandle(this, this);
     m_resizeHandle->raise();
 }
 
-void FileSearchWindow::initUI() {
-    // 强制微软雅黑字体
-    QFont yahei("Microsoft YaHei", 10);
-    this->setFont(yahei);
+FileSearchWindow::~FileSearchWindow() {
+    if (m_scanThread) {
+        m_scanThread->stop();
+        m_scanThread->deleteLater();
+    }
+}
 
-    // 应用 Python 风格样式表
+void FileSearchWindow::setupStyles() {
+    // 1:1 复刻 Python 脚本中的 STYLESHEET
     setStyleSheet(R"(
         QWidget {
             font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
@@ -124,45 +175,47 @@ void FileSearchWindow::initUI() {
             height: 0px;
         }
     )");
+}
 
+void FileSearchWindow::initUI() {
     auto* layout = new QVBoxLayout(m_contentArea);
-    layout->setContentsMargins(24, 15, 24, 24);
+    layout->setContentsMargins(24, 20, 24, 24);
     layout->setSpacing(16);
 
-    // 第一行：文件夹路径选择
+    // 第一行：路径输入与浏览
     auto* pathLayout = new QHBoxLayout();
-    m_pathEdit = new QLineEdit();
-    m_pathEdit->setPlaceholderText("在此粘贴文件夹路径 (Ctrl+V)，然后按回车...");
-    m_pathEdit->setClearButtonEnabled(true);
-    connect(m_pathEdit, &QLineEdit::returnPressed, this, &FileSearchWindow::startSearch);
+    m_pathInput = new QLineEdit();
+    m_pathInput->setPlaceholderText("在此粘贴文件夹路径 (Ctrl+V)，然后按回车...");
+    m_pathInput->setClearButtonEnabled(true);
+    m_pathInput->setAutoDefault(false);
+    connect(m_pathInput, &QLineEdit::returnPressed, this, &FileSearchWindow::onPathReturnPressed);
 
-    auto* browseBtn = new QPushButton("浏览");
-    browseBtn->setObjectName("ActionBtn");
-    browseBtn->setAutoDefault(false);
-    browseBtn->setDefault(false);
-    browseBtn->setCursor(Qt::PointingHandCursor);
-    connect(browseBtn, &QPushButton::clicked, this, &FileSearchWindow::browseFolder);
+    auto* btnBrowse = new QPushButton("浏览");
+    btnBrowse->setObjectName("ActionBtn");
+    btnBrowse->setAutoDefault(false);
+    btnBrowse->setCursor(Qt::PointingHandCursor);
+    connect(btnBrowse, &QPushButton::clicked, this, &FileSearchWindow::selectFolder);
 
-    pathLayout->addWidget(m_pathEdit);
-    pathLayout->addWidget(browseBtn);
+    pathLayout->addWidget(m_pathInput);
+    pathLayout->addWidget(btnBrowse);
     layout->addLayout(pathLayout);
 
-    // 第二行：过滤与搜索
-    auto* filterLayout = new QHBoxLayout();
+    // 第二行：搜索过滤与后缀名
+    auto* searchLayout = new QHBoxLayout();
+    m_searchInput = new QLineEdit();
+    m_searchInput->setPlaceholderText("🔍 输入文件名过滤...");
+    connect(m_searchInput, &QLineEdit::textChanged, this, &FileSearchWindow::refreshList);
 
-    m_searchEdit = new QLineEdit();
-    m_searchEdit->setPlaceholderText("🔍 输入文件名过滤...");
-    connect(m_searchEdit, &QLineEdit::textChanged, this, &FileSearchWindow::filterResults);
+    m_extInput = new QLineEdit();
+    m_extInput->setPlaceholderText("后缀 (如 py)");
+    m_extInput->setFixedWidth(120);
+    connect(m_extInput, &QLineEdit::textChanged, this, &FileSearchWindow::refreshList);
 
-    m_extEdit = new QLineEdit();
-    m_extEdit->setPlaceholderText("后缀 (如 py)");
-    m_extEdit->setFixedWidth(120);
-    connect(m_extEdit, &QLineEdit::textChanged, this, &FileSearchWindow::filterResults);
+    searchLayout->addWidget(m_searchInput);
+    searchLayout->addWidget(m_extInput);
+    layout->addLayout(searchLayout);
 
-    filterLayout->addWidget(m_searchEdit);
-    filterLayout->addWidget(m_extEdit);
-    layout->addLayout(filterLayout);
-
+    // 信息标签
     m_infoLabel = new QLabel("等待操作...");
     m_infoLabel->setStyleSheet("color: #888888; font-size: 12px;");
     layout->addWidget(m_infoLabel);
@@ -170,119 +223,108 @@ void FileSearchWindow::initUI() {
     // 文件列表
     m_fileList = new QListWidget();
     m_fileList->setSelectionMode(QAbstractItemView::SingleSelection);
-    connect(m_fileList, &QListWidget::itemDoubleClicked, this, &FileSearchWindow::locateFile);
+    connect(m_fileList, &QListWidget::itemDoubleClicked, this, &FileSearchWindow::openFileLocation);
     layout->addWidget(m_fileList);
-
-    m_searchBtn = new QPushButton(); // 隐藏但在后台使用，或者移除
-    m_searchBtn->setVisible(false);
-    m_searchBtn->setAutoDefault(false);
-    connect(&m_watcher, &QFutureWatcher<QStringList>::finished, this, &FileSearchWindow::onSearchFinished);
 }
 
-void FileSearchWindow::browseFolder() {
-    QString dir = QFileDialog::getExistingDirectory(this, "选择文件夹", m_pathEdit->text());
-    if (!dir.isEmpty()) {
-        m_pathEdit->setText(dir);
+void FileSearchWindow::selectFolder() {
+    QString d = QFileDialog::getExistingDirectory(this, "选择文件夹");
+    if (!d.isEmpty()) {
+        m_pathInput->setText(d);
+        startScan(d);
     }
 }
 
-void FileSearchWindow::startSearch() {
-    QString path = m_pathEdit->text().trimmed();
-    if (path.isEmpty() || !QDir(path).exists()) {
+void FileSearchWindow::onPathReturnPressed() {
+    QString p = m_pathInput->text().trimmed();
+    if (QDir(p).exists()) {
+        startScan(p);
+    } else {
         m_infoLabel->setText("❌ 路径不存在");
-        m_pathEdit->setStyleSheet("border: 1px solid #FF3333;");
-        return;
+        m_pathInput->setStyleSheet("border: 1px solid #FF3333;");
     }
-    m_pathEdit->setStyleSheet("");
+}
 
+void FileSearchWindow::startScan(const QString& path) {
+    m_pathInput->setStyleSheet("");
+    if (m_scanThread) {
+        m_scanThread->stop();
+        m_scanThread->deleteLater();
+    }
+
+    m_fileList->clear();
+    m_filesData.clear();
     m_infoLabel->setText("🚀 正在扫描: " + path);
-    m_allFiles.clear();
-    m_fileList->clear();
 
-    // 在后台线程执行遍历，增加忽略逻辑并支持高效剪枝
-    QFuture<QStringList> future = QtConcurrent::run([path]() {
-        QStringList result;
-        QSet<QString> ignored = {".git", ".idea", "__pycache__", "node_modules", "$RECYCLE.BIN", "System Volume Information"};
-
-        std::function<void(const QString&)> scanDir = [&](const QString& currentPath) {
-            QDir dir(currentPath);
-            // 获取所有文件
-            QFileInfoList files = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
-            for (const auto& fi : files) {
-                result << fi.absoluteFilePath();
-            }
-
-            // 获取所有子目录并过滤
-            QFileInfoList subDirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
-            for (const auto& di : subDirs) {
-                if (!ignored.contains(di.fileName())) {
-                    scanDir(di.absoluteFilePath());
-                }
-            }
-        };
-
-        scanDir(path);
-        return result;
-    });
-    m_watcher.setFuture(future);
+    m_scanThread = new ScannerThread(path, this);
+    connect(m_scanThread, &ScannerThread::fileFound, this, &FileSearchWindow::onFileFound);
+    connect(m_scanThread, &ScannerThread::finished, this, &FileSearchWindow::onScanFinished);
+    m_scanThread->start();
 }
 
-void FileSearchWindow::onSearchFinished() {
-    m_allFiles = m_watcher.result();
-    m_infoLabel->setText(QString("✅ 扫描结束，共 %1 个文件").arg(m_allFiles.size()));
-    filterResults();
+void FileSearchWindow::onFileFound(const QString& name, const QString& path) {
+    m_filesData.append({name, path});
+    if (m_filesData.size() % 300 == 0) {
+        m_infoLabel->setText(QString("已发现 %1 个文件...").arg(m_filesData.size()));
+    }
 }
 
-void FileSearchWindow::filterResults() {
+void FileSearchWindow::onScanFinished(int count) {
+    m_infoLabel->setText(QString("✅ 扫描结束，共 %1 个文件").arg(count));
+    refreshList();
+}
+
+void FileSearchWindow::refreshList() {
     m_fileList->clear();
-    QString keyword = m_searchEdit->text().toLower();
-    QString ext = m_extEdit->text().toLower().trimmed();
+    QString txt = m_searchInput->text().toLower();
+    QString ext = m_extInput->text().toLower().trimmed();
     if (ext.startsWith(".")) ext = ext.mid(1);
 
     int limit = 500;
-    int count = 0;
+    int shown = 0;
 
-    for (const QString& path : m_allFiles) {
-        QFileInfo info(path);
-        QString fileName = info.fileName();
+    for (const auto& data : m_filesData) {
+        if (!ext.isEmpty() && !data.name.toLower().endsWith("." + ext)) continue;
+        if (!txt.isEmpty() && !data.name.toLower().contains(txt)) continue;
 
-        bool matchKeyword = keyword.isEmpty() || fileName.toLower().contains(keyword);
-        bool matchExt = ext.isEmpty() || info.suffix().toLower() == ext;
+        auto* item = new QListWidgetItem(data.name);
+        item->setData(Qt::UserRole, data.path);
+        item->setToolTip(data.path);
+        m_fileList->addItem(item);
 
-        if (matchKeyword && matchExt) {
-            auto* item = new QListWidgetItem(fileName);
-            item->setData(Qt::UserRole, path);
-            item->setToolTip(path);
-            m_fileList->addItem(item);
-            count++;
-
-            if (count >= limit) {
-                auto* warn = new QListWidgetItem("--- 结果过多，仅显示前 500 条 ---");
-                warn->setForeground(QColor("#FFAA00"));
-                warn->setTextAlignment(Qt::AlignCenter);
-                warn->setFlags(Qt::NoItemFlags);
-                m_fileList->addItem(warn);
-                break;
-            }
+        shown++;
+        if (shown >= limit) {
+            auto* warn = new QListWidgetItem("--- 结果过多，仅显示前 500 条 ---");
+            warn->setForeground(QColor("#FFAA00"));
+            warn->setTextAlignment(Qt::AlignCenter);
+            warn->setFlags(Qt::NoItemFlags);
+            m_fileList->addItem(warn);
+            break;
         }
     }
+}
+
+void FileSearchWindow::openFileLocation(QListWidgetItem* item) {
+    if (!item) return;
+    QString path = item->data(Qt::UserRole).toString();
+    if (path.isEmpty()) return;
+
+#ifdef Q_OS_WIN
+    QStringList args;
+    args << "/select," << QDir::toNativeSeparators(path);
+    QProcess::startDetached("explorer.exe", args);
+#elif defined(Q_OS_MAC)
+    QStringList args;
+    args << "-R" << path;
+    QProcess::startDetached("open", args);
+#else
+    QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(path).absolutePath()));
+#endif
 }
 
 void FileSearchWindow::resizeEvent(QResizeEvent* event) {
     FramelessDialog::resizeEvent(event);
     if (m_resizeHandle) {
         m_resizeHandle->move(width() - 20, height() - 20);
-    }
-}
-
-void FileSearchWindow::locateFile(QListWidgetItem* item) {
-    if (!item) return;
-    QString path = item->data(Qt::UserRole).toString();
-    QFileInfo info(path);
-    if (info.exists()) {
-        // 定位并选中文件
-        QStringList args;
-        args << "/select," << QDir::toNativeSeparators(path);
-        QProcess::startDetached("explorer.exe", args);
     }
 }
