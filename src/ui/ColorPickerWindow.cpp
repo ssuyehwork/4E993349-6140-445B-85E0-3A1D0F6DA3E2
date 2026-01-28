@@ -48,8 +48,8 @@
 class ScreenColorPickerOverlay : public QWidget {
     Q_OBJECT
 public:
-    explicit ScreenColorPickerOverlay(std::function<void(QString)> callback)
-        : m_callback(callback)
+    explicit ScreenColorPickerOverlay(std::function<void(QString)> callback, QWidget* parent = nullptr)
+        : QWidget(parent), m_callback(callback)
     {
         setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
         setAttribute(Qt::WA_TranslucentBackground);
@@ -103,10 +103,18 @@ public:
     }
 
     ~ScreenColorPickerOverlay() {
-        if (m_infoWin) m_infoWin->deleteLater();
+        if (m_infoWin) {
+            m_infoWin->hide();
+            m_infoWin->deleteLater();
+        }
     }
 
 protected:
+    void hideEvent(QHideEvent* event) override {
+        if (m_infoWin) m_infoWin->hide();
+        QWidget::hideEvent(event);
+    }
+
     void mouseMoveEvent(QMouseEvent* event) override {
         updatePreview(event->globalPosition().toPoint());
     }
@@ -114,14 +122,19 @@ protected:
     void mousePressEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
             m_callback(m_selectedHex);
+            m_infoWin->hide();
             close();
         } else if (event->button() == Qt::RightButton) {
+            m_infoWin->hide();
             close();
         }
     }
 
     void keyPressEvent(QKeyEvent* event) override {
-        if (event->key() == Qt::Key_Escape) close();
+        if (event->key() == Qt::Key_Escape) {
+            m_infoWin->hide();
+            close();
+        }
     }
 
 private:
@@ -174,7 +187,7 @@ private:
 class PixelRulerOverlay : public QWidget {
     Q_OBJECT
 public:
-    explicit PixelRulerOverlay() {
+    explicit PixelRulerOverlay(QWidget* parent = nullptr) : QWidget(parent) {
         setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
         setAttribute(Qt::WA_TranslucentBackground);
         setCursor(Qt::CrossCursor);
@@ -199,10 +212,18 @@ public:
     }
 
     ~PixelRulerOverlay() {
-        if (m_infoWin) m_infoWin->deleteLater();
+        if (m_infoWin) {
+            m_infoWin->hide();
+            m_infoWin->deleteLater();
+        }
     }
 
 protected:
+    void hideEvent(QHideEvent* event) override {
+        if (m_infoWin) m_infoWin->hide();
+        QWidget::hideEvent(event);
+    }
+
     void paintEvent(QPaintEvent*) override {
         QPainter painter(this);
         painter.fillRect(rect(), QColor(0, 0, 0, 80));
@@ -255,6 +276,7 @@ protected:
             m_endPoint = m_startPoint;
             update();
         } else if (event->button() == Qt::RightButton) {
+            m_infoWin->hide();
             close();
         }
     }
@@ -274,7 +296,10 @@ protected:
     }
 
     void keyPressEvent(QKeyEvent* event) override {
-        if (event->key() == Qt::Key_Escape) close();
+        if (event->key() == Qt::Key_Escape) {
+            m_infoWin->hide();
+            close();
+        }
     }
 
 private:
@@ -557,8 +582,8 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
         toolsFrame->addWidget(btn);
     };
     createToolBtn("palette", [this](){ openColorPicker(); }, "#3b8ed0", "打开专业色盘");
-    createToolBtn("zap", [this](){ startScreenPicker(); }, "#3b8ed0", "吸取屏幕颜色");
-    createToolBtn("grip_diagonal", [this](){ openPixelRuler(); }, "#9b59b6", "屏幕像素测量");
+    createToolBtn("screen_picker", [this](){ startScreenPicker(); }, "#3b8ed0", "吸取屏幕颜色");
+    createToolBtn("pixel_ruler", [this](){ openPixelRuler(); }, "#9b59b6", "屏幕像素测量");
     createToolBtn("image", [this](){ extractFromImage(); }, "#2ecc71", "从图片提取颜色");
     createToolBtn("star", [this](){ addToFavorites(); }, "#f39c12", "收藏当前颜色");
     l->addLayout(toolsFrame);
@@ -755,13 +780,13 @@ void ColorPickerWindow::copyRgbValue() {
 }
 
 void ColorPickerWindow::startScreenPicker() {
-    auto* picker = new ScreenColorPickerOverlay([this](QString hex){ useColor(hex); });
+    auto* picker = new ScreenColorPickerOverlay([this](QString hex){ useColor(hex); }, this);
     picker->setAttribute(Qt::WA_DeleteOnClose);
     picker->show();
 }
 
 void ColorPickerWindow::openPixelRuler() {
-    auto* ruler = new PixelRulerOverlay();
+    auto* ruler = new PixelRulerOverlay(this);
     ruler->setAttribute(Qt::WA_DeleteOnClose);
     ruler->show();
 }
@@ -1034,6 +1059,17 @@ void ColorPickerWindow::dropEvent(QDropEvent* event) {
 void ColorPickerWindow::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_V && (event->modifiers() & Qt::ControlModifier)) pasteImage();
     else FramelessDialog::keyPressEvent(event);
+}
+
+void ColorPickerWindow::hideEvent(QHideEvent* event) {
+    // 关闭主界面时，确保所有活动的 Overlay 窗口也关闭
+    QList<QWidget*> overlays = findChildren<QWidget*>();
+    for (auto* w : overlays) {
+        if (qobject_cast<ScreenColorPickerOverlay*>(w) || qobject_cast<PixelRulerOverlay*>(w)) {
+            w->close();
+        }
+    }
+    FramelessDialog::hideEvent(event);
 }
 
 bool ColorPickerWindow::eventFilter(QObject* watched, QEvent* event) {
