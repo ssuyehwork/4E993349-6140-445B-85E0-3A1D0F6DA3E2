@@ -1315,7 +1315,7 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
 
     auto* catMenu = menu.addMenu(IconHelper::getIcon("branch", "#cccccc", 18), QString("移动选中项到分类 (%1)").arg(selCount));
     catMenu->setStyleSheet(menu.styleSheet());
-    catMenu->addAction(IconHelper::getIcon("uncategorized", "#aaaaaa", 18), "未分类", [this]() { doMoveToCategory(-1); });
+    catMenu->addAction(IconHelper::getIcon("uncategorized", "#e67e22", 18), "未分类", [this]() { doMoveToCategory(-1); });
     
     QSettings settings("RapidNotes", "QuickWindow");
     QVariantList recentCats = settings.value("recentCategories").toList();
