@@ -824,11 +824,11 @@ QWidget* ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& c
     auto* l = new QVBoxLayout(tile);
     l->setContentsMargins(6, 6, 6, 6);
     auto* btn = new QPushButton("");
-    btn->setFixedHeight(30);
+    btn->setFixedSize(100, 30);
     btn->setStyleSheet(QString("background: %1; border-radius: 6px; border: none;").arg(color));
     btn->setCursor(Qt::PointingHandCursor);
     connect(btn, &QPushButton::clicked, [this, color](){ useColor(color); copyHexValue(); });
-    l->addWidget(btn);
+    l->addWidget(btn, 0, Qt::AlignCenter);
     auto* info = new QHBoxLayout();
     auto* lbl = new QLabel(color);
     lbl->setStyleSheet("font-weight: bold; font-size: 12px; border: none; background: transparent;");
@@ -900,7 +900,7 @@ QWidget* ColorPickerWindow::createColorTile(QWidget* parent, const QString& colo
     auto* l = new QVBoxLayout(tile);
     l->setContentsMargins(6, 6, 6, 6);
     auto* cf = new QFrame();
-    cf->setFixedHeight(30);
+    cf->setFixedSize(100, 30);
     cf->setStyleSheet(QString("border-radius: 6px; background: %1;").arg(color));
     auto* cfl = new QVBoxLayout(cf);
     cfl->setContentsMargins(0, 0, 0, 0);
@@ -911,7 +911,7 @@ QWidget* ColorPickerWindow::createColorTile(QWidget* parent, const QString& colo
     clbl->setStyleSheet(QString("font-weight: bold; font-size: 13px; border: none; background: transparent; color: %1;")
         .arg(c.lightness() > 128 ? "black" : "white"));
     cfl->addWidget(clbl);
-    l->addWidget(cf);
+    l->addWidget(cf, 0, Qt::AlignCenter);
     cf->installEventFilter(this);
     clbl->installEventFilter(this);
     cf->setProperty("color", color);
