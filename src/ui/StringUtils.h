@@ -6,15 +6,12 @@
 #include <QMimeData>
 #include <QClipboard>
 #include <QApplication>
+#include "../core/ClipboardMonitor.h"
 
 class StringUtils {
 public:
-    static bool isHtml(const QString& content) {
-        QString trimmed = content.trimmed();
-        return trimmed.startsWith("<!DOCTYPE", Qt::CaseInsensitive) || 
-               trimmed.startsWith("<html", Qt::CaseInsensitive) || 
-               trimmed.contains("<style", Qt::CaseInsensitive) ||
-               Qt::mightBeRichText(content);
+    static bool isHtml(const QString& text) {
+        return text.contains("<!DOCTYPE HTML") || text.contains("<html>") || text.contains("<style");
     }
 
     static QString htmlToPlainText(const QString& html) {
@@ -25,15 +22,15 @@ public:
     }
 
     static void copyNoteToClipboard(const QString& content) {
+        ClipboardMonitor::instance().skipNext();
+        QMimeData* mimeData = new QMimeData();
         if (isHtml(content)) {
-            QMimeData* mimeData = new QMimeData();
-            // 同时设置 HTML 和 纯文本，这样粘贴到支持富文本的地方保留格式，粘贴到纯文本的地方则是文字
             mimeData->setHtml(content);
             mimeData->setText(htmlToPlainText(content));
-            QApplication::clipboard()->setMimeData(mimeData);
         } else {
-            QApplication::clipboard()->setText(content);
+            mimeData->setText(content);
         }
+        QApplication::clipboard()->setMimeData(mimeData);
     }
 };
 

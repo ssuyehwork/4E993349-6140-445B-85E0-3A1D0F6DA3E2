@@ -126,6 +126,7 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
         "QPushButton {"
         "    background-color: transparent;"
         "    border: none;"
+        "    outline: none;"
         "    border-radius: 5px;"
         "    width: 32px;"
         "    height: 32px;"
@@ -172,16 +173,6 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     layout->addWidget(m_btnStayOnTop);
     layout->addSpacing(4);
 
-    m_btnFilter = new QPushButton();
-    m_btnFilter->setIcon(IconHelper::getIcon("filter", "#ffffff", 20));
-    m_btnFilter->setIconSize(QSize(20, 20));
-    m_btnFilter->setToolTip("高级筛选 (Ctrl+G)");
-    m_btnFilter->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }");
-    m_btnFilter->setCheckable(true);
-    connect(m_btnFilter, &QPushButton::clicked, this, &HeaderBar::filterRequested);
-    layout->addWidget(m_btnFilter);
-    layout->addSpacing(4);
-
     m_btnMeta = new QPushButton();
     m_btnMeta->setIcon(IconHelper::getIcon("sidebar_right", "#aaaaaa", 20));
     m_btnMeta->setIconSize(QSize(20, 20));
@@ -190,6 +181,16 @@ HeaderBar::HeaderBar(QWidget* parent) : QWidget(parent) {
     m_btnMeta->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }");
     connect(m_btnMeta, &QPushButton::toggled, this, &HeaderBar::metadataToggled);
     layout->addWidget(m_btnMeta);
+    layout->addSpacing(4);
+
+    m_btnFilter = new QPushButton();
+    m_btnFilter->setIcon(IconHelper::getIcon("filter", "#ffffff", 20));
+    m_btnFilter->setIconSize(QSize(20, 20));
+    m_btnFilter->setToolTip("高级筛选 (Ctrl+G)");
+    m_btnFilter->setStyleSheet(funcBtnStyle + " QPushButton:checked { background-color: #4a90e2; }");
+    m_btnFilter->setCheckable(true);
+    connect(m_btnFilter, &QPushButton::clicked, this, &HeaderBar::filterRequested);
+    layout->addWidget(m_btnFilter);
 
     // 5. Window Controls
     QWidget* winCtrlWidget = new QWidget();

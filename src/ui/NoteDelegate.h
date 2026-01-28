@@ -108,7 +108,9 @@ public:
         QString itemType = index.data(NoteModel::TypeRole).toString();
         if (itemType == "text") itemType = "文本";
         else if (itemType == "image") itemType = "图片";
-        else if (itemType == "file") itemType = "文件";
+        else if (itemType == "file" || itemType == "local_file") itemType = "文件";
+        else if (itemType == "folder" || itemType == "local_folder") itemType = "文件夹";
+        else if (itemType == "local_batch") itemType = "批量";
         else if (itemType.isEmpty()) itemType = "笔记";
         
         QString tagText = itemType;

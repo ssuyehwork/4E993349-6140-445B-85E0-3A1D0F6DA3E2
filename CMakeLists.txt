@@ -71,6 +71,10 @@ set(SOURCES
     resources/resources.qrc
 )
 
+if(WIN32)
+    list(APPEND SOURCES resources/app_icon.rc)
+endif()
+
 add_executable(RapidNotes ${SOURCES})
 
 target_link_libraries(RapidNotes PRIVATE

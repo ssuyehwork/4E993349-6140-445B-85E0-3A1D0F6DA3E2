@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "../core/DatabaseManager.h"
+#include "../core/ClipboardMonitor.h"
 #include "NoteDelegate.h"
 #include "CategoryDelegate.h"
 #include "IconHelper.h"
@@ -52,7 +53,7 @@
 #endif
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindowHint) {
-    setWindowTitle("极速灵感 (RapidNotes) - 开发版");
+    setWindowTitle("RapidNotes");
     resize(1200, 800);
     setMouseTracking(true);
     setAttribute(Qt::WA_Hover);
@@ -995,7 +996,7 @@ void MainWindow::initUI() {
     auto* actionFilter = new QAction(this);
     actionFilter->setShortcut(QKeySequence("Ctrl+G"));
     connect(actionFilter, &QAction::triggered, this, [this](){
-        m_header->toggleSidebar(); 
+        emit m_header->filterRequested(); 
     });
     addAction(actionFilter);
 
@@ -1380,7 +1381,7 @@ void MainWindow::showContextMenu(const QPoint& pos) {
 
     auto* catMenu = menu.addMenu(IconHelper::getIcon("branch", "#cccccc", 18), QString("移动选中项到分类 (%1)").arg(selCount));
     catMenu->setStyleSheet(menu.styleSheet());
-    catMenu->addAction("⚠️ 未分类", [this]() { doMoveToCategory(-1); });
+    catMenu->addAction(IconHelper::getIcon("uncategorized", "#e67e22", 18), "未分类", [this]() { doMoveToCategory(-1); });
     
     QSettings settings("RapidNotes", "QuickWindow");
     QVariantList recentCats = settings.value("recentCategories").toList();
@@ -1594,6 +1595,7 @@ void MainWindow::doExtractContent() {
         }
     }
     if (!texts.isEmpty()) {
+        ClipboardMonitor::instance().skipNext();
         QApplication::clipboard()->setText(texts.join("\n---\n"));
     }
 }
@@ -1634,6 +1636,10 @@ void MainWindow::saveCurrentNote() {
     int id = index.data(NoteModel::IdRole).toInt();
     
     QString content = m_editor->toHtml();
+    
+    // 保存前锁定剪贴板监控，防止自触发 (虽然 updateNoteState 不直接操作剪贴板，但为了严谨性)
+    // 实际上 updateNoteState 会触发 noteUpdated，不会引起剪贴板变化。
+    
     DatabaseManager::instance().updateNoteState(id, "content", content);
     
     // 退出编辑模式

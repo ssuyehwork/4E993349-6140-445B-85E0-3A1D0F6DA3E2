@@ -1,4 +1,5 @@
 #include "SearchLineEdit.h"
+#include "IconHelper.h"
 #include <QSettings>
 #include <QMenu>
 #include <QFrame>
@@ -30,24 +31,22 @@ public:
         lbl->setStyleSheet("border: none; background: transparent; color: #DDD; font-size: 12px;");
         layout->addWidget(lbl);
         
-        m_btnDel = new QPushButton(QChar(0x00D7));
+        m_btnDel = new QPushButton();
+        m_btnDel->setIcon(IconHelper::getIcon("close", "#666", 16));
+        m_btnDel->setIconSize(QSize(10, 10));
         m_btnDel->setFixedSize(16, 16);
         m_btnDel->setCursor(Qt::PointingHandCursor);
         m_btnDel->setStyleSheet(
             "QPushButton {"
             "  background-color: transparent;"
-            "  color: #666;"
             "  border-radius: 8px;"
-            "  font-weight: bold;"
-            "  font-size: 14px;"
             "  padding: 0px;"
-            "  text-align: center;"
             "}"
             "QPushButton:hover {"
             "  background-color: #E74C3C;"
-            "  color: white;"
             "}"
         );
+        
         connect(m_btnDel, &QPushButton::clicked, this, [this](){ emit deleted(m_text); });
         layout->addWidget(m_btnDel);
 

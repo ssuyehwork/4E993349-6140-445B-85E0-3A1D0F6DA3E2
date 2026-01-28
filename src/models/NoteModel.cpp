@@ -58,8 +58,14 @@ QVariant NoteModel::data(const QModelIndex& index, int role) const {
             } else if (type == "file" || type == "files") {
                 iconName = "file";
                 iconColor = "#f1c40f";
+            } else if (type == "local_file" || type == "local_batch") {
+                iconName = "file_managed";
+                iconColor = "#f1c40f";
             } else if (type == "folder") {
                 iconName = "folder";
+                iconColor = "#e67e22";
+            } else if (type == "local_folder") {
+                iconName = "folder_managed";
                 iconColor = "#e67e22";
             } else {
                 // 【核心修复】智能检测文本内容，对齐 Python 版逻辑

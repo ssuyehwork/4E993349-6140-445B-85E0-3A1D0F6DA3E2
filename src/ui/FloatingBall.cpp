@@ -25,7 +25,10 @@ FloatingBall::FloatingBall(QWidget* parent)
     m_timer->start(16);
 
     restorePosition();
-    switchSkin("mocha");
+    
+    QSettings settings("RapidNotes", "FloatingBall");
+    QString savedSkin = settings.value("skin", "mocha").toString();
+    switchSkin(savedSkin);
 }
 
 void FloatingBall::paintEvent(QPaintEvent* event) {
@@ -287,6 +290,10 @@ QIcon FloatingBall::generateBallIcon() {
 
 void FloatingBall::switchSkin(const QString& name) {
     m_skinName = name;
+    
+    QSettings settings("RapidNotes", "FloatingBall");
+    settings.setValue("skin", name);
+    
     update();
 }
 

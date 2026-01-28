@@ -196,6 +196,7 @@ private:
 QuickWindow::QuickWindow(QWidget* parent) 
     : QWidget(parent, Qt::FramelessWindowHint) 
 {
+     setWindowTitle("快速笔记");
     setAcceptDrops(true);
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_DeleteOnClose, false);
@@ -661,10 +662,16 @@ void QuickWindow::initUI() {
         QString text = m_searchEdit->text().trimmed();
         if (text.isEmpty()) return;
         m_searchEdit->addHistoryEntry(text);
+        
+        // 强制立即刷新一次数据，防止定时器延迟导致 rowCount 不准确
+        m_searchTimer->stop();
+        refreshData();
+
         if (m_model->rowCount() == 0) {
             DatabaseManager::instance().addNoteAsync("快速记录", text, QStringList());
             m_searchEdit->clear();
-            hide();
+            // 不再自动隐藏窗口，避免用户困惑
+            refreshData();
         }
     });
 
@@ -908,6 +915,7 @@ void QuickWindow::activateNote(const QModelIndex& index) {
     if (itemType == "image") {
         QImage img;
         img.loadFromData(blob);
+        ClipboardMonitor::instance().skipNext();
         QApplication::clipboard()->setImage(img);
     } else if (itemType == "local_file" || itemType == "local_folder" || itemType == "local_batch") {
         // 文件系统托管模式：从相对路径恢复绝对路径
@@ -915,11 +923,20 @@ void QuickWindow::activateNote(const QModelIndex& index) {
         QFileInfo fi(fullPath);
         if (fi.exists()) {
             QMimeData* mimeData = new QMimeData();
-            mimeData->setUrls({QUrl::fromLocalFile(fullPath)});
+            if (itemType == "local_batch") {
+                // 批量托管模式：双击发送该批量的所有文件/文件夹内容
+                QDir dir(fullPath);
+                QList<QUrl> urls;
+                for (const QString& fileName : dir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot)) {
+                    urls << QUrl::fromLocalFile(dir.absoluteFilePath(fileName));
+                }
+                if (urls.isEmpty()) urls << QUrl::fromLocalFile(fullPath); // 保底发送文件夹自身
+                mimeData->setUrls(urls);
+            } else {
+                mimeData->setUrls({QUrl::fromLocalFile(fullPath)});
+            }
+            ClipboardMonitor::instance().skipNext();
             QApplication::clipboard()->setMimeData(mimeData);
-            
-            // 可选：同时尝试打开它（根据用户习惯，QuickWindow通常是发送，MainWindow通常是打开）
-            // 这里我们优先保证“发送”逻辑，即存入剪贴板
         } else {
             QApplication::clipboard()->setText(content);
             QToolTip::showText(QCursor::pos(), "⚠️ 文件已丢失或被移动", this);
@@ -1122,13 +1139,16 @@ void QuickWindow::doExtractContent() {
     if (selected.isEmpty()) return;
     QStringList texts;
     for (const auto& index : std::as_const(selected)) {
-        QString type = index.data(NoteModel::TypeRole).toString();
+        int id = index.data(NoteModel::IdRole).toInt();
+        QVariantMap note = DatabaseManager::instance().getNoteById(id);
+        QString type = note.value("item_type").toString();
         if (type == "text" || type.isEmpty()) {
-            QString content = index.data(NoteModel::ContentRole).toString();
+            QString content = note.value("content").toString();
             texts << StringUtils::htmlToPlainText(content);
         }
     }
     if (!texts.isEmpty()) {
+        ClipboardMonitor::instance().skipNext();
         QApplication::clipboard()->setText(texts.join("\n---\n"));
     }
 }
@@ -1295,7 +1315,7 @@ void QuickWindow::showListContextMenu(const QPoint& pos) {
 
     auto* catMenu = menu.addMenu(IconHelper::getIcon("branch", "#cccccc", 18), QString("移动选中项到分类 (%1)").arg(selCount));
     catMenu->setStyleSheet(menu.styleSheet());
-    catMenu->addAction("⚠️ 未分类", [this]() { doMoveToCategory(-1); });
+    catMenu->addAction(IconHelper::getIcon("uncategorized", "#e67e22", 18), "未分类", [this]() { doMoveToCategory(-1); });
     
     QSettings settings("RapidNotes", "QuickWindow");
     QVariantList recentCats = settings.value("recentCategories").toList();
