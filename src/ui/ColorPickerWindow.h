@@ -31,11 +31,11 @@ protected:
 
 private slots:
     // 工具按钮槽
-    void openColorPicker();      // 🎨
-    void startScreenPicker();   // 🖱️
-    void openPixelRuler();      // 📏
-    void extractFromImage();     // 📷
-    void addToFavorites();       // ⭐
+    void openColorPicker();
+    void startScreenPicker();
+    void openPixelRuler();
+    void extractFromImage();
+    void addToFavorites();
 
     // 颜色更新槽
     void applyHexColor();
@@ -60,8 +60,8 @@ private:
     void updateColorDisplay();
 
     // 辅助组件创建
-    void createColorTile(QWidget* parent, const QString& color, int col, int row);
-    void createFavoriteTile(QWidget* parent, const QString& color, int col, int row);
+    QWidget* createColorTile(QWidget* parent, const QString& color);
+    QWidget* createFavoriteTile(QWidget* parent, const QString& color);
 
     // 数据持久化
     QStringList loadFavorites();

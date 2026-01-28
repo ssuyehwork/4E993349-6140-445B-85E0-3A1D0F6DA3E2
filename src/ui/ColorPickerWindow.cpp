@@ -25,10 +25,12 @@
 #include <QFile>
 #include <QPainterPath>
 #include <cmath>
- #include <algorithm>
+#include <algorithm>
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
 #include <QColorDialog>
@@ -41,7 +43,7 @@
 #endif
 
 // ----------------------------------------------------------------------------
-// ScreenColorPickerOverlay: 屏幕取色器
+// ScreenColorPickerOverlay: 屏幕取色器 (复刻 Python 逻辑)
 // ----------------------------------------------------------------------------
 class ScreenColorPickerOverlay : public QWidget {
     Q_OBJECT
@@ -55,7 +57,7 @@ public:
         setMouseTracking(true);
 
         QScreen *screen = QGuiApplication::primaryScreen();
-        setGeometry(screen->geometry());
+        if (screen) setGeometry(screen->geometry());
 
         m_infoWin = new QWidget(nullptr, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
         m_infoWin->setFixedSize(220, 380);
@@ -67,7 +69,7 @@ public:
 
         m_magnifier = new QLabel();
         m_magnifier->setFixedSize(160, 160);
-        m_magnifier->setStyleSheet("background: #2b2b2b; border-radius: 0; border: none;");
+        m_magnifier->setStyleSheet("background: #2b2b2b; border: none; background-color: #2b2b2b;");
         m_magnifier->setAlignment(Qt::AlignCenter);
         l->addWidget(m_magnifier, 0, Qt::AlignCenter);
 
@@ -77,26 +79,26 @@ public:
         l->addWidget(m_preview, 0, Qt::AlignCenter);
 
         m_hexLabel = new QLabel("#FFFFFF");
-        m_hexLabel->setStyleSheet("color: white; font-size: 16px; font-weight: bold; border: none;");
+        m_hexLabel->setStyleSheet("color: white; font-size: 16px; font-weight: bold; border: none; background: transparent;");
         m_hexLabel->setAlignment(Qt::AlignCenter);
         l->addWidget(m_hexLabel);
 
         m_rgbLabel = new QLabel("RGB: 255, 255, 255");
-        m_rgbLabel->setStyleSheet("color: white; font-family: Consolas; font-size: 12px; border: none;");
+        m_rgbLabel->setStyleSheet("color: white; font-family: Consolas; font-size: 12px; border: none; background: transparent;");
         m_rgbLabel->setAlignment(Qt::AlignCenter);
         l->addWidget(m_rgbLabel);
 
         m_posLabel = new QLabel("X: 0  Y: 0");
-        m_posLabel->setStyleSheet("color: #888; font-family: Consolas; font-size: 12px; border: none;");
+        m_posLabel->setStyleSheet("color: #888; font-family: Consolas; font-size: 12px; border: none; background: transparent;");
         m_posLabel->setAlignment(Qt::AlignCenter);
         l->addWidget(m_posLabel);
 
         auto* hint = new QLabel("左键确认 | 右键/ESC取消");
-        hint->setStyleSheet("color: #666; font-size: 11px; border: none;");
+        hint->setStyleSheet("color: #666; font-size: 11px; border: none; background: transparent;");
         hint->setAlignment(Qt::AlignCenter);
         l->addWidget(hint);
 
-        m_infoWin->move(screen->geometry().right() - 240, screen->geometry().bottom() - 420);
+        if (screen) m_infoWin->move(screen->geometry().right() - 240, screen->geometry().bottom() - 420);
         m_infoWin->show();
     }
 
@@ -129,9 +131,9 @@ private:
 
         int size = 21;
         QPixmap screenshot = screen->grabWindow(0, pos.x() - size/2, pos.y() - size/2, size, size);
-        QImage img = screenshot.toImage();
-        if (img.isNull()) return;
+        if (screenshot.isNull()) return;
 
+        QImage img = screenshot.toImage();
         QColor centerColor = img.pixelColor(size/2, size/2);
         m_selectedHex = centerColor.name().toUpper();
 
@@ -167,7 +169,7 @@ private:
 };
 
 // ----------------------------------------------------------------------------
-// PixelRulerOverlay: 像素测量尺
+// PixelRulerOverlay: 像素测量尺 (复刻 Python 逻辑)
 // ----------------------------------------------------------------------------
 class PixelRulerOverlay : public QWidget {
     Q_OBJECT
@@ -178,7 +180,7 @@ public:
         setCursor(Qt::CrossCursor);
 
         QScreen *screen = QGuiApplication::primaryScreen();
-        setGeometry(screen->geometry());
+        if (screen) setGeometry(screen->geometry());
 
         m_infoWin = new QWidget(nullptr, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
         m_infoWin->setAttribute(Qt::WA_TranslucentBackground);
@@ -187,12 +189,12 @@ public:
 
         auto* l = new QVBoxLayout(m_infoWin);
         m_infoLabel = new QLabel("点击起点，拖动到终点测量距离\nESC 或 右键退出");
-        m_infoLabel->setStyleSheet("color: #00ffff; font-size: 14px; font-weight: bold; border: none;");
+        m_infoLabel->setStyleSheet("color: #00ffff; font-size: 14px; font-weight: bold; border: none; background: transparent;");
         m_infoLabel->setAlignment(Qt::AlignCenter);
         m_infoLabel->setWordWrap(true);
         l->addWidget(m_infoLabel);
 
-        m_infoWin->move(screen->geometry().center().x() - 150, 30);
+        if (screen) m_infoWin->move(screen->geometry().center().x() - 150, 30);
         m_infoWin->show();
     }
 
@@ -209,9 +211,9 @@ protected:
 
         int x1 = m_startPoint.x(), y1 = m_startPoint.y();
         int x2 = m_endPoint.x(), y2 = m_endPoint.y();
-        int dx = abs(x2 - x1);
-        int dy = abs(y2 - y1);
-        double distance = sqrt(pow(dx, 2) + pow(dy, 2));
+        int dx = std::abs(x2 - x1);
+        int dy = std::abs(y2 - y1);
+        double distance = std::sqrt(std::pow((double)dx, 2) + std::pow((double)dy, 2));
 
         painter.setRenderHint(QPainter::Antialiasing);
         painter.setPen(QPen(Qt::cyan, 3));
@@ -260,9 +262,9 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override {
         if (event->buttons() & Qt::LeftButton) {
             m_endPoint = event->pos();
-            int dx = abs(m_endPoint.x() - m_startPoint.x());
-            int dy = abs(m_endPoint.y() - m_startPoint.y());
-            double dist = sqrt(pow(dx, 2) + pow(dy, 2));
+            int dx = std::abs(m_endPoint.x() - m_startPoint.x());
+            int dy = std::abs(m_endPoint.y() - m_startPoint.y());
+            double dist = std::sqrt(std::pow((double)dx, 2) + std::pow((double)dy, 2));
             m_infoLabel->setText(QString("起点: (%1, %2)\n终点: (%3, %4)\n\n水平: %5 px | 垂直: %6 px\n对角线: %7 px")
                 .arg(m_startPoint.x()).arg(m_startPoint.y())
                 .arg(m_endPoint.x()).arg(m_endPoint.y())
@@ -299,9 +301,9 @@ public:
             for (int x = 0; x < 400; ++x) {
                 int dx = x - center;
                 int dy = y - center;
-                double dist = std::sqrt(dx*dx + dy*dy);
+                double dist = std::sqrt((double)dx*dx + (double)dy*dy);
                 if (dist <= radius) {
-                    double angle = std::atan2(dy, dx);
+                    double angle = std::atan2((double)dy, (double)dx);
                     double hue = (angle + M_PI) / (2 * M_PI);
                     double sat = dist / radius;
                     QColor c = QColor::fromHsvF(hue, sat, 1.0);
@@ -327,9 +329,9 @@ private:
     void handleMouse(QMouseEvent* event) {
         int dx = event->pos().x() - 200;
         int dy = event->pos().y() - 200;
-        double dist = std::sqrt(dx*dx + dy*dy);
+        double dist = std::sqrt((double)dx*dx + (double)dy*dy);
         if (dist <= 190) {
-            double angle = std::atan2(dy, dx);
+            double angle = std::atan2((double)dy, (double)dx);
             double hue = (angle + M_PI) / (2 * M_PI);
             double sat = std::min(dist / 190.0, 1.0);
             emit colorChanged(hue, sat);
@@ -362,7 +364,7 @@ public:
         l->setSpacing(10);
 
         auto* title = new QLabel("颜色选择器");
-        title->setStyleSheet("color: white; font-weight: bold; font-size: 16px; border: none;");
+        title->setStyleSheet("color: white; font-weight: bold; font-size: 16px; border: none; background: transparent;");
         l->addWidget(title);
 
         m_wheel = new ColorWheel();
@@ -370,7 +372,9 @@ public:
         l->addWidget(m_wheel, 0, Qt::AlignCenter);
 
         auto* bRow = new QHBoxLayout();
-        bRow->addWidget(new QLabel("亮度:"));
+        auto* blbl = new QLabel("亮度:");
+        blbl->setStyleSheet("color: white; border: none; background: transparent;");
+        bRow->addWidget(blbl);
         m_brightSlider = new QSlider(Qt::Horizontal);
         m_brightSlider->setRange(0, 100);
         m_brightSlider->setValue(100);
@@ -506,7 +510,7 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
         auto* row = new QHBoxLayout();
         auto* lbl = new QLabel(label);
         lbl->setFixedWidth(35);
-        lbl->setStyleSheet("font-weight: bold; font-size: 12px; border: none;");
+        lbl->setStyleSheet("font-weight: bold; font-size: 12px; border: none; background: transparent;");
         row->addWidget(lbl);
         entry = new QLineEdit();
         entry->setFixedHeight(32);
@@ -524,7 +528,7 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
 
     auto* rgbRow = new QHBoxLayout();
     auto* rlbl = new QLabel("RGB");
-    rlbl->setFixedWidth(35); rlbl->setStyleSheet("font-weight: bold; font-size: 12px; border: none;");
+    rlbl->setFixedWidth(35); rlbl->setStyleSheet("font-weight: bold; font-size: 12px; border: none; background: transparent;");
     rgbRow->addWidget(rlbl);
     m_rEntry = new QLineEdit(); m_rEntry->setFixedWidth(42);
     m_gEntry = new QLineEdit(); m_gEntry->setFixedWidth(42);
@@ -563,14 +567,14 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
     gradBox->setStyleSheet("background: #333; border-radius: 12px;");
     auto* gl = new QVBoxLayout(gradBox);
     auto* gt = new QLabel("渐变生成器");
-    gt->setStyleSheet("font-weight: bold; font-size: 15px; border: none;");
+    gt->setStyleSheet("font-weight: bold; font-size: 15px; border: none; background: transparent;");
     gt->setAlignment(Qt::AlignCenter);
     gl->addWidget(gt);
     auto addGradInput = [&](const QString& label, QLineEdit*& entry) {
         auto* row = new QHBoxLayout();
         auto* lbl = new QLabel(label);
         lbl->setFixedWidth(55);
-        lbl->setStyleSheet("font-size: 12px; border: none;");
+        lbl->setStyleSheet("font-size: 12px; border: none; background: transparent;");
         row->addWidget(lbl);
         entry = new QLineEdit();
         entry->setFixedHeight(32);
@@ -580,7 +584,9 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
     addGradInput("起始色", m_gradStart);
     addGradInput("结束色", m_gradEnd);
     auto* stepsRow = new QHBoxLayout();
-    stepsRow->addWidget(new QLabel("步数"), 0);
+    auto* stepslbl = new QLabel("步数");
+    stepslbl->setStyleSheet("color: white; border: none; background: transparent;");
+    stepsRow->addWidget(stepslbl, 0);
     m_gradSteps = new QLineEdit("7"); m_gradSteps->setFixedWidth(40);
     stepsRow->addWidget(m_gradSteps);
     stepsRow->addStretch();
@@ -606,7 +612,7 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
     auto* ipl = new QVBoxLayout(m_imagePreviewFrame);
     m_imagePreviewLabel = new QLabel("暂无图片");
     m_imagePreviewLabel->setAlignment(Qt::AlignCenter);
-    m_imagePreviewLabel->setStyleSheet("color: #666; border: none;");
+    m_imagePreviewLabel->setStyleSheet("color: #666; border: none; background: transparent;");
     ipl->addWidget(m_imagePreviewLabel);
     auto* btnClearImg = new QPushButton("清除图片 / 重置");
     btnClearImg->setStyleSheet("color: #888; border: 1px solid #444; background: transparent; font-size: 11px;");
@@ -614,7 +620,7 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
         m_imagePreviewFrame->hide();
         m_imagePreviewLabel->setPixmap(QPixmap());
         m_imagePreviewLabel->setText("暂无图片");
-        qDeleteAll(m_extractContent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
+        qDeleteAll(m_extractGridContainer->findChildren<QWidget*>());
         m_dropHintContainer->show();
         showNotification("已重置图片提取");
     });
@@ -674,11 +680,11 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
     auto* iconHint = new QLabel();
     iconHint->setPixmap(IconHelper::getIcon("image", "#444444").pixmap(48, 48));
     iconHint->setAlignment(Qt::AlignCenter);
-    iconHint->setStyleSheet("border: none;");
+    iconHint->setStyleSheet("border: none; background: transparent;");
     hl->addWidget(iconHint);
 
     auto* hint = new QLabel("拖放图片到软件任意位置\n\n或\n\nCtrl+V 粘贴\n点击左侧相机图标");
-    hint->setStyleSheet("color: #666; font-size: 18px; border: none;");
+    hint->setStyleSheet("color: #666; font-size: 18px; border: none; background: transparent;");
     hint->setAlignment(Qt::AlignCenter);
     hl->addWidget(hint);
     el->addWidget(m_dropHintContainer);
@@ -791,7 +797,7 @@ void ColorPickerWindow::updateFavoritesDisplay() {
 
     if (m_favorites.isEmpty()) {
         auto* lbl = new QLabel("暂无收藏\n右键点击任何颜色块即可收藏");
-        lbl->setStyleSheet("color: #666; font-size: 16px; border: none;");
+        lbl->setStyleSheet("color: #666; font-size: 16px; border: none; background: transparent;");
         lbl->setAlignment(Qt::AlignCenter);
         layout->addWidget(lbl, 0, Qt::AlignCenter);
         return;
@@ -950,7 +956,7 @@ void ColorPickerWindow::processImage(const QString& filePath, const QImage& imag
 
 void ColorPickerWindow::pasteImage() {
     const QMimeData* mime = QApplication::clipboard()->mimeData();
-    if (mime->hasImage()) {
+    if (mime && mime->hasImage()) {
         QImage img = qvariant_cast<QImage>(mime->imageData());
         processImage("", img);
     } else {
