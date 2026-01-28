@@ -150,6 +150,7 @@ void ColorPickerWindow::initUI() {
 
     auto* pickBtn = new QPushButton(" 屏幕吸色");
     pickBtn->setObjectName("PickBtn");
+    pickBtn->setAutoDefault(false);
     pickBtn->setIcon(IconHelper::getIcon("zap", "#FFFFFF"));
     pickBtn->setFixedHeight(36);
     connect(pickBtn, &QPushButton::clicked, this, &ColorPickerWindow::startPickColor);
@@ -165,11 +166,13 @@ void ColorPickerWindow::initUI() {
     auto* btnLayout = new QHBoxLayout();
 
     auto* wheelBtn = new QPushButton(" 色轮");
+    wheelBtn->setAutoDefault(false);
     wheelBtn->setIcon(IconHelper::getIcon("palette", "#AAAAAA"));
     wheelBtn->setStyleSheet("QPushButton { background: #333; color: #EEE; border: 1px solid #444; border-radius: 4px; height: 32px; } QPushButton:hover { background: #444; }");
     connect(wheelBtn, &QPushButton::clicked, this, &ColorPickerWindow::openColorWheel);
 
     auto* favBtn = new QPushButton(" 收藏");
+    favBtn->setAutoDefault(false);
     favBtn->setIcon(IconHelper::getIcon("star", "#AAAAAA"));
     favBtn->setStyleSheet("QPushButton { background: #333; color: #EEE; border: 1px solid #444; border-radius: 4px; height: 32px; } QPushButton:hover { background: #444; }");
     connect(favBtn, &QPushButton::clicked, this, &ColorPickerWindow::addCurrentToFavorites);
@@ -201,6 +204,7 @@ void ColorPickerWindow::initUI() {
     layout->addWidget(m_extractedList);
 
     auto* clearBtn = new QPushButton("清空收藏");
+    clearBtn->setAutoDefault(false);
     clearBtn->setStyleSheet("QPushButton { color: #888; background: transparent; border: none; font-size: 11px; } QPushButton:hover { color: #e74c3c; text-decoration: underline; }");
     connect(clearBtn, &QPushButton::clicked, this, &ColorPickerWindow::clearFavorites);
     layout->addWidget(clearBtn, 0, Qt::AlignRight);

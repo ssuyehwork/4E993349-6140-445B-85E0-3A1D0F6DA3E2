@@ -138,6 +138,8 @@ void FileSearchWindow::initUI() {
 
     auto* browseBtn = new QPushButton("浏览");
     browseBtn->setObjectName("ActionBtn");
+    browseBtn->setAutoDefault(false);
+    browseBtn->setDefault(false);
     browseBtn->setCursor(Qt::PointingHandCursor);
     connect(browseBtn, &QPushButton::clicked, this, &FileSearchWindow::browseFolder);
 
@@ -173,6 +175,7 @@ void FileSearchWindow::initUI() {
 
     m_searchBtn = new QPushButton(); // 隐藏但在后台使用，或者移除
     m_searchBtn->setVisible(false);
+    m_searchBtn->setAutoDefault(false);
     connect(&m_watcher, &QFutureWatcher<QStringList>::finished, this, &FileSearchWindow::onSearchFinished);
 }
 

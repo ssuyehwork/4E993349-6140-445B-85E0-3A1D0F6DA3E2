@@ -51,6 +51,7 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
     auto* minBtn = new QPushButton();
     minBtn->setObjectName("minBtn");
     minBtn->setFixedSize(32, 36);
+    minBtn->setAutoDefault(false);
     minBtn->setIcon(IconHelper::getIcon("minimize", "#888888", 14));
     minBtn->setCursor(Qt::PointingHandCursor);
     minBtn->setStyleSheet("QPushButton { border: none; border-radius: 0px; } QPushButton:hover { background-color: rgba(255,255,255,0.1); }");
@@ -59,6 +60,7 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
 
     auto* closeBtn = new QPushButton();
     closeBtn->setFixedSize(32, 36);
+    closeBtn->setAutoDefault(false);
     closeBtn->setIcon(IconHelper::getIcon("close", "#888888", 14));
     closeBtn->setCursor(Qt::PointingHandCursor);
     closeBtn->setStyleSheet("QPushButton { border: none; border-top-right-radius: 10px; } QPushButton:hover { background-color: #e74c3c; }");
