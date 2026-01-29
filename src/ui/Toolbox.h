@@ -32,10 +32,9 @@ private slots:
 
 private:
     void initUI();
-    QPushButton* createToolButton(const QString& text);
+    QPushButton* createToolButton(const QString& text, const QString& iconName, const QString& color);
 
     QPoint m_dragPos;
-    bool m_isStayOnTop = false;
 };
 
 #endif // TOOLBOX_H
