@@ -397,7 +397,7 @@ void ScreenshotTool::drawAnnotation(QPainter& painter, const DrawingAnnotation& 
         stroker.setJoinStyle(Qt::RoundJoin);
         QPainterPath strokePath = stroker.createStroke(p);
 
-        painter.setClip(strokePath);
+        painter.setClipPath(strokePath);
         painter.drawPixmap(0, 0, m_mosaicPixmap);
         painter.restore();
     } else if (ann.type == ScreenshotToolType::Text) {
@@ -420,3 +420,5 @@ QImage ScreenshotTool::generateFinalImage() {
     }
     return result.toImage();
 }
+
+#include "ScreenshotTool.moc"

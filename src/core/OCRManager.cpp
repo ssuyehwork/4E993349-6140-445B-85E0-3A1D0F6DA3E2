@@ -88,9 +88,10 @@ void OCRManager::recognizeAsync(const QImage& image, int contextId) {
                 process.kill();
                 result = "识别超时 (15s)";
             }
-        } else {
-            result = "无法创建临时图像文件";
         }
+    } else {
+        result = "无法创建临时图像文件";
+    }
 #else
         result = "当前平台不支持基于 Windows Media 的 OCR";
 #endif

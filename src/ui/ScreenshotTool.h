@@ -15,7 +15,6 @@
 #include <QPushButton>
 #include <QHBoxLayout>
 #include <QMap>
-#include <functional>
 
 enum class ScreenshotState {
     Selecting,
