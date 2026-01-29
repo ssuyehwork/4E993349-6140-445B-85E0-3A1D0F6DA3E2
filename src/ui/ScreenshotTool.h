@@ -50,6 +50,10 @@ public:
     void addToolButton(const QString& icon, const QString& tip, ScreenshotToolType type);
     void addActionButton(const QString& icon, const QString& tip, std::function<void()> func, const QString& color = "#ccc");
 
+protected:
+    void paintEvent(QPaintEvent* event) override;
+
+public:
     ScreenshotTool* m_tool;
     QMap<ScreenshotToolType, QPushButton*> m_buttons;
 };

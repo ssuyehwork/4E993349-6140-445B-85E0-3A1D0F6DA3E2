@@ -18,6 +18,7 @@
 #include <functional>
 #include <QBuffer>
 #include <QInputDialog>
+#include <QStyleOption>
 #include <cmath>
 
 #ifndef M_PI
@@ -63,6 +64,13 @@ ScreenshotToolbar::ScreenshotToolbar(ScreenshotTool* tool)
     addActionButton("screenshot_confirm", "完成 (双击或回车)", [tool]{ tool->confirm(); }, "#2ecc71");
 
     adjustSize();
+}
+
+void ScreenshotToolbar::paintEvent(QPaintEvent*) {
+    QStyleOption opt;
+    opt.initFrom(this);
+    QPainter p(this);
+    style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
 }
 
 void ScreenshotToolbar::addToolButton(const QString& icon, const QString& tip, ScreenshotToolType type) {
