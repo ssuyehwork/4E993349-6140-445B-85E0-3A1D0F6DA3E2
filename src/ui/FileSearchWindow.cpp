@@ -161,11 +161,15 @@ public:
 
         auto* scroll = new QScrollArea();
         scroll->setWidgetResizable(true);
-        scroll->setStyleSheet("QScrollArea { background: transparent; border: none; }");
+        scroll->setStyleSheet(
+            "QScrollArea { background-color: transparent; border: none; }"
+            "QScrollArea > QWidget > QWidget { background-color: transparent; }"
+        );
         scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
         m_chipsWidget = new QWidget();
+        m_chipsWidget->setStyleSheet("background-color: transparent;");
         m_flow = new FlowLayout(m_chipsWidget, 0, 8, 8);
         scroll->setWidget(m_chipsWidget);
         layout->addWidget(scroll);
