@@ -550,7 +550,7 @@ private:
 // ----------------------------------------------------------------------------
 
 ColorPickerWindow::ColorPickerWindow(QWidget* parent)
-    : FramelessDialog("专业颜色管理器 Pro", parent)
+    : FramelessDialog("吸取颜色", parent)
 {
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Window);
     setFixedSize(1400, 900);
@@ -986,16 +986,20 @@ QWidget* ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& c
         "QFrame { background-color: %1; border-radius: 18px; border: 1px solid rgba(255,255,255,0.1); }"
         "QFrame:hover { border: 1px solid rgba(255,255,255,0.5); }"
     ).arg(colorHex));
-
+    
     auto* layout = new QHBoxLayout(tile);
-    layout->setContentsMargins(12, 0, 4, 0);
-    layout->setSpacing(4);
-    
+    layout->setContentsMargins(4, 0, 4, 0);
+    layout->setSpacing(0);
+
+    // 左侧占位，保持中间文字居中 (宽度等于右侧删除按钮 24)
+    auto* leftSpacer = new QWidget();
+    leftSpacer->setFixedWidth(24);
+    layout->addWidget(leftSpacer);
+
     auto* lbl = new QLabel(colorHex);
+    lbl->setAlignment(Qt::AlignCenter);
     lbl->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 15px; font-family: Consolas; border: none; background: transparent;").arg(textColor));
-    layout->addWidget(lbl);
-    
-    layout->addStretch();
+    layout->addWidget(lbl, 1);
     
     auto* del = new QPushButton();
     del->setIcon(IconHelper::getIcon("close", textColor));
@@ -1053,6 +1057,9 @@ void ColorPickerWindow::generateGradient() {
     qDeleteAll(m_gradGridContainer->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
     
     auto* layout = new QVBoxLayout(m_gradGridContainer);
+    layout->setContentsMargins(0, 0, 0, 0); // 减小边距
+
+    layout->addSpacing(-15); // 向上偏移 15 像素
     auto* title = new QLabel("生成结果 (左键应用 / 右键收藏)");
     title->setStyleSheet("font-weight: bold; font-size: 16px; border: none; background: transparent; color: #888;");
     layout->addWidget(title, 0, Qt::AlignCenter);
@@ -1081,7 +1088,7 @@ QWidget* ColorPickerWindow::createColorTile(QWidget* parent, const QString& colo
 
     auto* layout = new QHBoxLayout(tile);
     layout->setContentsMargins(0, 0, 0, 0);
-    
+
     auto* lbl = new QLabel(colorHex);
     lbl->setAlignment(Qt::AlignCenter);
     lbl->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 14px; font-family: Consolas; border: none; background: transparent;").arg(textColor));
@@ -1118,6 +1125,9 @@ void ColorPickerWindow::processImage(const QString& filePath, const QImage& imag
     qDeleteAll(m_extractGridContainer->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
     
     auto* layout = new QVBoxLayout(m_extractGridContainer);
+    layout->setContentsMargins(0, 0, 0, 0); // 减小边距
+
+    layout->addSpacing(-15); // 向上偏移 15 像素
     auto* title = new QLabel("提取结果 (左键应用 / 右键收藏)");
     title->setStyleSheet("font-weight: bold; font-size: 16px; border: none; background: transparent; color: #888;");
     layout->addWidget(title, 0, Qt::AlignCenter);
