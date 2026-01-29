@@ -2,6 +2,7 @@
 #include "IconHelper.h"
 #include <QGraphicsDropShadowEffect>
 #include <QMouseEvent>
+#include <QKeyEvent>
 #include <QTimer>
 #include <QPainter>
 #include <QPen>
@@ -156,6 +157,14 @@ void FramelessDialog::mouseMoveEvent(QMouseEvent* event) {
 
 void FramelessDialog::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
+}
+
+void FramelessDialog::keyPressEvent(QKeyEvent* event) {
+    if (event->modifiers() == Qt::ControlModifier && event->key() == Qt::Key_W) {
+        reject();
+    } else {
+        QDialog::keyPressEvent(event);
+    }
 }
 
 // ----------------------------------------------------------------------------

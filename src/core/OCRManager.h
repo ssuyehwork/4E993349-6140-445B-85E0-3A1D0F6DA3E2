@@ -10,6 +10,9 @@ public:
     static OCRManager& instance();
     void recognizeAsync(const QImage& image, int contextId = -1);
 
+private:
+    void recognizeSync(const QImage& image, int contextId);
+
 signals:
     void recognitionFinished(const QString& text, int contextId);
 
