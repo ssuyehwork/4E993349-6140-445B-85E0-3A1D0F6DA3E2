@@ -60,6 +60,7 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
     btnPin->setObjectName("btnPin");
     btnPin->setFixedSize(28, 28);
     btnPin->setIconSize(QSize(18, 18));
+    btnPin->setAutoDefault(false);
     btnPin->setCheckable(true);
     btnPin->setChecked(true); // 默认置顶
     btnPin->setIcon(IconHelper::getIcon("pin_vertical", "#ffffff"));
