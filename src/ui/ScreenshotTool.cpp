@@ -4,6 +4,7 @@
 #include <QScreen>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPainterPathStroker>
 #include <QFileDialog>
 #include <QClipboard>
 #include <QMimeData>
@@ -23,72 +24,65 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-// --- ScreenshotToolbar 辅助类 ---
-class ScreenshotToolbar : public QWidget {
-public:
-    explicit ScreenshotToolbar(ScreenshotTool* tool)
-        : QWidget(nullptr, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint)
-    {
-        m_tool = tool;
-        setAttribute(Qt::WA_TranslucentBackground);
-        setObjectName("ScreenshotToolbar");
-        setStyleSheet(
-            "#ScreenshotToolbar { background-color: #252526; border: 1px solid #444; border-radius: 6px; }"
-            "QPushButton { border: none; border-radius: 4px; padding: 6px; background: transparent; min-width: 28px; min-height: 28px; }"
-            "QPushButton:hover { background-color: #3e3e42; }"
-            "QPushButton:checked { background-color: #007acc; }"
-        );
+// --- ScreenshotToolbar 实现 ---
+ScreenshotToolbar::ScreenshotToolbar(ScreenshotTool* tool)
+    : QWidget(nullptr, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint)
+{
+    m_tool = tool;
+    setAttribute(Qt::WA_TranslucentBackground);
+    setObjectName("ScreenshotToolbar");
+    setStyleSheet(
+        "#ScreenshotToolbar { background-color: #252526; border: 1px solid #444; border-radius: 6px; }"
+        "QPushButton { border: none; border-radius: 4px; padding: 6px; background: transparent; min-width: 28px; min-height: 28px; }"
+        "QPushButton:hover { background-color: #3e3e42; }"
+        "QPushButton:checked { background-color: #007acc; }"
+    );
 
-        auto* layout = new QHBoxLayout(this);
-        layout->setContentsMargins(6, 4, 6, 4);
-        layout->setSpacing(6);
+    auto* layout = new QHBoxLayout(this);
+    layout->setContentsMargins(6, 4, 6, 4);
+    layout->setSpacing(6);
 
-        addToolButton("screenshot_rect", "矩形", ScreenshotToolType::Rect);
-        addToolButton("screenshot_ellipse", "椭圆", ScreenshotToolType::Ellipse);
-        addToolButton("screenshot_arrow", "箭头", ScreenshotToolType::Arrow);
-        addToolButton("screenshot_pen", "画笔", ScreenshotToolType::Pen);
-        addToolButton("screenshot_marker", "序号", ScreenshotToolType::Marker);
-        addToolButton("screenshot_text", "文字", ScreenshotToolType::Text);
-        addToolButton("screenshot_mosaic", "马赛克", ScreenshotToolType::Mosaic);
+    addToolButton("screenshot_rect", "矩形", ScreenshotToolType::Rect);
+    addToolButton("screenshot_ellipse", "椭圆", ScreenshotToolType::Ellipse);
+    addToolButton("screenshot_arrow", "箭头", ScreenshotToolType::Arrow);
+    addToolButton("screenshot_pen", "画笔", ScreenshotToolType::Pen);
+    addToolButton("screenshot_marker", "序号", ScreenshotToolType::Marker);
+    addToolButton("screenshot_text", "文字", ScreenshotToolType::Text);
+    addToolButton("screenshot_mosaic", "马赛克", ScreenshotToolType::Mosaic);
 
-        auto* line = new QFrame();
-        line->setFrameShape(QFrame::VLine);
-        line->setStyleSheet("background-color: #444;");
-        line->setFixedWidth(1);
-        layout->addWidget(line);
+    auto* line = new QFrame();
+    line->setFrameShape(QFrame::VLine);
+    line->setStyleSheet("background-color: #444;");
+    line->setFixedWidth(1);
+    layout->addWidget(line);
 
-        addActionButton("undo", "撤销 (Ctrl+Z)", [tool]{ tool->undo(); });
-        addActionButton("save", "保存 (Ctrl+S)", [tool]{ tool->save(); });
-        addActionButton("close", "退出 (Esc)", [tool]{ tool->cancel(); }, "#e74c3c");
-        addActionButton("screenshot_confirm", "完成 (双击或回车)", [tool]{ tool->confirm(); }, "#2ecc71");
+    addActionButton("undo", "撤销 (Ctrl+Z)", [tool]{ tool->undo(); });
+    addActionButton("save", "保存 (Ctrl+S)", [tool]{ tool->save(); });
+    addActionButton("close", "退出 (Esc/Ctrl+W)", [tool]{ tool->cancel(); }, "#e74c3c");
+    addActionButton("screenshot_confirm", "完成 (双击或回车)", [tool]{ tool->confirm(); }, "#2ecc71");
 
-        adjustSize();
-    }
+    adjustSize();
+}
 
-    void addToolButton(const QString& icon, const QString& tip, ScreenshotToolType type) {
-        auto* btn = new QPushButton(IconHelper::getIcon(icon, "#ccc", 20), "");
-        btn->setCheckable(true);
-        btn->setToolTip(tip);
-        layout()->addWidget(btn);
-        m_buttons[type] = btn;
-        connect(btn, &QPushButton::clicked, [this, type]{
-            for (auto* b : m_buttons.values()) b->setChecked(false);
-            m_buttons[type]->setChecked(true);
-            // 通过元对象系统调用或直接调用
-            QMetaObject::invokeMethod(m_tool, "setTool", Q_ARG(ScreenshotToolType, type));
-        });
-    }
+void ScreenshotToolbar::addToolButton(const QString& icon, const QString& tip, ScreenshotToolType type) {
+    auto* btn = new QPushButton(IconHelper::getIcon(icon, "#ccc", 20), "");
+    btn->setCheckable(true);
+    btn->setToolTip(tip);
+    layout()->addWidget(btn);
+    m_buttons[type] = btn;
+    connect(btn, &QPushButton::clicked, [this, type]{
+        for (auto* b : m_buttons.values()) b->setChecked(false);
+        m_buttons[type]->setChecked(true);
+        m_tool->setTool(type);
+    });
+}
 
-    void addActionButton(const QString& icon, const QString& tip, std::function<void()> func, const QString& color = "#ccc") {
-        auto* btn = new QPushButton(IconHelper::getIcon(icon, color, 20), "");
-        btn->setToolTip(tip);
-        layout()->addWidget(btn);
-        connect(btn, &QPushButton::clicked, func);
-    }
-
-    ScreenshotTool* m_tool;
-    QMap<ScreenshotToolType, QPushButton*> m_buttons;
-};
+void ScreenshotToolbar::addActionButton(const QString& icon, const QString& tip, std::function<void()> func, const QString& color) {
+    auto* btn = new QPushButton(IconHelper::getIcon(icon, color, 20), "");
+    btn->setToolTip(tip);
+    layout()->addWidget(btn);
+    connect(btn, &QPushButton::clicked, func);
+}
 
 // --- ScreenshotTool 实现 ---
 
@@ -270,6 +264,7 @@ void ScreenshotTool::keyPressEvent(QKeyEvent* event) {
     else if (event->modifiers() & Qt::ControlModifier) {
         if (event->key() == Qt::Key_Z) undo();
         else if (event->key() == Qt::Key_S) save();
+        else if (event->key() == Qt::Key_W) cancel();
     }
 }
 
@@ -281,6 +276,7 @@ void ScreenshotTool::mouseDoubleClickEvent(QMouseEvent* event) {
 
 void ScreenshotTool::setTool(ScreenshotToolType type) {
     m_currentTool = type;
+    update();
 }
 
 void ScreenshotTool::undo() {
@@ -394,8 +390,14 @@ void ScreenshotTool::drawAnnotation(QPainter& painter, const DrawingAnnotation& 
         QPainterPath p;
         p.moveTo(ann.points[0]);
         for (int i = 1; i < ann.points.size(); ++i) p.lineTo(ann.points[i]);
-        painter.setStrokePath(p, QPen(Qt::black, 20)); // 马赛克刷子宽度
-        painter.setClipPath(p);
+
+        QPainterPathStroker stroker;
+        stroker.setWidth(20);
+        stroker.setCapStyle(Qt::RoundCap);
+        stroker.setJoinStyle(Qt::RoundJoin);
+        QPainterPath strokePath = stroker.createStroke(p);
+
+        painter.setClip(strokePath);
         painter.drawPixmap(0, 0, m_mosaicPixmap);
         painter.restore();
     } else if (ann.type == ScreenshotToolType::Text) {
@@ -418,5 +420,3 @@ QImage ScreenshotTool::generateFinalImage() {
     }
     return result.toImage();
 }
-
-#include "ScreenshotTool.moc"

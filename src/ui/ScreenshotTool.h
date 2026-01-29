@@ -12,8 +12,10 @@
 #include <QStack>
 #include <QPointF>
 #include <QRectF>
-
-class ScreenshotToolbar;
+#include <QPushButton>
+#include <QHBoxLayout>
+#include <QMap>
+#include <functional>
 
 enum class ScreenshotState {
     Selecting,
@@ -39,6 +41,20 @@ struct DrawingAnnotation {
     int strokeWidth;
 };
 
+class ScreenshotTool;
+
+// --- ScreenshotToolbar 辅助类 ---
+class ScreenshotToolbar : public QWidget {
+    Q_OBJECT
+public:
+    explicit ScreenshotToolbar(ScreenshotTool* tool);
+    void addToolButton(const QString& icon, const QString& tip, ScreenshotToolType type);
+    void addActionButton(const QString& icon, const QString& tip, std::function<void()> func, const QString& color = "#ccc");
+
+    ScreenshotTool* m_tool;
+    QMap<ScreenshotToolType, QPushButton*> m_buttons;
+};
+
 class ScreenshotTool : public QWidget {
     Q_OBJECT
 public:
@@ -56,7 +72,7 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
 
-private slots:
+public slots:
     void setTool(ScreenshotToolType type);
     void undo();
     void save();
@@ -69,7 +85,6 @@ private:
     QList<QRect> getHandleRects() const;
     int getHandleAt(const QPoint& pos) const;
     void drawAnnotation(QPainter& painter, const DrawingAnnotation& ann);
-    void finishCapture();
     QImage generateFinalImage();
 
     QPixmap m_screenPixmap;

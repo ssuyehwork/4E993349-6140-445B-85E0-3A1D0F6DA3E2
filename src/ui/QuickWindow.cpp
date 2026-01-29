@@ -488,7 +488,9 @@ void QuickWindow::initUI() {
     );
     m_tagEdit->setEnabled(false); // 初始禁用
     connect(m_tagEdit, &QLineEdit::returnPressed, this, &QuickWindow::handleTagInput);
-    connect(m_tagEdit, &ClickableLineEdit::doubleClicked, this, &QuickWindow::openTagSelector);
+    connect(m_tagEdit, &ClickableLineEdit::doubleClicked, this, [this](){
+        this->openTagSelector();
+    });
     bottomLayout->addWidget(m_tagEdit, 1);
 
     leftLayout->addLayout(bottomLayout);
@@ -680,10 +682,11 @@ void QuickWindow::initUI() {
         auto selected = m_listView->selectionModel()->selectedIndexes();
         if (selected.isEmpty()) {
             m_tagEdit->setEnabled(false);
+            m_tagEdit->clear();
             m_tagEdit->setPlaceholderText("请先选择一个项目");
         } else {
             m_tagEdit->setEnabled(true);
-            m_tagEdit->setPlaceholderText(selected.size() == 1 ? "输入标签添加... (双击更多)" : "输入标签批量添加...");
+            m_tagEdit->setPlaceholderText(selected.size() == 1 ? "输入新标签... (双击显示历史)" : "批量添加标签... (双击显示历史)");
         }
     });
 
@@ -1837,7 +1840,8 @@ void QuickWindow::moveEvent(QMoveEvent* event) {
 }
 
 void QuickWindow::keyPressEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_Escape) {
+    if (event->key() == Qt::Key_Escape ||
+        (event->modifiers() == Qt::ControlModifier && event->key() == Qt::Key_W)) {
         hide();
         return;
     }
