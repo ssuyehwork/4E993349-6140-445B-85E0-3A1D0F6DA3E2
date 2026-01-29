@@ -678,3 +678,5 @@ bool FileSearchWindow::eventFilter(QObject* watched, QEvent* event) {
     }
     return FramelessDialog::eventFilter(watched, event);
 }
+
+#include "FileSearchWindow.moc"
