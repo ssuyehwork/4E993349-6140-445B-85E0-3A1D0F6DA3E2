@@ -13,11 +13,8 @@
 #include <windows.h>
 #endif
 
-TimePasteWindow::TimePasteWindow(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setWindowTitle("时间输出工具");
-    setFixedSize(350, 300); // 增加边距空间 (320+30, 270+30)
+TimePasteWindow::TimePasteWindow(QWidget* parent) : FramelessDialog("时间输出工具", parent) {
+    setFixedSize(380, 330);
 
     initUI();
 
@@ -34,49 +31,7 @@ TimePasteWindow::~TimePasteWindow() {
 }
 
 void TimePasteWindow::initUI() {
-    auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(15, 15, 15, 15);
-    mainLayout->setSpacing(0);
-
-    // 1. Title Bar
-    auto* titleBar = new QWidget();
-    titleBar->setFixedHeight(35);
-    titleBar->setStyleSheet("background-color: transparent;");
-    auto* titleLayout = new QHBoxLayout(titleBar);
-    titleLayout->setContentsMargins(15, 5, 10, 5);
-    titleLayout->setSpacing(4);
-
-    auto* titleLabel = new QLabel("时间输出工具");
-    titleLabel->setStyleSheet("color: #B0B0B0; font-size: 13px;");
-    titleLayout->addWidget(titleLabel);
-    titleLayout->addStretch();
-
-    auto* btnMin = new QPushButton();
-    btnMin->setIcon(IconHelper::getIcon("minimize", "#B0B0B0"));
-    btnMin->setFixedSize(28, 28);
-    btnMin->setIconSize(QSize(18, 18));
-    btnMin->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } "
-                          "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
-                          "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); }");
-    connect(btnMin, &QPushButton::clicked, this, &TimePasteWindow::showMinimized);
-    titleLayout->addWidget(btnMin);
-
-    auto* btnClose = new QPushButton();
-    btnClose->setIcon(IconHelper::getIcon("close", "#B0B0B0"));
-    btnClose->setFixedSize(28, 28);
-    btnClose->setIconSize(QSize(18, 18));
-    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } "
-                            "QPushButton:hover { background-color: #e74c3c; } "
-                            "QPushButton:pressed { background-color: #c0392b; }");
-    connect(btnClose, &QPushButton::clicked, this, &TimePasteWindow::hide);
-    titleLayout->addWidget(btnClose);
-
-    mainLayout->addWidget(titleBar);
-
-    // 2. Content
-    auto* content = new QWidget();
-    content->setStyleSheet("background-color: transparent;");
-    auto* layout = new QVBoxLayout(content);
+    auto* layout = new QVBoxLayout(m_contentArea);
     layout->setContentsMargins(20, 10, 20, 20);
     layout->setSpacing(10);
 
@@ -112,7 +67,6 @@ void TimePasteWindow::initUI() {
     tip->setStyleSheet("color: #666666; font-size: 11px; padding: 5px;");
     layout->addWidget(tip);
 
-    mainLayout->addWidget(content);
 }
 
 QString TimePasteWindow::getRadioStyle() {
@@ -186,46 +140,12 @@ void TimePasteWindow::onDigitPressed(int digit) {
     });
 }
 
-void TimePasteWindow::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton && event->pos().y() <= 35) {
-        m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
-        event->accept();
-    }
-}
-
-void TimePasteWindow::mouseReleaseEvent(QMouseEvent* event) {
-    Q_UNUSED(event);
-    m_dragPos = QPoint();
-}
-
-void TimePasteWindow::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() & Qt::LeftButton && !m_dragPos.isNull()) {
-        move(event->globalPosition().toPoint() - m_dragPos);
-        event->accept();
-    }
-}
-
-void TimePasteWindow::paintEvent(QPaintEvent* event) {
-    Q_UNUSED(event);
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-
-    // 绘制主体
-    QRectF bodyRect = QRectF(rect()).adjusted(15, 15, -15, -15);
-    QPainterPath path;
-    path.addRoundedRect(bodyRect, 12, 12);
-
-    painter.fillPath(path, QColor(30, 30, 30, 250));
-    painter.setPen(QColor(51, 51, 51)); // #333
-    painter.drawPath(path);
-}
-
 void TimePasteWindow::showEvent(QShowEvent* event) {
-    QWidget::showEvent(event);
+    FramelessDialog::showEvent(event);
     KeyboardHook::instance().setDigitInterceptEnabled(true);
 }
 
 void TimePasteWindow::hideEvent(QHideEvent* event) {
     KeyboardHook::instance().setDigitInterceptEnabled(false);
-    QWidget::hideEvent(event);
+    FramelessDialog::hideEvent(event);
 }

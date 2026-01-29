@@ -1,7 +1,7 @@
 #ifndef FILESTORAGEWINDOW_H
 #define FILESTORAGEWINDOW_H
 
-#include <QWidget>
+#include "FramelessDialog.h"
 #include <QLabel>
 #include <QListWidget>
 #include <QVBoxLayout>
@@ -13,7 +13,7 @@ class QDropEvent;
 class QMouseEvent;
 class QPushButton;
 
-class FileStorageWindow : public QWidget {
+class FileStorageWindow : public FramelessDialog {
     Q_OBJECT
 public:
     explicit FileStorageWindow(QWidget* parent = nullptr);
@@ -23,9 +23,6 @@ protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dragLeaveEvent(QDragLeaveEvent* event) override;
     void dropEvent(QDropEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
 
 private slots:
     void onSelectItems();

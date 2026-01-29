@@ -10,11 +10,8 @@
 #include <QToolTip>
 #include <QMessageBox>
 
-TagManagerWindow::TagManagerWindow(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::Tool | Qt::WindowStaysOnTopHint);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setAttribute(Qt::WA_StyledBackground);
-    resize(400, 550);
+TagManagerWindow::TagManagerWindow(QWidget* parent) : FramelessDialog("标签管理", parent) {
+    resize(430, 580);
 
     initUI();
     refreshData();
@@ -24,48 +21,9 @@ TagManagerWindow::~TagManagerWindow() {
 }
 
 void TagManagerWindow::initUI() {
-    auto* rootLayout = new QVBoxLayout(this);
-    rootLayout->setContentsMargins(15, 15, 15, 15);
-
-    auto* container = new QFrame();
-    container->setObjectName("TagManagerContainer");
-    container->setStyleSheet("#TagManagerContainer { background-color: #1E1E1E; border-radius: 12px; border: 1px solid #333; }");
-    rootLayout->addWidget(container);
-
-    auto* shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(25);
-    shadow->setXOffset(0);
-    shadow->setYOffset(4);
-    shadow->setColor(QColor(0, 0, 0, 120));
-    container->setGraphicsEffect(shadow);
-
-    auto* contentLayout = new QVBoxLayout(container);
-    contentLayout->setContentsMargins(15, 10, 15, 15);
+    auto* contentLayout = new QVBoxLayout(m_contentArea);
+    contentLayout->setContentsMargins(20, 10, 20, 20);
     contentLayout->setSpacing(12);
-
-    // Title Bar
-    auto* titleBar = new QFrame();
-    titleBar->setFixedHeight(40);
-    auto* titleLayout = new QHBoxLayout(titleBar);
-    titleLayout->setContentsMargins(0, 0, 0, 0);
-
-    auto* iconLabel = new QLabel();
-    iconLabel->setPixmap(IconHelper::getIcon("tag", "#f1c40f").pixmap(20, 20));
-    titleLayout->addWidget(iconLabel);
-
-    auto* titleLabel = new QLabel("标签管理");
-    titleLabel->setStyleSheet("color: #f1c40f; font-weight: bold; font-size: 14px;");
-    titleLayout->addWidget(titleLabel);
-    titleLayout->addStretch();
-
-    auto* btnClose = new QPushButton();
-    btnClose->setFixedSize(28, 28);
-    btnClose->setIcon(IconHelper::getIcon("close", "#888888"));
-    btnClose->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 4px; } QPushButton:hover { background-color: #e74c3c; }");
-    connect(btnClose, &QPushButton::clicked, this, &TagManagerWindow::hide);
-    titleLayout->addWidget(btnClose);
-
-    contentLayout->addWidget(titleBar);
 
     // Search Bar
     m_searchEdit = new QLineEdit();
@@ -175,21 +133,3 @@ void TagManagerWindow::handleSearch(const QString& text) {
     refreshData();
 }
 
-void TagManagerWindow::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton && event->pos().y() <= 60) {
-        m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
-        event->accept();
-    }
-}
-
-void TagManagerWindow::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() & Qt::LeftButton && !m_dragPos.isNull()) {
-        move(event->globalPosition().toPoint() - m_dragPos);
-        event->accept();
-    }
-}
-
-void TagManagerWindow::mouseReleaseEvent(QMouseEvent* event) {
-    Q_UNUSED(event);
-    m_dragPos = QPoint();
-}

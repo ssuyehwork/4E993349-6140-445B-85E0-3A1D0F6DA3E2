@@ -3,10 +3,10 @@
 
 #include <QWidget>
 #include <QPushButton>
-#include <QVBoxLayout>
+#include "FramelessDialog.h"
 #include <QPoint>
 
-class Toolbox : public QWidget {
+class Toolbox : public FramelessDialog {
     Q_OBJECT
 public:
     explicit Toolbox(QWidget* parent = nullptr);

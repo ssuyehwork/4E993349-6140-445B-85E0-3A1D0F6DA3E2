@@ -1,13 +1,13 @@
 #ifndef PATHACQUISITIONWINDOW_H
 #define PATHACQUISITIONWINDOW_H
 
-#include <QWidget>
+#include "FramelessDialog.h"
 #include <QListWidget>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QLabel>
 
-class PathAcquisitionWindow : public QWidget {
+class PathAcquisitionWindow : public FramelessDialog {
     Q_OBJECT
 public:
     explicit PathAcquisitionWindow(QWidget* parent = nullptr);
@@ -16,9 +16,6 @@ public:
 protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
 
 private:
     void initUI();

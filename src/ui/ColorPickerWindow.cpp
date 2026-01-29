@@ -50,47 +50,38 @@ class ScreenColorPickerOverlay : public QWidget {
     Q_OBJECT
 public:
     explicit ScreenColorPickerOverlay(std::function<void(QString)> callback, QWidget* parent = nullptr) 
-        : QWidget(nullptr), m_callback(callback) // Parent设为nullptr确保是顶级全屏窗口
+        : QWidget(nullptr), m_callback(callback)
     {
-        // 1. 设置全屏无边框顶层窗口
         setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool | Qt::WindowDoesNotAcceptFocus);
         setAttribute(Qt::WA_TranslucentBackground);
         setAttribute(Qt::WA_NoSystemBackground);
         setAttribute(Qt::WA_DeleteOnClose);
         
-        // 2. 覆盖所有屏幕区域 (支持多屏)
         QRect totalRect;
         const auto screens = QGuiApplication::screens();
         for (QScreen* screen : screens) {
             totalRect = totalRect.united(screen->geometry());
         }
         setGeometry(totalRect);
-
-        // 3. 隐藏系统光标，我们自己画准星
         setCursor(Qt::BlankCursor);
         setMouseTracking(true);
         
-        // 4. 定时刷新，保证 UI 流畅，即使鼠标不动也能刷新动效
         QTimer* timer = new QTimer(this);
         connect(timer, &QTimer::timeout, this, QOverload<>::of(&ScreenColorPickerOverlay::update));
-        timer->start(16); // ~60 FPS
+        timer->start(16);
     }
 
 protected:
     void showEvent(QShowEvent* event) override {
         QWidget::showEvent(event);
-        // 【关键】强制捕获鼠标和键盘
-        // 这样即使鼠标在其他窗口上方，我们也能收到 MoveEvent
         this->grabMouse();
         this->grabKeyboard();
     }
 
     void mousePressEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
-            // 确认取色 (支持连续取色)
             if (m_callback) m_callback(m_currentColorHex);
         } else if (event->button() == Qt::RightButton) {
-            // 取消
             cancelPicker();
         }
     }
@@ -106,25 +97,19 @@ protected:
         p.setRenderHint(QPainter::Antialiasing);
         p.setRenderHint(QPainter::TextAntialiasing);
 
-        // 获取当前鼠标位置
         QPoint globalPos = QCursor::pos();
         QScreen *screen = QGuiApplication::screenAt(globalPos);
         if (!screen) return;
 
-        // --- 1. 获取屏幕截图 (只截取鼠标周围一小块) ---
-        int scaleFactor = 9;  // 放大倍率
-        int grabRadius = 8;   // 截取半径 (像素)
-        int grabSize = grabRadius * 2 + 1; // 总截取宽/高 (17px)
+        int grabRadius = 8;
+        int grabSize = grabRadius * 2 + 1;
 
-        // 坐标转换 (处理多屏偏移)
         int screenX = globalPos.x() - screen->geometry().x();
         int screenY = globalPos.y() - screen->geometry().y();
 
-        // 截图
         QPixmap capture = screen->grabWindow(0, screenX - grabRadius, screenY - grabRadius, grabSize, grabSize);
         QImage img = capture.toImage();
 
-        // 提取中心点颜色
         QColor centerColor = Qt::black;
         if (img.width() > 0 && img.height() > 0) {
             int cx = qMin(grabRadius, img.width()/2);
@@ -133,73 +118,58 @@ protected:
         }
         m_currentColorHex = centerColor.name().toUpper();
 
-        // --- 2. 绘制放大镜主体 ---
         int lensSize = 160; 
-        // 转换回本地坐标
         QPoint localPos = mapFromGlobal(globalPos);
         
-        // 放大镜位置：默认在鼠标右下，防止遮挡视线
         int lensX = localPos.x() + 25;
         int lensY = localPos.y() + 25;
         
-        // 边界检测：如果在屏幕右下角，就把放大镜移到左上
         if (lensX + lensSize > width()) lensX = localPos.x() - lensSize - 25;
         if (lensY + lensSize > height()) lensY = localPos.y() - lensSize - 25;
 
         QRect lensRect(lensX, lensY, lensSize, lensSize);
 
-        // 绘制背景/边框
         QPainterPath path;
         path.addRoundedRect(lensRect, 10, 10);
         p.fillPath(path, QColor(20, 20, 20));
         p.setPen(QPen(QColor(100, 100, 100), 2));
         p.drawPath(path);
 
-        // --- 3. 绘制像素网格 ---
         p.save();
-        // 设置裁剪区，给底部留点空间写字
         p.setClipRect(lensRect.adjusted(2, 2, -2, -50)); 
         
-        int blockSize = lensSize / grabSize; // 计算每个像素画多大
-        // 为了居中对齐，计算起始偏移
+        int blockSize = lensSize / grabSize;
         int drawStartX = lensX + (lensSize - img.width() * blockSize) / 2;
         int drawStartY = lensY + (lensSize - img.height() * blockSize) / 2;
 
         for(int y=0; y<img.height(); ++y) {
             for(int x=0; x<img.width(); ++x) {
-                // 画像素块
                 p.fillRect(drawStartX + x * blockSize, drawStartY + y * blockSize, blockSize, blockSize, img.pixelColor(x,y));
-                // 画网格线
                 p.setPen(QPen(QColor(0,0,0, 40), 1));
                 p.drawRect(drawStartX + x * blockSize, drawStartY + y * blockSize, blockSize, blockSize);
             }
         }
         
-        // 高亮中心像素
         int centerX = drawStartX + (img.width()/2) * blockSize;
         int centerY = drawStartY + (img.height()/2) * blockSize;
         p.setPen(QPen(Qt::red, 2));
         p.setBrush(Qt::NoBrush);
         p.drawRect(centerX, centerY, blockSize, blockSize);
-        p.setPen(QPen(Qt::white, 1)); // 内描边，增加对比度
+        p.setPen(QPen(Qt::white, 1));
         p.drawRect(centerX-1, centerY-1, blockSize+2, blockSize+2);
         p.restore();
 
-        // --- 4. 绘制底部信息文字 ---
         QRect infoRect = lensRect;
         infoRect.setTop(lensRect.bottom() - 50);
         
-        // 分割线
         p.setPen(QPen(QColor(60, 60, 60), 1));
         p.drawLine(infoRect.left(), infoRect.top(), infoRect.right(), infoRect.top());
 
-        // 颜色预览小方块
         QRect colorRect(infoRect.left() + 10, infoRect.top() + 12, 26, 26);
         p.fillRect(colorRect, centerColor);
         p.setPen(QPen(Qt::white, 1));
         p.drawRect(colorRect);
 
-        // 文字
         p.setPen(Qt::white);
         QFont font = p.font();
         font.setBold(true);
@@ -213,20 +183,16 @@ protected:
         QString rgbText = QString("RGB: %1, %2, %3").arg(centerColor.red()).arg(centerColor.green()).arg(centerColor.blue());
         p.drawText(infoRect.left() + 45, infoRect.top() + 38, rgbText);
 
-        // 鼠标位置
         p.setPen(Qt::gray);
         p.drawText(infoRect.right() - 85, infoRect.top() + 38, QString("(%1, %2)").arg(globalPos.x()).arg(globalPos.y()));
 
-        // --- 5. 绘制准星 (替代鼠标光标) ---
-        // 这样用户能精确知道自己指在哪里
         p.setPen(QPen(Qt::black, 3));
-        int cl = 15; // 十字线长度
+        int cl = 15;
         p.drawLine(localPos.x() - cl, localPos.y(), localPos.x() - 4, localPos.y());
         p.drawLine(localPos.x() + 4, localPos.y(), localPos.x() + cl, localPos.y());
         p.drawLine(localPos.x(), localPos.y() - cl, localPos.x(), localPos.y() - 4);
         p.drawLine(localPos.x(), localPos.y() + 4, localPos.x(), localPos.y() + cl);
         
-        // 描白边，适应黑色背景
         p.setPen(QPen(Qt::white, 1)); 
         p.drawLine(localPos.x() - cl, localPos.y(), localPos.x() - 4, localPos.y());
         p.drawLine(localPos.x() + 4, localPos.y(), localPos.x() + cl, localPos.y());
@@ -246,7 +212,7 @@ private:
 };
 
 // ----------------------------------------------------------------------------
-// PixelRulerOverlay: 像素测量尺 (修复鼠标捕获问题)
+// PixelRulerOverlay: 像素测量尺
 // ----------------------------------------------------------------------------
 class PixelRulerOverlay : public QWidget {
     Q_OBJECT
@@ -258,13 +224,11 @@ public:
         setCursor(Qt::CrossCursor);
         setMouseTracking(true);
         
-        // 覆盖所有屏幕
         QRect totalRect;
         const auto screens = QGuiApplication::screens();
         for (QScreen* screen : screens) totalRect = totalRect.united(screen->geometry());
         setGeometry(totalRect);
 
-        // 信息提示窗 (不需要跟随鼠标，固定位置即可)
         m_infoWin = new QWidget(nullptr, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
         m_infoWin->setAttribute(Qt::WA_TranslucentBackground);
         m_infoWin->setStyleSheet("background: #1a1a1a; border-radius: 10px; border: 1px solid #444;");
@@ -289,13 +253,12 @@ public:
 protected:
     void showEvent(QShowEvent* event) override {
         QWidget::showEvent(event);
-        grabMouse(); // 修复鼠标穿透
+        grabMouse();
         grabKeyboard();
     }
 
     void paintEvent(QPaintEvent*) override {
         QPainter painter(this);
-        // 绘制极淡的背景确保接收事件
         painter.fillRect(rect(), QColor(0, 0, 0, 1)); 
 
         if (m_startPoint.isNull() || m_endPoint.isNull()) return;
@@ -307,19 +270,15 @@ protected:
         double distance = std::sqrt(std::pow((double)dx, 2) + std::pow((double)dy, 2));
 
         painter.setRenderHint(QPainter::Antialiasing);
-        
-        // 连线
         painter.setPen(QPen(Qt::cyan, 2));
         painter.drawLine(m_startPoint, m_endPoint);
 
-        // 端点
         painter.setBrush(Qt::green);
         painter.setPen(QPen(Qt::white, 2));
         painter.drawEllipse(m_startPoint, 5, 5);
         painter.setBrush(Qt::red);
         painter.drawEllipse(m_endPoint, 5, 5);
 
-        // 辅助线
         QPen dashPen(Qt::yellow, 1, Qt::DashLine);
         painter.setPen(dashPen);
         if (dx > 0 || dy > 0) {
@@ -327,7 +286,6 @@ protected:
             painter.drawLine(x2, y1, x2, y2);
         }
 
-        // 数值显示 (直接画在画板上，比移动 Label 更快)
         QPoint mid = (m_startPoint + m_endPoint) / 2;
         QString text = QString("%1 px").arg(distance, 0, 'f', 1);
         QFontMetrics fm(painter.font());
@@ -420,7 +378,6 @@ protected:
     void paintEvent(QPaintEvent*) override {
         QPainter p(this);
         p.drawImage(0, 0, m_wheelImg);
-        // 绘制选择点
         if (m_hue >= 0) {
             int center = 160;
             int radius = 150;
@@ -805,9 +762,8 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
     m_gradScroll = createScroll(m_gradContent);
     m_extractScroll = createScroll(m_extractContent);
     
-    // 收藏容器
     auto* fl = new QVBoxLayout(m_favContent);
-    fl->setContentsMargins(20, 20, 25, 20); // 顶部对齐左侧(20)，右侧加宽边距(25)防止截断
+    fl->setContentsMargins(20, 20, 25, 20);
     fl->setSpacing(15);
     auto* ft = new QLabel("我的收藏");
     ft->setStyleSheet("font-size: 20px; font-weight: bold; color: white; border: none;");
@@ -821,7 +777,6 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
     fl->addWidget(m_favGridContainer);
     fl->addStretch();
 
-    // 渐变容器
     auto* gl = new QVBoxLayout(m_gradContent);
     gl->setContentsMargins(20, 20, 25, 20);
     gl->setSpacing(15);
@@ -841,7 +796,6 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
     gl->addWidget(m_gradGridContainer);
     gl->addStretch();
 
-    // 提取容器
     auto* el = new QVBoxLayout(m_extractContent);
     el->setContentsMargins(20, 20, 25, 20);
     el->setSpacing(15);
@@ -940,13 +894,10 @@ void ColorPickerWindow::copyRgbValue() {
 }
 
 void ColorPickerWindow::startScreenPicker() {
-    // 创建新的全屏覆盖层
-    // 父对象设为 nullptr 以确保它覆盖在所有窗口之上（包括任务栏等）
     auto* picker = new ScreenColorPickerOverlay([this](QString hex){
         useColor(hex);
         addSpecificColorToFavorites(hex);
     }, nullptr);
-    
     picker->show();
 }
 
@@ -986,7 +937,6 @@ void ColorPickerWindow::updateFavoritesDisplay() {
     auto* flow = dynamic_cast<FlowLayout*>(m_favGridContainer->layout());
     if (!flow) return;
 
-    // 清理旧内容
     QLayoutItem *child;
     while ((child = flow->takeAt(0)) != nullptr) {
         if (child->widget()) child->widget()->deleteLater();
@@ -1023,7 +973,6 @@ QWidget* ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& c
     layout->setContentsMargins(4, 0, 4, 0);
     layout->setSpacing(0);
 
-    // 左侧占位，保持中间文字居中 (宽度等于右侧删除按钮 24)
     auto* leftSpacer = new QWidget();
     leftSpacer->setFixedWidth(24);
     layout->addWidget(leftSpacer);
@@ -1042,7 +991,6 @@ QWidget* ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& c
     connect(del, &QPushButton::clicked, [this, colorHex](){ removeFavorite(colorHex); });
     layout->addWidget(del);
 
-    // 覆盖点击层 (通过在层叠中处理，或者简单地让 Label 也响应)
     lbl->setCursor(Qt::PointingHandCursor);
     lbl->installEventFilter(this);
     lbl->setProperty("color", colorHex);
@@ -1104,7 +1052,7 @@ void ColorPickerWindow::generateGradient() {
 
 QWidget* ColorPickerWindow::createColorTile(QWidget* parent, const QString& colorHex) {
     auto* tile = new QFrame(parent);
-    tile->setFixedSize(110, 34); // 稍微加大一点，与收藏夹接近
+    tile->setFixedSize(110, 34);
     QColor c(colorHex);
     QString textColor = c.lightness() > 150 ? "#333333" : "#FFFFFF";
 
@@ -1173,7 +1121,6 @@ void ColorPickerWindow::pasteImage() {
     const QMimeData* mime = QApplication::clipboard()->mimeData();
     if (!mime) return;
 
-    // 1. 优先尝试直接获取图片数据
     if (mime->hasImage()) {
         QImage img = qvariant_cast<QImage>(mime->imageData());
         if (!img.isNull()) {
@@ -1182,7 +1129,6 @@ void ColorPickerWindow::pasteImage() {
         }
     }
 
-    // 2. 尝试从 URL (文件路径) 获取图片 (支持从资源管理器复制的文件)
     if (mime->hasUrls()) {
         QString path = mime->urls().first().toLocalFile();
         if (!path.isEmpty()) {
@@ -1194,7 +1140,6 @@ void ColorPickerWindow::pasteImage() {
         }
     }
 
-    // 3. 兜底方案：如果还是失败，但确实有图片格式，尝试直接读取
     if (mime->hasFormat("image/png") || mime->hasFormat("image/jpeg") || mime->hasFormat("image/bmp")) {
         QImage img;
         if (img.loadFromData(mime->data("image/png"), "PNG") ||
@@ -1220,7 +1165,6 @@ QStringList ColorPickerWindow::extractDominantColors(const QImage& img, int num)
     QStringList result;
     for (QRgb rgb : sorted) {
         QColor c(rgb);
-        // 简单去重和过滤太黑太白的
         bool distinct = true;
         for(const QString& ex : result) {
             QColor exc(ex);
@@ -1286,7 +1230,6 @@ void ColorPickerWindow::keyPressEvent(QKeyEvent* event) {
 }
 
 void ColorPickerWindow::hideEvent(QHideEvent* event) {
-    // 关闭所有悬浮窗
     QList<QWidget*> overlays = findChildren<QWidget*>();
     for (auto* w : overlays) {
         if (qobject_cast<ScreenColorPickerOverlay*>(w) || qobject_cast<PixelRulerOverlay*>(w)) {
