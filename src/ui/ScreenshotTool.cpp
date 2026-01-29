@@ -156,7 +156,7 @@ ScreenshotToolbar::ScreenshotToolbar(ScreenshotTool* tool)
     
     addActionButton(layout, "undo", "撤销", [tool]{ tool->undo(); });
     addActionButton(layout, "save", "保存", [tool]{ tool->save(); });
-    addActionButton(layout, "close", "退出", [tool]{ tool->cancel(); }); 
+    addActionButton(layout, "close", "取消", [tool]{ tool->cancel(); });
     addActionButton(layout, "confirm", "完成", [tool]{ tool->confirm(); });
 
     mainLayout->addWidget(toolRow);
@@ -319,6 +319,7 @@ ScreenshotTool::ScreenshotTool(QWidget* parent)
 
 void ScreenshotTool::cancel() {
     emit screenshotCanceled();
+    if (m_toolbar) m_toolbar->close();
     close(); // 因为设置了 WA_QuitOnClose = false，这里只会关闭截图层，不会退出主程序
 }
 
