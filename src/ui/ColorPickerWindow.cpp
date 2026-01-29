@@ -807,21 +807,23 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
     
     // 收藏容器
     auto* fl = new QVBoxLayout(m_favContent);
-    fl->setContentsMargins(20, 0, 20, 20);
+    fl->setContentsMargins(20, 20, 25, 20); // 顶部对齐左侧(20)，右侧加宽边距(25)防止截断
     fl->setSpacing(15);
     auto* ft = new QLabel("我的收藏");
     ft->setStyleSheet("font-size: 20px; font-weight: bold; color: white; border: none;");
     fl->addWidget(ft);
 
     m_favGridContainer = new QFrame();
-    m_favGridContainer->setStyleSheet("QFrame { background: #252526; border-radius: 12px; }");
+    m_favGridContainer->setObjectName("cardContainer");
+    m_favGridContainer->setStyleSheet("QFrame#cardContainer { background: #252526; border-radius: 12px; }");
+    m_favGridContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     new FlowLayout(m_favGridContainer, 15, 10, 10);
     fl->addWidget(m_favGridContainer);
     fl->addStretch();
 
     // 渐变容器
     auto* gl = new QVBoxLayout(m_gradContent);
-    gl->setContentsMargins(20, 0, 20, 20);
+    gl->setContentsMargins(20, 20, 25, 20);
     gl->setSpacing(15);
     auto* gt = new QLabel("渐变预览");
     gt->setStyleSheet("font-size: 20px; font-weight: bold; color: white; border: none;");
@@ -832,14 +834,16 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
     gl->addWidget(gt2);
 
     m_gradGridContainer = new QFrame();
-    m_gradGridContainer->setStyleSheet("QFrame { background: #252526; border-radius: 12px; }");
+    m_gradGridContainer->setObjectName("cardContainer");
+    m_gradGridContainer->setStyleSheet("QFrame#cardContainer { background: #252526; border-radius: 12px; }");
+    m_gradGridContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     new FlowLayout(m_gradGridContainer, 15, 10, 10);
     gl->addWidget(m_gradGridContainer);
     gl->addStretch();
 
     // 提取容器
     auto* el = new QVBoxLayout(m_extractContent);
-    el->setContentsMargins(20, 0, 20, 20);
+    el->setContentsMargins(20, 20, 25, 20);
     el->setSpacing(15);
     auto* et = new QLabel("图片提取");
     et->setStyleSheet("font-size: 20px; font-weight: bold; color: white; border: none;");
@@ -868,7 +872,9 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
     el->addWidget(m_dropHintContainer);
 
     m_extractGridContainer = new QFrame();
-    m_extractGridContainer->setStyleSheet("QFrame { background: #252526; border-radius: 12px; }");
+    m_extractGridContainer->setObjectName("cardContainer");
+    m_extractGridContainer->setStyleSheet("QFrame#cardContainer { background: #252526; border-radius: 12px; }");
+    m_extractGridContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     new FlowLayout(m_extractGridContainer, 15, 10, 10);
     el->addWidget(m_extractGridContainer);
     el->addStretch();
@@ -977,7 +983,7 @@ void ColorPickerWindow::removeFavorite(const QString& color) {
 }
 
 void ColorPickerWindow::updateFavoritesDisplay() {
-    auto* flow = qobject_cast<FlowLayout*>(m_favGridContainer->layout());
+    auto* flow = dynamic_cast<FlowLayout*>(m_favGridContainer->layout());
     if (!flow) return;
 
     // 清理旧内容
@@ -999,6 +1005,7 @@ void ColorPickerWindow::updateFavoritesDisplay() {
         QWidget* tile = createFavoriteTile(m_favGridContainer, m_favorites[i]);
         flow->addWidget(tile);
     }
+    m_favGridContainer->updateGeometry();
 }
 
 QWidget* ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& colorHex) {
@@ -1078,7 +1085,7 @@ void ColorPickerWindow::generateGradient() {
         }
     }
     
-    auto* flow = qobject_cast<FlowLayout*>(m_gradGridContainer->layout());
+    auto* flow = dynamic_cast<FlowLayout*>(m_gradGridContainer->layout());
     if (!flow) return;
 
     QLayoutItem *child;
@@ -1091,6 +1098,7 @@ void ColorPickerWindow::generateGradient() {
         QWidget* tile = createColorTile(m_gradGridContainer, colors[i]);
         flow->addWidget(tile);
     }
+    m_gradGridContainer->updateGeometry();
     switchView("渐变预览");
 }
 
@@ -1141,7 +1149,7 @@ void ColorPickerWindow::processImage(const QString& filePath, const QImage& imag
     m_dropHintContainer->hide();
     m_extractGridContainer->show();
 
-    auto* flow = qobject_cast<FlowLayout*>(m_extractGridContainer->layout());
+    auto* flow = dynamic_cast<FlowLayout*>(m_extractGridContainer->layout());
     if (!flow) return;
 
     QLayoutItem *child;
@@ -1155,6 +1163,7 @@ void ColorPickerWindow::processImage(const QString& filePath, const QImage& imag
         QWidget* tile = createColorTile(m_extractGridContainer, colors[i]);
         flow->addWidget(tile);
     }
+    m_extractGridContainer->updateGeometry();
     
     switchView("图片提取");
     showNotification("图片已加载，调色板生成完毕");
