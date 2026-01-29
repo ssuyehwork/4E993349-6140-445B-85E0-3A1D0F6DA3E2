@@ -30,9 +30,10 @@ ScreenshotToolbar::ScreenshotToolbar(ScreenshotTool* tool)
 {
     m_tool = tool;
     setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_StyledBackground);
     setObjectName("ScreenshotToolbar");
     setStyleSheet(
-        "#ScreenshotToolbar { background-color: #252526; border: 1px solid #444; border-radius: 6px; }"
+        "#ScreenshotToolbar { background-color: #1E1E1E; border: 1px solid #333333; border-radius: 6px; }"
         "QPushButton { border: none; border-radius: 4px; padding: 6px; background: transparent; min-width: 28px; min-height: 28px; }"
         "QPushButton:hover { background-color: #3e3e42; }"
         "QPushButton:checked { background-color: #007acc; }"
@@ -67,6 +68,7 @@ ScreenshotToolbar::ScreenshotToolbar(ScreenshotTool* tool)
 void ScreenshotToolbar::addToolButton(const QString& icon, const QString& tip, ScreenshotToolType type) {
     auto* btn = new QPushButton(IconHelper::getIcon(icon, "#ccc", 20), "");
     btn->setCheckable(true);
+    btn->setAutoDefault(false);
     btn->setToolTip(tip);
     layout()->addWidget(btn);
     m_buttons[type] = btn;
@@ -79,6 +81,7 @@ void ScreenshotToolbar::addToolButton(const QString& icon, const QString& tip, S
 
 void ScreenshotToolbar::addActionButton(const QString& icon, const QString& tip, std::function<void()> func, const QString& color) {
     auto* btn = new QPushButton(IconHelper::getIcon(icon, color, 20), "");
+    btn->setAutoDefault(false);
     btn->setToolTip(tip);
     layout()->addWidget(btn);
     connect(btn, &QPushButton::clicked, func);
