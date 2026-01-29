@@ -552,6 +552,7 @@ private:
 ColorPickerWindow::ColorPickerWindow(QWidget* parent)
     : FramelessDialog("专业颜色管理器 Pro", parent)
 {
+    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Window);
     setFixedSize(1400, 900);
     setAcceptDrops(true);
     m_favorites = loadFavorites();
@@ -991,7 +992,7 @@ QWidget* ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& c
     layout->setSpacing(4);
     
     auto* lbl = new QLabel(colorHex);
-    lbl->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 11px; font-family: Consolas; border: none; background: transparent;").arg(textColor));
+    lbl->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 15px; font-family: Consolas; border: none; background: transparent;").arg(textColor));
     layout->addWidget(lbl);
     
     layout->addStretch();
@@ -1083,7 +1084,7 @@ QWidget* ColorPickerWindow::createColorTile(QWidget* parent, const QString& colo
     
     auto* lbl = new QLabel(colorHex);
     lbl->setAlignment(Qt::AlignCenter);
-    lbl->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 10px; font-family: Consolas; border: none; background: transparent;").arg(textColor));
+    lbl->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 14px; font-family: Consolas; border: none; background: transparent;").arg(textColor));
     layout->addWidget(lbl);
 
     tile->setCursor(Qt::PointingHandCursor);
