@@ -40,7 +40,7 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
     container->setGraphicsEffect(shadow);
 
     m_mainLayout = new QVBoxLayout(container);
-    m_mainLayout->setContentsMargins(0, 0, 0, 5); // 留出底部边距以确保圆角不被裁剪
+    m_mainLayout->setContentsMargins(0, 0, 0, 10); // 留出足够底部边距确保 12px 圆角
     m_mainLayout->setSpacing(0);
 
     // 标题栏
@@ -102,6 +102,10 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
     m_mainLayout->addWidget(titleBar);
 
     m_contentArea = new QWidget();
+    m_contentArea->setObjectName("DialogContentArea");
+    m_contentArea->setAttribute(Qt::WA_StyledBackground);
+    // 强制透明背景，防止全局样式表的 QWidget { background: #1E1E1E } 遮挡父容器圆角
+    m_contentArea->setStyleSheet("QWidget#DialogContentArea { background: transparent; border: none; }");
     m_mainLayout->addWidget(m_contentArea);
 }
 
