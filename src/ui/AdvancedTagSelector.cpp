@@ -42,7 +42,7 @@ AdvancedTagSelector::AdvancedTagSelector(QWidget* parent) : QWidget(parent, Qt::
 
     // 1. 搜索框 (对齐 Python 样式: 无边框，底部下划线风格)
     m_search = new QLineEdit();
-    m_search->setPlaceholderText("🔍 搜索或新建...");
+    m_search->setPlaceholderText("搜索或新建...");
     m_search->setStyleSheet(
         "QLineEdit {"
         "  background-color: #2D2D2D;"

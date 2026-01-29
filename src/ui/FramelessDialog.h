@@ -18,6 +18,11 @@ public:
     explicit FramelessDialog(const QString& title, QWidget* parent = nullptr);
     virtual ~FramelessDialog() = default;
 
+    void setStayOnTop(bool stay);
+
+private slots:
+    void toggleStayOnTop(bool checked);
+
 protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;

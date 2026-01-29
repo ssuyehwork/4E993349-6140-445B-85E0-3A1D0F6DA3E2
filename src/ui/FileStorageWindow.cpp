@@ -22,59 +22,17 @@
 #include <QDateTime>
 #include <QDebug>
 
-FileStorageWindow::FileStorageWindow(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::Tool | Qt::WindowStaysOnTopHint);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setAttribute(Qt::WA_StyledBackground);
+FileStorageWindow::FileStorageWindow(QWidget* parent) : FramelessDialog("存储文件", parent) {
     setAcceptDrops(true);
-    resize(420, 400);
+    resize(450, 430);
 
     initUI();
 }
 
 void FileStorageWindow::initUI() {
-    auto* rootLayout = new QVBoxLayout(this);
-    rootLayout->setContentsMargins(15, 15, 15, 15);
-
-    auto* container = new QFrame();
-    container->setObjectName("FileStoreContainer");
-    container->setStyleSheet("#FileStoreContainer { background-color: #1E1E1E; border-radius: 12px; border: 1px solid #444; }");
-    rootLayout->addWidget(container);
-
-    auto* shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(20);
-    shadow->setXOffset(0);
-    shadow->setYOffset(4);
-    shadow->setColor(QColor(0, 0, 0, 150));
-    container->setGraphicsEffect(shadow);
-
-    auto* contentLayout = new QVBoxLayout(container);
-    contentLayout->setContentsMargins(10, 5, 10, 15);
+    auto* contentLayout = new QVBoxLayout(m_contentArea);
+    contentLayout->setContentsMargins(20, 10, 20, 20);
     contentLayout->setSpacing(10);
-
-    // Title Bar
-    auto* titleBar = new QFrame();
-    titleBar->setFixedHeight(40);
-    auto* titleLayout = new QHBoxLayout(titleBar);
-    titleLayout->setContentsMargins(10, 0, 5, 0);
-
-    auto* iconLabel = new QLabel();
-    iconLabel->setPixmap(IconHelper::getIcon("save", "#f1c40f").pixmap(20, 20));
-    titleLayout->addWidget(iconLabel);
-
-    auto* titleLabel = new QLabel("存储文件 (文件系统托管)");
-    titleLabel->setStyleSheet("color: #f1c40f; font-weight: bold; font-size: 13px;");
-    titleLayout->addWidget(titleLabel);
-    titleLayout->addStretch();
-
-    auto* btnClose = new QPushButton();
-    btnClose->setFixedSize(24, 24);
-    btnClose->setIcon(IconHelper::getIcon("close", "#888888"));
-    btnClose->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 4px; } QPushButton:hover { background-color: #e74c3c; }");
-    connect(btnClose, &QPushButton::clicked, this, &FileStorageWindow::hide);
-    titleLayout->addWidget(btnClose);
-
-    contentLayout->addWidget(titleBar);
 
     // Drop Area
     m_dropHint = new QPushButton("拖拽文件或文件夹到这里\n数据将完整拷贝至存储库");
@@ -335,24 +293,6 @@ void FileStorageWindow::storeArchive(const QStringList& paths) {
     }
 }
 
-void FileStorageWindow::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton && event->pos().y() <= 60) {
-        m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
-        event->accept();
-    }
-}
-
-void FileStorageWindow::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() & Qt::LeftButton && !m_dragPos.isNull()) {
-        move(event->globalPosition().toPoint() - m_dragPos);
-        event->accept();
-    }
-}
-
-void FileStorageWindow::mouseReleaseEvent(QMouseEvent* event) {
-    Q_UNUSED(event);
-    m_dragPos = QPoint();
-}
 
 void FileStorageWindow::onSelectItems() {
     QMenu menu(this);

@@ -1,25 +1,19 @@
 #ifndef TIMEPASTEWINDOW_H
 #define TIMEPASTEWINDOW_H
 
-#include <QWidget>
+#include "FramelessDialog.h"
 #include <QLabel>
 #include <QRadioButton>
 #include <QButtonGroup>
 #include <QTimer>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
 
-class TimePasteWindow : public QWidget {
+class TimePasteWindow : public FramelessDialog {
     Q_OBJECT
 public:
     explicit TimePasteWindow(QWidget* parent = nullptr);
     ~TimePasteWindow();
 
 protected:
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
-    void paintEvent(QPaintEvent* event) override;
     void showEvent(QShowEvent* event) override;
     void hideEvent(QHideEvent* event) override;
 

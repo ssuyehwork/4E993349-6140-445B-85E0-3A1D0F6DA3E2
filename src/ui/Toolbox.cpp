@@ -1,22 +1,13 @@
 #include "Toolbox.h"
 #include "IconHelper.h"
-#include <QMouseEvent>
-#include <QGraphicsDropShadowEffect>
+#include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 
-#ifdef Q_OS_WIN
-#include <windows.h>
-#endif
-
-Toolbox::Toolbox(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::Tool | Qt::WindowStaysOnTopHint);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setAttribute(Qt::WA_StyledBackground);
-    setWindowTitle("工具箱");
+Toolbox::Toolbox(QWidget* parent) : FramelessDialog("工具箱", parent) {
     setObjectName("ToolboxLauncher");
-    resize(300, 400);
+    setFixedSize(300, 480);
 
     initUI();
 }
@@ -25,153 +16,71 @@ Toolbox::~Toolbox() {
 }
 
 void Toolbox::initUI() {
-    auto* rootLayout = new QVBoxLayout(this);
-    rootLayout->setContentsMargins(15, 15, 15, 15);
+    auto* contentLayout = new QVBoxLayout(m_contentArea);
+    contentLayout->setContentsMargins(20, 10, 20, 20);
+    contentLayout->setSpacing(8);
 
-    auto* container = new QFrame();
-    container->setObjectName("ToolboxContainer");
-    container->setStyleSheet("#ToolboxContainer { background-color: #1E1E1E; border-radius: 12px; border: 1px solid #333; }");
-    rootLayout->addWidget(container);
-
-    auto* shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(25);
-    shadow->setXOffset(0);
-    shadow->setYOffset(4);
-    shadow->setColor(QColor(0, 0, 0, 120));
-    container->setGraphicsEffect(shadow);
-
-    auto* contentLayout = new QVBoxLayout(container);
-    contentLayout->setContentsMargins(10, 5, 10, 20);
-    contentLayout->setSpacing(15);
-
-    // Title Bar with Close and Pin buttons
-    auto* titleHeader = new QFrame();
-    titleHeader->setObjectName("ToolboxTitleBar");
-    titleHeader->setFixedHeight(40);
-    titleHeader->setAttribute(Qt::WA_StyledBackground);
-    titleHeader->setStyleSheet("QFrame#ToolboxTitleBar { background: transparent; border: none; }");
-    auto* titleLayout = new QHBoxLayout(titleHeader);
-    titleLayout->setContentsMargins(10, 0, 5, 0);
-    titleLayout->setSpacing(4);
-
-    titleLayout->addStretch();
-
-    auto* btnPin = new QPushButton();
-    btnPin->setObjectName("btnPin");
-    btnPin->setFixedSize(28, 28);
-    btnPin->setIconSize(QSize(18, 18));
-    btnPin->setCheckable(true);
-    btnPin->setChecked(true);
-    m_isStayOnTop = true;
-    btnPin->setIcon(IconHelper::getIcon("pin_vertical", "#ffffff"));
-    btnPin->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 4px; } "
-                          "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
-                          "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); } "
-                          "QPushButton:checked { background-color: #0078d4; }");
-    btnPin->setToolTip("置顶");
-    connect(btnPin, &QPushButton::toggled, this, &Toolbox::toggleStayOnTop);
-    titleLayout->addWidget(btnPin);
-
-    auto* btnClose = new QPushButton();
-    btnClose->setFixedSize(28, 28);
-    btnClose->setIconSize(QSize(18, 18));
-    btnClose->setIcon(IconHelper::getIcon("close", "#888888"));
-    btnClose->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 4px; } "
-                            "QPushButton:hover { background-color: #e74c3c; } "
-                            "QPushButton:pressed { background-color: #c0392b; }");
-    btnClose->setToolTip("关闭");
-    connect(btnClose, &QPushButton::clicked, this, &Toolbox::hide);
-    titleLayout->addWidget(btnClose);
-
-    contentLayout->addWidget(titleHeader);
-
-    auto* btnTime = createToolButton("时间输出");
+    auto* btnTime = createToolButton("时间输出", "clock", "#1abc9c");
     connect(btnTime, &QPushButton::clicked, this, &Toolbox::showTimePasteRequested);
     contentLayout->addWidget(btnTime);
 
-    auto* btnPwd = createToolButton("密码生成器");
+    auto* btnPwd = createToolButton("密码生成器", "lock", "#3498db");
     connect(btnPwd, &QPushButton::clicked, this, &Toolbox::showPasswordGeneratorRequested);
     contentLayout->addWidget(btnPwd);
 
-    auto* btnOCR = createToolButton("文字识别 (OCR)");
+    auto* btnOCR = createToolButton("文字识别", "text", "#4a90e2");
     connect(btnOCR, &QPushButton::clicked, this, &Toolbox::showOCRRequested);
     contentLayout->addWidget(btnOCR);
 
-    auto* btnPath = createToolButton("路径提取 (拖拽)");
+    auto* btnPath = createToolButton("路径提取", "branch", "#3a90ff");
     connect(btnPath, &QPushButton::clicked, this, &Toolbox::showPathAcquisitionRequested);
     contentLayout->addWidget(btnPath);
 
-    auto* btnTags = createToolButton("标签管理");
+    auto* btnTags = createToolButton("标签管理", "tag", "#f1c40f");
     connect(btnTags, &QPushButton::clicked, this, &Toolbox::showTagManagerRequested);
     contentLayout->addWidget(btnTags);
 
-    auto* btnFile = createToolButton("存储文件");
+    auto* btnFile = createToolButton("存储文件", "file_managed", "#e67e22");
     connect(btnFile, &QPushButton::clicked, this, &Toolbox::showFileStorageRequested);
     contentLayout->addWidget(btnFile);
 
-    auto* btnSearchFile = createToolButton("查找文件");
+    auto* btnSearchFile = createToolButton("查找文件", "search", "#95a5a6");
     connect(btnSearchFile, &QPushButton::clicked, this, &Toolbox::showFileSearchRequested);
     contentLayout->addWidget(btnSearchFile);
 
-    auto* btnPicker = createToolButton("吸取颜色");
+    auto* btnPicker = createToolButton("吸取颜色", "screen_picker", "#ff6b81");
     connect(btnPicker, &QPushButton::clicked, this, &Toolbox::showColorPickerRequested);
     contentLayout->addWidget(btnPicker);
 
     contentLayout->addStretch();
 }
 
-QPushButton* Toolbox::createToolButton(const QString& text) {
+QPushButton* Toolbox::createToolButton(const QString& text, const QString& iconName, const QString& color) {
     auto* btn = new QPushButton(text);
-    btn->setStyleSheet("QPushButton { background-color: #4A4A4A; color: #E0E0E0; border: 1px solid #666; border-radius: 5px; padding: 10px; font-size: 14px; } "
-                       "QPushButton:hover { background-color: #5A5A5A; border-color: #888; } "
-                       "QPushButton:pressed { background-color: #3A3A3A; }");
-    return btn;
-}
-
-void Toolbox::toggleStayOnTop(bool checked) {
-    m_isStayOnTop = checked;
-#ifdef Q_OS_WIN
-    HWND hwnd = (HWND)winId();
-    if (checked) {
-        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-    } else {
-        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-    }
-#else
-    Qt::WindowFlags flags = windowFlags();
-    if (checked) flags |= Qt::WindowStaysOnTopHint;
-    else flags &= ~Qt::WindowStaysOnTopHint;
+    btn->setIcon(IconHelper::getIcon(iconName, color));
+    btn->setIconSize(QSize(20, 20));
+    btn->setFixedHeight(44);
     
-    if (flags != windowFlags()) {
-        setWindowFlags(flags);
-        show();
-    }
-#endif
-
-    // 更新按钮状态与图标
-    auto* btnPin = findChild<QPushButton*>("btnPin");
-    if (btnPin) {
-        if (btnPin->isChecked() != checked) btnPin->setChecked(checked);
-        // 切换图标样式 (选中时白色垂直，未选中时灰色倾斜)
-        btnPin->setIcon(IconHelper::getIcon(checked ? "pin_vertical" : "pin_tilted", checked ? "#ffffff" : "#aaaaaa"));
-    }
-}
-
-void Toolbox::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton && event->pos().y() <= 60) {
-        m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
-        event->accept();
-    }
-}
-
-void Toolbox::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() & Qt::LeftButton && !m_dragPos.isNull()) {
-        move(event->globalPosition().toPoint() - m_dragPos);
-        event->accept();
-    }
-}
-
-void Toolbox::mouseReleaseEvent(QMouseEvent* event) {
-    Q_UNUSED(event);
-    m_dragPos = QPoint();
+    // 使用 qss 直接控制对齐和边距，避免子控件导致的背景分割
+    btn->setStyleSheet(QString(
+        "QPushButton {"
+        "  background-color: #2D2D2D;"
+        "  border: 1px solid #333;"
+        "  border-radius: 8px;"
+        "  color: #E0E0E0;"
+        "  font-size: 13px;"
+        "  font-weight: 500;"
+        "  text-align: left;"
+        "  padding-left: 15px;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #3D3D3D;"
+        "  border-color: #444;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #252525;"
+        "}"
+    ));
+    
+    return btn;
 }

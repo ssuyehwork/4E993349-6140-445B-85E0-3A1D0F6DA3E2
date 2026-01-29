@@ -6,17 +6,23 @@
 #include <QPainter>
 #include <QPen>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 FramelessDialog::FramelessDialog(const QString& title, QWidget* parent) 
-    : QDialog(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool) 
+    : QDialog(parent, Qt::FramelessWindowHint | Qt::Window | Qt::WindowStaysOnTopHint) 
 {
     setAttribute(Qt::WA_TranslucentBackground);
     setMinimumWidth(320);
+    setWindowTitle(title);
 
     auto* outerLayout = new QVBoxLayout(this);
-    outerLayout->setContentsMargins(10, 10, 10, 10);
+    outerLayout->setContentsMargins(15, 15, 15, 15);
 
     auto* container = new QWidget(this);
     container->setObjectName("DialogContainer");
+    container->setAttribute(Qt::WA_StyledBackground);
     container->setStyleSheet(
         "#DialogContainer {"
         "  background-color: #1e1e1e;"
@@ -27,46 +33,69 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
     outerLayout->addWidget(container);
 
     auto* shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(20);
+    shadow->setBlurRadius(25);
+    shadow->setXOffset(0);
     shadow->setYOffset(4);
-    shadow->setColor(QColor(0, 0, 0, 150));
+    shadow->setColor(QColor(0, 0, 0, 120));
     container->setGraphicsEffect(shadow);
 
     m_mainLayout = new QVBoxLayout(container);
-    m_mainLayout->setContentsMargins(0, 0, 0, 0);
+    m_mainLayout->setContentsMargins(0, 0, 0, 10); // 留出足够底部边距确保 12px 圆角
     m_mainLayout->setSpacing(0);
 
     // 标题栏
     auto* titleBar = new QWidget();
-    titleBar->setFixedHeight(32);
+    titleBar->setFixedHeight(40);
     titleBar->setStyleSheet("background-color: transparent; border-bottom: 1px solid #2D2D2D;");
     auto* titleLayout = new QHBoxLayout(titleBar);
-    titleLayout->setContentsMargins(12, 0, 0, 0);
+    titleLayout->setContentsMargins(12, 0, 5, 0);
+    titleLayout->setSpacing(4);
 
     m_titleLabel = new QLabel(title);
-    m_titleLabel->setStyleSheet("color: #888; font-size: 11px; font-weight: bold; border: none;");
+    m_titleLabel->setStyleSheet("color: #888; font-size: 12px; font-weight: bold; border: none;");
     titleLayout->addWidget(m_titleLabel);
     titleLayout->addStretch();
 
-    auto* minBtn = new QPushButton("─");
+    auto* btnPin = new QPushButton();
+    btnPin->setObjectName("btnPin");
+    btnPin->setFixedSize(28, 28);
+    btnPin->setIconSize(QSize(18, 18));
+    btnPin->setAutoDefault(false);
+    btnPin->setCheckable(true);
+    btnPin->setChecked(true); // 默认置顶
+    btnPin->setIcon(IconHelper::getIcon("pin_vertical", "#ffffff"));
+    btnPin->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 4px; } "
+                          "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
+                          "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); } "
+                          "QPushButton:checked { background-color: #0078d4; }");
+    btnPin->setToolTip("置顶");
+    connect(btnPin, &QPushButton::toggled, this, &FramelessDialog::toggleStayOnTop);
+    titleLayout->addWidget(btnPin);
+
+    auto* minBtn = new QPushButton();
     minBtn->setObjectName("minBtn");
-    minBtn->setFixedSize(40, 32);
+    minBtn->setFixedSize(28, 28);
+    minBtn->setIconSize(QSize(18, 18));
+    minBtn->setIcon(IconHelper::getIcon("minimize", "#888888"));
     minBtn->setAutoDefault(false);
     minBtn->setCursor(Qt::PointingHandCursor);
     minBtn->setStyleSheet(
-        "QPushButton { background: transparent; border: none; color: #888888; font-family: 'Segoe UI Symbol', 'Microsoft YaHei'; font-size: 10px; } "
-        "QPushButton:hover { background-color: #3E3E42; color: white; }"
+        "QPushButton { background: transparent; border: none; border-radius: 4px; } "
+        "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }"
     );
     connect(minBtn, &QPushButton::clicked, this, &QDialog::showMinimized);
     titleLayout->addWidget(minBtn);
 
-    auto* closeBtn = new QPushButton("✕");
-    closeBtn->setFixedSize(40, 32);
+    auto* closeBtn = new QPushButton();
+    closeBtn->setObjectName("closeBtn");
+    closeBtn->setFixedSize(28, 28);
+    closeBtn->setIconSize(QSize(18, 18));
+    closeBtn->setIcon(IconHelper::getIcon("close", "#888888"));
     closeBtn->setAutoDefault(false);
     closeBtn->setCursor(Qt::PointingHandCursor);
     closeBtn->setStyleSheet(
-        "QPushButton { background: transparent; border: none; color: #888888; border-top-right-radius: 12px; font-family: 'Segoe UI Symbol', 'Microsoft YaHei'; font-size: 12px; } "
-        "QPushButton:hover { background-color: #E81123; color: white; }"
+        "QPushButton { background: transparent; border: none; border-radius: 4px; } "
+        "QPushButton:hover { background-color: #E81123; }"
     );
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::reject);
     titleLayout->addWidget(closeBtn);
@@ -74,7 +103,41 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
     m_mainLayout->addWidget(titleBar);
 
     m_contentArea = new QWidget();
+    m_contentArea->setObjectName("DialogContentArea");
+    m_contentArea->setAttribute(Qt::WA_StyledBackground);
+    // 强制透明背景，防止全局样式表的 QWidget { background: #1E1E1E } 遮挡父容器圆角
+    m_contentArea->setStyleSheet("QWidget#DialogContentArea { background: transparent; border: none; }");
     m_mainLayout->addWidget(m_contentArea);
+}
+
+void FramelessDialog::setStayOnTop(bool stay) {
+    auto* btnPin = findChild<QPushButton*>("btnPin");
+    if (btnPin) btnPin->setChecked(stay);
+}
+
+void FramelessDialog::toggleStayOnTop(bool checked) {
+#ifdef Q_OS_WIN
+    HWND hwnd = (HWND)winId();
+    if (checked) {
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+    } else {
+        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+    }
+#else
+    Qt::WindowFlags flags = windowFlags();
+    if (checked) flags |= Qt::WindowStaysOnTopHint;
+    else flags &= ~Qt::WindowStaysOnTopHint;
+    
+    if (flags != windowFlags()) {
+        setWindowFlags(flags);
+        show();
+    }
+#endif
+
+    auto* btnPin = findChild<QPushButton*>("btnPin");
+    if (btnPin) {
+        btnPin->setIcon(IconHelper::getIcon(checked ? "pin_vertical" : "pin_tilted", checked ? "#ffffff" : "#aaaaaa"));
+    }
 }
 
 void FramelessDialog::mousePressEvent(QMouseEvent* event) {

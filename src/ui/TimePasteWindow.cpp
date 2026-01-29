@@ -13,11 +13,8 @@
 #include <windows.h>
 #endif
 
-TimePasteWindow::TimePasteWindow(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setWindowTitle("时间输出工具");
-    setFixedSize(350, 300); // 增加边距空间 (320+30, 270+30)
+TimePasteWindow::TimePasteWindow(QWidget* parent) : FramelessDialog("时间输出工具", parent) {
+    setFixedSize(380, 330); 
 
     initUI();
 
@@ -34,49 +31,7 @@ TimePasteWindow::~TimePasteWindow() {
 }
 
 void TimePasteWindow::initUI() {
-    auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(15, 15, 15, 15);
-    mainLayout->setSpacing(0);
-
-    // 1. Title Bar
-    auto* titleBar = new QWidget();
-    titleBar->setFixedHeight(35);
-    titleBar->setStyleSheet("background-color: transparent;");
-    auto* titleLayout = new QHBoxLayout(titleBar);
-    titleLayout->setContentsMargins(15, 5, 10, 5);
-    titleLayout->setSpacing(4);
-
-    auto* titleLabel = new QLabel("时间输出工具");
-    titleLabel->setStyleSheet("color: #B0B0B0; font-size: 13px;");
-    titleLayout->addWidget(titleLabel);
-    titleLayout->addStretch();
-
-    auto* btnMin = new QPushButton();
-    btnMin->setIcon(IconHelper::getIcon("minimize", "#B0B0B0"));
-    btnMin->setFixedSize(28, 28);
-    btnMin->setIconSize(QSize(18, 18));
-    btnMin->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } "
-                          "QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); } "
-                          "QPushButton:pressed { background-color: rgba(255, 255, 255, 0.2); }");
-    connect(btnMin, &QPushButton::clicked, this, &TimePasteWindow::showMinimized);
-    titleLayout->addWidget(btnMin);
-
-    auto* btnClose = new QPushButton();
-    btnClose->setIcon(IconHelper::getIcon("close", "#B0B0B0"));
-    btnClose->setFixedSize(28, 28);
-    btnClose->setIconSize(QSize(18, 18));
-    btnClose->setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } "
-                            "QPushButton:hover { background-color: #e74c3c; } "
-                            "QPushButton:pressed { background-color: #c0392b; }");
-    connect(btnClose, &QPushButton::clicked, this, &TimePasteWindow::hide);
-    titleLayout->addWidget(btnClose);
-
-    mainLayout->addWidget(titleBar);
-
-    // 2. Content
-    auto* content = new QWidget();
-    content->setStyleSheet("background-color: transparent;");
-    auto* layout = new QVBoxLayout(content);
+    auto* layout = new QVBoxLayout(m_contentArea);
     layout->setContentsMargins(20, 10, 20, 20);
     layout->setSpacing(10);
 
@@ -112,7 +67,6 @@ void TimePasteWindow::initUI() {
     tip->setStyleSheet("color: #666666; font-size: 11px; padding: 5px;");
     layout->addWidget(tip);
 
-    mainLayout->addWidget(content);
 }
 
 QString TimePasteWindow::getRadioStyle() {
@@ -139,12 +93,13 @@ void TimePasteWindow::onDigitPressed(int digit) {
     
     QString timeStr = target.toString("HH:mm");
 
-    // 异步延迟处理，确保剪贴板设置和模拟粘贴不阻塞主线程/钩子回调
-    QTimer::singleShot(50, this, [timeStr]() {
-        QApplication::clipboard()->setText(timeStr);
-        
+    // 1. 立即更新剪贴板（满足用户同步需求）
+    QApplication::clipboard()->setText(timeStr);
+
+    // 2. 异步延迟处理，确保系统剪贴板通知完成且焦点稳定
+    QTimer::singleShot(100, this, [timeStr]() {
 #ifdef Q_OS_WIN
-        // 1. 显式释放所有 8 个修饰键 (L/R Ctrl, Shift, Alt, Win)
+        // A. 显式释放所有修饰键 (L/R Ctrl, Shift, Alt, Win)，防止干扰模拟输入
         INPUT releaseInputs[8];
         memset(releaseInputs, 0, sizeof(releaseInputs));
         BYTE keys[] = { VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN };
@@ -155,77 +110,37 @@ void TimePasteWindow::onDigitPressed(int digit) {
         }
         SendInput(8, releaseInputs, sizeof(INPUT));
 
-        // 2. 发送 Ctrl + V (带扫描码以提高兼容性)
-        INPUT inputs[4];
-        memset(inputs, 0, sizeof(inputs));
-
-        // Ctrl 按下
-        inputs[0].type = INPUT_KEYBOARD;
-        inputs[0].ki.wVk = VK_LCONTROL;
-        inputs[0].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
-
-        // V 按下
-        inputs[1].type = INPUT_KEYBOARD;
-        inputs[1].ki.wVk = 'V';
-        inputs[1].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
-
-        // V 抬起
-        inputs[2].type = INPUT_KEYBOARD;
-        inputs[2].ki.wVk = 'V';
-        inputs[2].ki.wScan = MapVirtualKey('V', MAPVK_VK_TO_VSC);
-        inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
-
-        // Ctrl 抬起
-        inputs[3].type = INPUT_KEYBOARD;
-        inputs[3].ki.wVk = VK_LCONTROL;
-        inputs[3].ki.wScan = MapVirtualKey(VK_LCONTROL, MAPVK_VK_TO_VSC);
-        inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
-
-        SendInput(4, inputs, sizeof(INPUT));
+        // B. 使用 Unicode 方式模拟打字输入 (比 Ctrl+V 稳定，不产生剪贴板竞争)
+        int len = timeStr.length();
+        QVector<INPUT> inputs(len * 2);
+        for (int i = 0; i < len; ++i) {
+            inputs[i*2].type = INPUT_KEYBOARD;
+            inputs[i*2].ki.wVk = 0;
+            inputs[i*2].ki.wScan = timeStr[i].unicode();
+            inputs[i*2].ki.dwFlags = KEYEVENTF_UNICODE;
+            
+            inputs[i*2+1] = inputs[i*2];
+            inputs[i*2+1].ki.dwFlags |= KEYEVENTF_KEYUP;
+        }
+        SendInput(inputs.size(), inputs.data(), sizeof(INPUT));
 #endif
     });
 }
 
-void TimePasteWindow::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton && event->pos().y() <= 35) {
-        m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
-        event->accept();
-    }
-}
-
-void TimePasteWindow::mouseReleaseEvent(QMouseEvent* event) {
-    Q_UNUSED(event);
-    m_dragPos = QPoint();
-}
-
-void TimePasteWindow::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() & Qt::LeftButton && !m_dragPos.isNull()) {
-        move(event->globalPosition().toPoint() - m_dragPos);
-        event->accept();
-    }
-}
-
-void TimePasteWindow::paintEvent(QPaintEvent* event) {
-    Q_UNUSED(event);
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-
-    // 绘制主体
-    QRectF bodyRect = QRectF(rect()).adjusted(15, 15, -15, -15);
-    QPainterPath path;
-    path.addRoundedRect(bodyRect, 12, 12);
-
-    painter.fillPath(path, QColor(30, 30, 30, 250));
-    painter.setPen(QColor(51, 51, 51)); // #333
-    painter.drawPath(path);
-}
-
 void TimePasteWindow::showEvent(QShowEvent* event) {
-    QWidget::showEvent(event);
+    FramelessDialog::showEvent(event);
     KeyboardHook::instance().setDigitInterceptEnabled(true);
+
+#ifdef Q_OS_WIN
+    // A. 设置 WS_EX_NOACTIVATE 使得点击窗口时（如切换加减模式）不会夺取当前编辑器的焦点
+    HWND hwnd = (HWND)winId();
+    SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_NOACTIVATE);
+    // B. 确保窗口置顶（某些情况下 flag 可能失效）
+    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+#endif
 }
 
 void TimePasteWindow::hideEvent(QHideEvent* event) {
     KeyboardHook::instance().setDigitInterceptEnabled(false);
-    QWidget::hideEvent(event);
+    FramelessDialog::hideEvent(event);
 }

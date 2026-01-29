@@ -8,11 +8,8 @@
 #include <QToolTip>
 #include <QGraphicsDropShadowEffect>
 
-PasswordGeneratorWindow::PasswordGeneratorWindow(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setWindowTitle("Secure Pass Pro");
-    setFixedSize(540, 370);
+PasswordGeneratorWindow::PasswordGeneratorWindow(QWidget* parent) : FramelessDialog("密码生成器", parent) {
+    setFixedSize(570, 400);
 
     initUI();
 }
@@ -21,30 +18,8 @@ PasswordGeneratorWindow::~PasswordGeneratorWindow() {
 }
 
 void PasswordGeneratorWindow::initUI() {
-    auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(15, 15, 15, 15);
-    mainLayout->setSpacing(0);
-
-    auto* container = new QFrame();
-    container->setObjectName("Container");
-    container->setStyleSheet("#Container { background-color: #1E1E1E; border-radius: 12px; border: 1px solid #333; }");
-    mainLayout->addWidget(container);
-
-    auto* shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(25);
-    shadow->setXOffset(0);
-    shadow->setYOffset(4);
-    shadow->setColor(QColor(0, 0, 0, 120));
-    container->setGraphicsEffect(shadow);
-
-    auto* contentLayout = new QVBoxLayout(container);
-    contentLayout->setContentsMargins(0, 0, 0, 0);
-    contentLayout->setSpacing(0);
-
-    contentLayout->addWidget(createTitleBar());
-
-    auto* innerLayout = new QVBoxLayout();
-    innerLayout->setContentsMargins(20, 5, 20, 15);
+    auto* innerLayout = new QVBoxLayout(m_contentArea);
+    innerLayout->setContentsMargins(20, 10, 20, 20);
     innerLayout->setSpacing(10);
 
     m_usageEntry = new QLineEdit();
@@ -68,30 +43,6 @@ void PasswordGeneratorWindow::initUI() {
     m_statusLabel->setStyleSheet("color: gray; font-size: 9px;");
     innerLayout->addWidget(m_statusLabel);
 
-    contentLayout->addLayout(innerLayout);
-}
-
-QWidget* PasswordGeneratorWindow::createTitleBar() {
-    auto* titleBar = new QWidget();
-    titleBar->setFixedHeight(40);
-    auto* layout = new QHBoxLayout(titleBar);
-    layout->setContentsMargins(20, 0, 10, 0);
-
-    auto* titleLabel = new QLabel("SECURE PASS PRO");
-    titleLabel->setStyleSheet("color: #555555; font-size: 12px; font-weight: bold;");
-    layout->addWidget(titleLabel, 0, Qt::AlignLeft);
-
-    auto* closeBtn = new QPushButton();
-    closeBtn->setIcon(IconHelper::getIcon("close", "#888888"));
-    closeBtn->setFixedSize(28, 28);
-    closeBtn->setIconSize(QSize(18, 18));
-    closeBtn->setStyleSheet("QPushButton { border: none; background: transparent; border-radius: 4px; } "
-                            "QPushButton:hover { background-color: #e74c3c; } "
-                            "QPushButton:pressed { background-color: #c0392b; }");
-    connect(closeBtn, &QPushButton::clicked, this, &PasswordGeneratorWindow::hide);
-    layout->addWidget(closeBtn, 0, Qt::AlignRight);
-
-    return titleBar;
 }
 
 QWidget* PasswordGeneratorWindow::createDisplayArea() {
@@ -254,21 +205,3 @@ QString PasswordGeneratorWindow::generateSecurePassword(int length, bool upper, 
     return pwd.left(length);
 }
 
-void PasswordGeneratorWindow::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton && event->pos().y() <= 45) {
-        m_dragPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
-        event->accept();
-    }
-}
-
-void PasswordGeneratorWindow::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() & Qt::LeftButton && !m_dragPos.isNull()) {
-        move(event->globalPosition().toPoint() - m_dragPos);
-        event->accept();
-    }
-}
-
-void PasswordGeneratorWindow::mouseReleaseEvent(QMouseEvent* event) {
-    Q_UNUSED(event);
-    m_dragPos = QPoint();
-}

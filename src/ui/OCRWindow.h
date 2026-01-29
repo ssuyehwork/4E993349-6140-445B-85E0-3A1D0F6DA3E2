@@ -1,23 +1,19 @@
 #ifndef OCRWINDOW_H
 #define OCRWINDOW_H
 
-#include <QWidget>
+#include "FramelessDialog.h"
 #include <QTextEdit>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 
-class OCRWindow : public QWidget {
+class OCRWindow : public FramelessDialog {
     Q_OBJECT
 public:
     explicit OCRWindow(QWidget* parent = nullptr);
     ~OCRWindow();
 
-protected:
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
 
 private slots:
     void onPasteAndRecognize();

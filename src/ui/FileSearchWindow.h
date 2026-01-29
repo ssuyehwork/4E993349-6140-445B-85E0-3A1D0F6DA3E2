@@ -7,7 +7,10 @@
 #include <QPushButton>
 #include <QThread>
 #include <QPair>
+#include <QSplitter>
 #include <atomic>
+
+class PathHistoryPopup;
 
 /**
  * @brief 扫描线程：实现增量扫描与目录剪枝
@@ -47,13 +50,20 @@ private:
 };
 
 /**
- * @brief 文件查找窗口：1:1 复刻 Python 版逻辑与视觉
+ * @brief 文件查找窗口：新增侧边栏收藏与路径历史记录
  */
 class FileSearchWindow : public FramelessDialog {
     Q_OBJECT
 public:
     explicit FileSearchWindow(QWidget* parent = nullptr);
     ~FileSearchWindow();
+
+    // 历史记录操作接口 (供 Popup 调用)
+    void addHistoryEntry(const QString& path);
+    QStringList getHistory() const;
+    void clearHistory();
+    void removeHistoryEntry(const QString& path);
+    void useHistoryPath(const QString& path);
 
 private slots:
     void selectFolder();
@@ -63,14 +73,23 @@ private slots:
     void onScanFinished(int count);
     void refreshList();
     void openFileLocation(QListWidgetItem* item);
+    
+    // 侧边栏相关
+    void onSidebarItemClicked(QListWidgetItem* item);
+    void showSidebarContextMenu(const QPoint& pos);
+    void addFavorite(const QString& path);
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     void initUI();
     void setupStyles();
+    void loadFavorites();
+    void saveFavorites();
 
+    QListWidget* m_sidebar;
     QLineEdit* m_pathInput;
     QLineEdit* m_searchInput;
     QLineEdit* m_extInput;
@@ -79,6 +98,7 @@ private:
     
     ResizeHandle* m_resizeHandle;
     ScannerThread* m_scanThread = nullptr;
+    PathHistoryPopup* m_historyPopup = nullptr;
     
     struct FileData {
         QString name;

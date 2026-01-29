@@ -1,7 +1,7 @@
 #ifndef TAGMANAGERWINDOW_H
 #define TAGMANAGERWINDOW_H
 
-#include <QWidget>
+#include "FramelessDialog.h"
 #include <QTableWidget>
 #include <QLineEdit>
 #include <QPushButton>
@@ -9,7 +9,7 @@
 #include <QLabel>
 #include <QPoint>
 
-class TagManagerWindow : public QWidget {
+class TagManagerWindow : public FramelessDialog {
     Q_OBJECT
 public:
     explicit TagManagerWindow(QWidget* parent = nullptr);
@@ -18,10 +18,6 @@ public:
 public slots:
     void refreshData();
 
-protected:
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
 
 private:
     void initUI();

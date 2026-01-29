@@ -1,7 +1,7 @@
 #ifndef PASSWORDGENERATORWINDOW_H
 #define PASSWORDGENERATORWINDOW_H
 
-#include <QWidget>
+#include "FramelessDialog.h"
 #include <QLineEdit>
 #include <QProgressBar>
 #include <QSlider>
@@ -11,23 +11,17 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 
-class PasswordGeneratorWindow : public QWidget {
+class PasswordGeneratorWindow : public FramelessDialog {
     Q_OBJECT
 public:
     explicit PasswordGeneratorWindow(QWidget* parent = nullptr);
     ~PasswordGeneratorWindow();
-
-protected:
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
 
 private slots:
     void generatePassword();
 
 private:
     void initUI();
-    QWidget* createTitleBar();
     QWidget* createDisplayArea();
     QWidget* createControlsArea();
     QString generateSecurePassword(int length, bool upper, bool lower, bool digits, bool symbols, bool excludeAmbiguous);
