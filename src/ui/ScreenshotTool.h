@@ -7,30 +7,21 @@
 #include <QScreen>
 #include <QPixmap>
 #include <QPainter>
-#include <QPaintEvent>
-#include <QList>
-#include <QStack>
-#include <QPointF>
-#include <QRectF>
+#include <QPainterPath>
 #include <QPushButton>
 #include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QMap>
+#include <QLineEdit>
+#include <QButtonGroup>
+#include <QMenu>
+#include <QColorDialog>
+#include <QList>
 
-enum class ScreenshotState {
-    Selecting,
-    Editing
-};
-
-enum class ScreenshotToolType {
-    None,
-    Rect,
-    Ellipse,
-    Arrow,
-    Pen,
-    Marker,
-    Text,
-    Mosaic
-};
+enum class ScreenshotState { Selecting, Editing };
+enum class ScreenshotToolType { None, Rect, Ellipse, Arrow, Line, Pen, Marker, Text, Mosaic };
+enum class ArrowStyle { Solid, Thin, Outline, Double, DotStart };
+enum class LineStyle { Solid, Dash, Dot };
 
 struct DrawingAnnotation {
     ScreenshotToolType type;
@@ -38,30 +29,69 @@ struct DrawingAnnotation {
     QColor color;
     QString text;
     int strokeWidth;
+    LineStyle lineStyle;
+    ArrowStyle arrowStyle;
 };
 
 class ScreenshotTool;
 
-// --- ScreenshotToolbar 辅助类 ---
 class ScreenshotToolbar : public QWidget {
     Q_OBJECT
 public:
     explicit ScreenshotToolbar(ScreenshotTool* tool);
-    void addToolButton(const QString& icon, const QString& tip, ScreenshotToolType type);
-    void addActionButton(const QString& icon, const QString& tip, std::function<void()> func, const QString& color = "#ccc");
+    void addToolButton(QBoxLayout* layout, ScreenshotToolType type, const QString& tip);
+    void addActionButton(QBoxLayout* layout, const QString& iconName, const QString& tip, std::function<void()> func);
+    void selectTool(ScreenshotToolType type);
+    void updateArrowButtonIcon(ArrowStyle style);
 
+protected:
+    void paintEvent(QPaintEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+
+private:
+    void createOptionWidget();
+    void showArrowMenu();
+
+public:
     ScreenshotTool* m_tool;
     QMap<ScreenshotToolType, QPushButton*> m_buttons;
+    QWidget* m_optionWidget = nullptr;
+    QPushButton* m_arrowStyleBtn = nullptr;
+    bool m_isDragging = false;
+    QPoint m_dragPosition;
+};
+
+class SelectionInfoBar : public QWidget {
+    Q_OBJECT
+public:
+    explicit SelectionInfoBar(QWidget* parent = nullptr);
+    void updateInfo(const QRect& rect);
+protected:
+    void paintEvent(QPaintEvent*) override;
+private:
+    QString m_text;
 };
 
 class ScreenshotTool : public QWidget {
     Q_OBJECT
 public:
     explicit ScreenshotTool(QWidget* parent = nullptr);
-    ~ScreenshotTool();
+    
+    void setDrawColor(const QColor& color);
+    void setDrawWidth(int width);
+    void setArrowStyle(ArrowStyle style);
+    
+    void updateToolbarPosition();
+    void undo();
+    void save();
+    void confirm();
+    void cancel(); 
 
 signals:
     void screenshotCaptured(const QImage& image);
+    void screenshotCanceled();
 
 protected:
     void paintEvent(QPaintEvent*) override;
@@ -73,34 +103,42 @@ protected:
 
 public slots:
     void setTool(ScreenshotToolType type);
-    void undo();
-    void save();
-    void confirm();
-    void cancel();
 
 private:
-    void updateCursor(const QPoint& pos);
+    void drawAnnotation(QPainter& painter, const DrawingAnnotation& ann);
+    void drawArrow(QPainter& painter, const QPointF& start, const QPointF& end, const DrawingAnnotation& ann);
+    
     QRect selectionRect() const;
     QList<QRect> getHandleRects() const;
     int getHandleAt(const QPoint& pos) const;
-    void drawAnnotation(QPainter& painter, const DrawingAnnotation& ann);
+    void updateCursor(const QPoint& pos);
+    void showTextInput(const QPoint& pos);
+    void commitTextInput();
     QImage generateFinalImage();
 
     QPixmap m_screenPixmap;
     QPixmap m_mosaicPixmap;
+    
     ScreenshotState m_state = ScreenshotState::Selecting;
     ScreenshotToolType m_currentTool = ScreenshotToolType::None;
     
-    QPoint m_startPoint;
-    QPoint m_endPoint;
+    QPoint m_startPoint, m_endPoint;
     bool m_isDragging = false;
-    int m_dragHandle = -1; // -1: none, 0-7: handles, 8: move selection
+    int m_dragHandle = -1; 
 
     QList<DrawingAnnotation> m_annotations;
+    QList<DrawingAnnotation> m_redoStack;
     DrawingAnnotation m_currentAnnotation;
     bool m_isDrawing = false;
 
     ScreenshotToolbar* m_toolbar = nullptr;
+    SelectionInfoBar* m_infoBar = nullptr;
+    QLineEdit* m_textInput = nullptr;
+
+    QColor m_currentColor = QColor(255, 50, 50); 
+    int m_currentStrokeWidth = 3; 
+    ArrowStyle m_currentArrowStyle = ArrowStyle::Solid;
+    LineStyle m_currentLineStyle = LineStyle::Solid;
 };
 
 #endif // SCREENSHOTTOOL_H

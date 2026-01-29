@@ -1,422 +1,554 @@
 #include "ScreenshotTool.h"
-#include "IconHelper.h"
 #include <QApplication>
 #include <QScreen>
-#include <QPainter>
-#include <QPainterPath>
 #include <QPainterPathStroker>
 #include <QFileDialog>
 #include <QClipboard>
-#include <QMimeData>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QPushButton>
-#include <QStyle>
-#include <QToolTip>
-#include <QKeyEvent>
+#include <QMenu>
 #include <QDateTime>
-#include <functional>
-#include <QBuffer>
 #include <QInputDialog>
+#include <QStyle>
+#include <QStyleOption>
 #include <cmath>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
-// --- ScreenshotToolbar 实现 ---
+// ==========================================
+// IconFactory
+// ==========================================
+class IconFactory {
+public:
+    static QIcon createIcon(const QString& type, const QColor& color = Qt::white) {
+        QPixmap pix(32, 32);
+        pix.fill(Qt::transparent);
+        QPainter p(&pix);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(QPen(color, 2));
+        p.setBrush(Qt::NoBrush);
+
+        if (type == "rect") p.drawRect(6, 8, 20, 16);
+        else if (type == "ellipse") p.drawEllipse(6, 8, 20, 16);
+        else if (type == "arrow") {
+            p.drawLine(6, 26, 24, 8); p.drawLine(14, 8, 24, 8); p.drawLine(24, 18, 24, 8);
+        } else if (type == "line") p.drawLine(6, 26, 26, 6);
+        else if (type == "pen") {
+            QPainterPath path; path.moveTo(6, 26); path.quadTo(12, 10, 26, 6); p.drawPath(path);
+        } else if (type == "marker") {
+            p.drawEllipse(4, 4, 24, 24);
+            p.setFont(QFont("Arial", 12, QFont::Bold)); p.drawText(pix.rect(), Qt::AlignCenter, "1");
+        } else if (type == "text") {
+            p.setFont(QFont("Times", 18, QFont::Bold)); p.drawText(pix.rect(), Qt::AlignCenter, "T");
+        } else if (type == "mosaic") {
+            p.setPen(Qt::NoPen); p.setBrush(color);
+            p.drawRect(6, 6, 8, 8); p.drawRect(18, 6, 8, 8);
+            p.drawRect(6, 18, 8, 8); p.drawRect(18, 18, 8, 8);
+        } else if (type == "undo") {
+            QPainterPath path; path.moveTo(24, 12); path.arcTo(6, 6, 20, 20, 90, 180); p.drawPath(path);
+            QPolygonF head; head << QPointF(24, 12) << QPointF(18, 8) << QPointF(18, 16);
+            p.setBrush(color); p.setPen(Qt::NoPen); p.drawPolygon(head);
+        } else if (type == "save") {
+            p.drawRect(6, 6, 20, 20); p.fillRect(10, 6, 12, 8, color); p.drawRect(8, 18, 16, 8);
+        } else if (type == "close") {
+            p.setPen(QPen(Qt::red, 3)); p.drawLine(8, 8, 24, 24); p.drawLine(24, 8, 8, 24);
+        } else if (type == "confirm") {
+            p.setPen(QPen(Qt::green, 3)); p.drawLine(6, 16, 12, 24); p.drawLine(12, 24, 26, 8);
+        }
+        return QIcon(pix);
+    }
+    
+    static QIcon createArrowStyleIcon(ArrowStyle style) {
+        QPixmap pix(40, 20);
+        pix.fill(Qt::transparent);
+        QPainter p(&pix);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(QPen(Qt::white, 2));
+        p.setBrush(Qt::white);
+        
+        QPointF start(5, 10), end(35, 10);
+        if (style == ArrowStyle::Solid) {
+            p.drawLine(start, end);
+            QPolygonF head; head << end << QPointF(25, 5) << QPointF(25, 15); p.drawPolygon(head);
+        } else if (style == ArrowStyle::Thin) {
+            p.drawLine(start, end); p.drawLine(end, QPointF(28, 4)); p.drawLine(end, QPointF(28, 16));
+        } else if (style == ArrowStyle::Outline) {
+            p.setBrush(Qt::transparent);
+            QPolygonF poly; poly << QPointF(5, 8) << QPointF(25, 8) << QPointF(25, 4) << QPointF(35, 10) << QPointF(25, 16) << QPointF(25, 12) << QPointF(5, 12);
+            p.drawPolygon(poly);
+        } else if (style == ArrowStyle::Double) {
+            p.drawLine(start, end);
+            QPolygonF h1; h1 << end << QPointF(28, 5) << QPointF(28, 15);
+            QPolygonF h2; h2 << start << QPointF(12, 5) << QPointF(12, 15);
+            p.drawPolygon(h1); p.drawPolygon(h2);
+        } else if (style == ArrowStyle::DotStart) {
+            p.drawLine(start, end); p.drawEllipse(start, 3, 3);
+            QPolygonF head; head << end << QPointF(28, 5) << QPointF(28, 15); p.drawPolygon(head);
+        }
+        return QIcon(pix);
+    }
+};
+
+// ==========================================
+// SelectionInfoBar
+// ==========================================
+SelectionInfoBar::SelectionInfoBar(QWidget* parent) : QWidget(parent) {
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+    setFixedSize(180, 28);
+    hide();
+}
+void SelectionInfoBar::updateInfo(const QRect& rect) {
+    m_text = QString("%1, %2 | %3 x %4").arg(rect.x()).arg(rect.y()).arg(rect.width()).arg(rect.height());
+    update();
+}
+void SelectionInfoBar::paintEvent(QPaintEvent*) {
+    QPainter p(this); p.setRenderHint(QPainter::Antialiasing);
+    p.setBrush(QColor(0, 0, 0, 200)); p.setPen(Qt::NoPen);
+    p.drawRoundedRect(rect(), 4, 4);
+    p.setPen(Qt::white); p.setFont(QFont("Arial", 9));
+    p.drawText(rect(), Qt::AlignCenter, m_text);
+}
+
+// ==========================================
+// ScreenshotToolbar
+// ==========================================
 ScreenshotToolbar::ScreenshotToolbar(ScreenshotTool* tool) 
     : QWidget(nullptr, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) 
 {
     m_tool = tool;
     setAttribute(Qt::WA_TranslucentBackground);
-    setObjectName("ScreenshotToolbar");
-    setStyleSheet(
-        "#ScreenshotToolbar { background-color: #252526; border: 1px solid #444; border-radius: 6px; }"
-        "QPushButton { border: none; border-radius: 4px; padding: 6px; background: transparent; min-width: 28px; min-height: 28px; }"
-        "QPushButton:hover { background-color: #3e3e42; }"
-        "QPushButton:checked { background-color: #007acc; }"
-    );
+    setMouseTracking(true);
 
-    auto* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(6, 4, 6, 4);
-    layout->setSpacing(6);
+    setStyleSheet(R"(
+        #ScreenshotToolbar { background-color: #2D2D2D; border: 1px solid #555; border-radius: 6px; }
+        QPushButton { background: transparent; border: none; border-radius: 4px; padding: 4px; }
+        QPushButton:hover { background-color: #444; }
+        QPushButton:checked { background-color: #007ACC; }
+        QWidget#OptionWidget { background-color: #333; border-top: 1px solid #555; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; }
+        QPushButton[colorBtn="true"] { border: 2px solid transparent; border-radius: 2px; }
+        QPushButton[colorBtn="true"]:checked { border-color: white; }
+        QPushButton[sizeBtn="true"] { background-color: #777; border-radius: 50%; }
+        QPushButton[sizeBtn="true"]:checked { background-color: #007ACC; }
+        QMenu { background: #2D2D2D; color: white; border: 1px solid #555; }
+        QMenu::item:selected { background: #007ACC; }
+    )");
 
-    addToolButton("screenshot_rect", "矩形", ScreenshotToolType::Rect);
-    addToolButton("screenshot_ellipse", "椭圆", ScreenshotToolType::Ellipse);
-    addToolButton("screenshot_arrow", "箭头", ScreenshotToolType::Arrow);
-    addToolButton("screenshot_pen", "画笔", ScreenshotToolType::Pen);
-    addToolButton("screenshot_marker", "序号", ScreenshotToolType::Marker);
-    addToolButton("screenshot_text", "文字", ScreenshotToolType::Text);
-    addToolButton("screenshot_mosaic", "马赛克", ScreenshotToolType::Mosaic);
+    auto* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0); mainLayout->setSpacing(0);
 
-    auto* line = new QFrame();
-    line->setFrameShape(QFrame::VLine);
-    line->setStyleSheet("background-color: #444;");
-    line->setFixedWidth(1);
-    layout->addWidget(line);
+    QWidget* toolRow = new QWidget;
+    auto* layout = new QHBoxLayout(toolRow);
+    layout->setContentsMargins(8, 6, 8, 6); layout->setSpacing(8);
 
-    addActionButton("undo", "撤销 (Ctrl+Z)", [tool]{ tool->undo(); });
-    addActionButton("save", "保存 (Ctrl+S)", [tool]{ tool->save(); });
-    addActionButton("close", "退出 (Esc/Ctrl+W)", [tool]{ tool->cancel(); }, "#e74c3c");
-    addActionButton("screenshot_confirm", "完成 (双击或回车)", [tool]{ tool->confirm(); }, "#2ecc71");
+    addToolButton(layout, ScreenshotToolType::Rect, "rect");
+    addToolButton(layout, ScreenshotToolType::Ellipse, "ellipse");
+    addToolButton(layout, ScreenshotToolType::Arrow, "arrow");
+    addToolButton(layout, ScreenshotToolType::Line, "line");
+    
+    auto* line = new QFrame; line->setFrameShape(QFrame::VLine); line->setStyleSheet("color: #666;"); layout->addWidget(line);
+    
+    addToolButton(layout, ScreenshotToolType::Pen, "pen");
+    addToolButton(layout, ScreenshotToolType::Marker, "marker");
+    addToolButton(layout, ScreenshotToolType::Text, "text");
+    addToolButton(layout, ScreenshotToolType::Mosaic, "mosaic");
 
-    adjustSize();
+    layout->addStretch();
+    
+    addActionButton(layout, "undo", "撤销", [tool]{ tool->undo(); });
+    addActionButton(layout, "save", "保存", [tool]{ tool->save(); });
+    addActionButton(layout, "close", "退出", [tool]{ tool->cancel(); }); 
+    addActionButton(layout, "confirm", "完成", [tool]{ tool->confirm(); });
+
+    mainLayout->addWidget(toolRow);
+    createOptionWidget();
+    mainLayout->addWidget(m_optionWidget);
 }
 
-void ScreenshotToolbar::addToolButton(const QString& icon, const QString& tip, ScreenshotToolType type) {
-    auto* btn = new QPushButton(IconHelper::getIcon(icon, "#ccc", 20), "");
-    btn->setCheckable(true);
-    btn->setToolTip(tip);
-    layout()->addWidget(btn);
+void ScreenshotToolbar::addToolButton(QBoxLayout* layout, ScreenshotToolType type, const QString& iconType) {
+    auto* btn = new QPushButton();
+    btn->setIcon(IconFactory::createIcon(iconType));
+    btn->setIconSize(QSize(20, 20));
+    btn->setCheckable(true); btn->setFixedSize(32, 32);
+    layout->addWidget(btn);
     m_buttons[type] = btn;
-    connect(btn, &QPushButton::clicked, [this, type]{
-        for (auto* b : m_buttons.values()) b->setChecked(false);
-        m_buttons[type]->setChecked(true);
-        m_tool->setTool(type);
-    });
+    connect(btn, &QPushButton::clicked, [this, type]{ selectTool(type); });
 }
 
-void ScreenshotToolbar::addActionButton(const QString& icon, const QString& tip, std::function<void()> func, const QString& color) {
-    auto* btn = new QPushButton(IconHelper::getIcon(icon, color, 20), "");
-    btn->setToolTip(tip);
-    layout()->addWidget(btn);
+void ScreenshotToolbar::addActionButton(QBoxLayout* layout, const QString& iconName, const QString& tip, std::function<void()> func) {
+    auto* btn = new QPushButton();
+    btn->setIcon(IconFactory::createIcon(iconName));
+    btn->setIconSize(QSize(20, 20));
+    btn->setToolTip(tip); btn->setFixedSize(32, 32);
+    layout->addWidget(btn);
     connect(btn, &QPushButton::clicked, func);
 }
 
-// --- ScreenshotTool 实现 ---
+void ScreenshotToolbar::createOptionWidget() {
+    m_optionWidget = new QWidget;
+    m_optionWidget->setObjectName("OptionWidget");
+    auto* layout = new QHBoxLayout(m_optionWidget);
+    layout->setContentsMargins(10, 6, 10, 8); layout->setSpacing(12);
 
+    m_arrowStyleBtn = new QPushButton();
+    m_arrowStyleBtn->setFixedSize(40, 24);
+    updateArrowButtonIcon(ArrowStyle::Solid);
+    connect(m_arrowStyleBtn, &QPushButton::clicked, this, &ScreenshotToolbar::showArrowMenu);
+    layout->addWidget(m_arrowStyleBtn);
+
+    int sizes[] = {2, 4, 8};
+    auto* sizeGrp = new QButtonGroup(this);
+    for(int s : sizes) {
+        auto* btn = new QPushButton;
+        btn->setProperty("sizeBtn", true); btn->setFixedSize(14 + s, 14 + s);
+        btn->setCheckable(true);
+        if(s == 4) btn->setChecked(true);
+        layout->addWidget(btn);
+        sizeGrp->addButton(btn);
+        connect(btn, &QPushButton::clicked, [this, s]{ m_tool->setDrawWidth(s); });
+    }
+
+    QList<QColor> colors = {Qt::red, QColor(255, 165, 0), Qt::green, QColor(0, 120, 255), Qt::white};
+    auto* colGrp = new QButtonGroup(this);
+    for(const auto& c : colors) {
+        auto* btn = new QPushButton;
+        btn->setProperty("colorBtn", true); btn->setFixedSize(20, 20);
+        btn->setStyleSheet(QString("background-color: %1;").arg(c.name()));
+        btn->setCheckable(true);
+        if(c == Qt::red) btn->setChecked(true);
+        layout->addWidget(btn);
+        colGrp->addButton(btn);
+        connect(btn, &QPushButton::clicked, [this, c]{ m_tool->setDrawColor(c); });
+    }
+    
+    auto* pickerBtn = new QPushButton("...");
+    pickerBtn->setFixedSize(20, 20);
+    pickerBtn->setStyleSheet("border: 1px solid #777; border-radius: 4px; color: #ccc;");
+    layout->addWidget(pickerBtn);
+    connect(pickerBtn, &QPushButton::clicked, [this]{
+        QColor c = QColorDialog::getColor(Qt::red, this);
+        if(c.isValid()) m_tool->setDrawColor(c);
+    });
+
+    layout->addStretch();
+    m_optionWidget->setVisible(false);
+}
+
+void ScreenshotToolbar::showArrowMenu() {
+    QMenu menu(this);
+    auto addAct = [&](ArrowStyle s, const QString& txt) {
+        QAction* act = menu.addAction(IconFactory::createArrowStyleIcon(s), txt);
+        connect(act, &QAction::triggered, [this, s]{
+            m_tool->setArrowStyle(s);
+            updateArrowButtonIcon(s);
+        });
+    };
+    addAct(ArrowStyle::Solid, "实心箭头");
+    addAct(ArrowStyle::Thin, "细线箭头");
+    addAct(ArrowStyle::Outline, "空心箭头");
+    addAct(ArrowStyle::Double, "双向箭头");
+    addAct(ArrowStyle::DotStart, "圆点起点");
+    menu.exec(mapToGlobal(m_arrowStyleBtn->geometry().bottomLeft()));
+}
+
+void ScreenshotToolbar::updateArrowButtonIcon(ArrowStyle style) {
+    m_arrowStyleBtn->setIcon(IconFactory::createArrowStyleIcon(style));
+    m_arrowStyleBtn->setIconSize(QSize(32, 16));
+}
+
+void ScreenshotToolbar::selectTool(ScreenshotToolType type) {
+    for(auto* b : m_buttons) b->setChecked(false);
+    if(m_buttons.contains(type)) m_buttons[type]->setChecked(true);
+
+    bool showOpts = (type != ScreenshotToolType::None);
+    m_optionWidget->setVisible(showOpts);
+    
+    bool isArrow = (type == ScreenshotToolType::Arrow);
+    m_arrowStyleBtn->setVisible(isArrow);
+
+    m_tool->setTool(type);
+    adjustSize();
+    m_tool->updateToolbarPosition();
+}
+
+void ScreenshotToolbar::mousePressEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton) {
+        m_isDragging = true;
+        m_dragPosition = event->globalPosition().toPoint() - frameGeometry().topLeft();
+    }
+}
+void ScreenshotToolbar::mouseMoveEvent(QMouseEvent *event) {
+    if (m_isDragging) move(event->globalPosition().toPoint() - m_dragPosition);
+}
+void ScreenshotToolbar::mouseReleaseEvent(QMouseEvent *) { m_isDragging = false; }
+void ScreenshotToolbar::paintEvent(QPaintEvent *) {
+    QStyleOption opt; opt.initFrom(this);
+    QPainter p(this); style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
+}
+
+// ==========================================
+// ScreenshotTool Implementation
+// ==========================================
 ScreenshotTool::ScreenshotTool(QWidget* parent) 
     : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) 
 {
     setAttribute(Qt::WA_TranslucentBackground);
+    
+    // !!! 核心修复：防止关闭此窗口时Qt认为主程序也该退出了 !!!
+    setAttribute(Qt::WA_QuitOnClose, false);
+    setAttribute(Qt::WA_DeleteOnClose); // 关闭时自动释放内存
+
     setWindowState(Qt::WindowFullScreen);
     setMouseTracking(true);
-    setFocusPolicy(Qt::StrongFocus);
     
-    // 抓取全屏
-    QScreen *screen = QGuiApplication::primaryScreen();
-    m_screenPixmap = screen->grabWindow(0);
-
-    // 生成马赛克背景
-    QImage mosaicImg = m_screenPixmap.toImage();
-    QImage small = mosaicImg.scaled(mosaicImg.width() / 10, mosaicImg.height() / 10, Qt::IgnoreAspectRatio, Qt::FastTransformation);
-    m_mosaicPixmap = QPixmap::fromImage(small.scaled(mosaicImg.width(), mosaicImg.height(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
+    m_screenPixmap = QGuiApplication::primaryScreen()->grabWindow(0);
+    
+    QImage img = m_screenPixmap.toImage();
+    QImage small = img.scaled(img.width()/15, img.height()/15, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+    m_mosaicPixmap = QPixmap::fromImage(small.scaled(img.size(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
 
     m_toolbar = new ScreenshotToolbar(this);
     m_toolbar->hide();
-}
-
-ScreenshotTool::~ScreenshotTool() {
-    if (m_toolbar) m_toolbar->deleteLater();
-}
-
-void ScreenshotTool::paintEvent(QPaintEvent*) {
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-
-    // 1. 绘制底图
-    painter.drawPixmap(0, 0, m_screenPixmap);
-
-    // 2. 绘制遮罩
-    QRect selRect = selectionRect();
-    QPainterPath path;
-    path.addRect(rect());
-    if (selRect.isValid()) {
-        path.addRect(selRect);
-    }
-    painter.fillPath(path, QColor(0, 0, 0, 100));
-
-    if (!selRect.isValid()) return;
-
-    // 3. 绘制选区边框
-    painter.setPen(QPen(QColor(0, 122, 204), 2));
-    painter.drawRect(selRect);
-
-    // 4. 绘制控制点 (编辑模式或选择模式且不在拖动中)
-    if (m_state == ScreenshotState::Editing || (m_state == ScreenshotState::Selecting && !m_isDragging)) {
-        auto handles = getHandleRects();
-        painter.setBrush(QColor(0, 122, 204));
-        for (const auto& r : handles) {
-            painter.drawRect(r);
-        }
-    }
-
-    // 5. 绘制标注
-    painter.save();
-    painter.setClipRect(selRect);
-    for (const auto& ann : m_annotations) {
-        drawAnnotation(painter, ann);
-    }
-    if (m_isDrawing) {
-        drawAnnotation(painter, m_currentAnnotation);
-    }
-    painter.restore();
-}
-
-void ScreenshotTool::mousePressEvent(QMouseEvent* event) {
-    if (m_state == ScreenshotState::Selecting) {
-        m_dragHandle = getHandleAt(event->pos());
-        if (m_dragHandle == -1) {
-            m_startPoint = event->pos();
-            m_endPoint = m_startPoint;
-            m_state = ScreenshotState::Selecting;
-        }
-        m_isDragging = true;
-    } else if (m_state == ScreenshotState::Editing) {
-        m_dragHandle = getHandleAt(event->pos());
-        if (m_dragHandle != -1) {
-            m_isDragging = true;
-        } else if (selectionRect().contains(event->pos())) {
-            if (m_currentTool != ScreenshotToolType::None) {
-                // 开始绘制标注
-                m_isDrawing = true;
-                m_currentAnnotation.type = m_currentTool;
-                m_currentAnnotation.color = QColor(231, 76, 60); // 默认红色
-                m_currentAnnotation.strokeWidth = 3;
-                m_currentAnnotation.points.clear();
-                m_currentAnnotation.points.append(event->pos());
-                
-                if (m_currentTool == ScreenshotToolType::Marker) {
-                    m_currentAnnotation.text = QString::number(m_annotations.size() + 1);
-                } else if (m_currentTool == ScreenshotToolType::Text) {
-                    bool ok;
-                    QString text = QInputDialog::getText(this, "输入文本", "内容:", QLineEdit::Normal, "", &ok);
-                    if (ok && !text.isEmpty()) {
-                        m_currentAnnotation.text = text;
-                        m_annotations.append(m_currentAnnotation);
-                    }
-                    m_isDrawing = false;
-                    update();
-                    return;
-                }
-            } else {
-                // 移动选区
-                m_dragHandle = 8;
-                m_startPoint = event->pos() - m_startPoint; // 借用 startPoint 存 offset
-                m_isDragging = true;
-            }
-        }
-    }
-    update();
-}
-
-void ScreenshotTool::mouseMoveEvent(QMouseEvent* event) {
-    if (m_isDragging) {
-        if (m_dragHandle == -1) {
-            m_endPoint = event->pos();
-        } else if (m_dragHandle == 8) {
-             QPoint offset = event->pos() - m_startPoint;
-             QRect r = selectionRect();
-             r.moveTo(offset);
-             m_startPoint = r.topLeft();
-             m_endPoint = r.bottomRight();
-        } else {
-            // 全 8 点拉伸逻辑
-            QPoint p = event->pos();
-            if (m_dragHandle == 0) { m_startPoint = p; }
-            else if (m_dragHandle == 1) { m_startPoint.setY(p.y()); }
-            else if (m_dragHandle == 2) { m_startPoint.setY(p.y()); m_endPoint.setX(p.x()); }
-            else if (m_dragHandle == 3) { m_endPoint.setX(p.x()); }
-            else if (m_dragHandle == 4) { m_endPoint = p; }
-            else if (m_dragHandle == 5) { m_endPoint.setY(p.y()); }
-            else if (m_dragHandle == 6) { m_endPoint.setY(p.y()); m_startPoint.setX(p.x()); }
-            else if (m_dragHandle == 7) { m_startPoint.setX(p.x()); }
-        }
-        
-        if (m_toolbar->isVisible()) {
-             QRect r = selectionRect();
-             m_toolbar->move(r.left(), r.bottom() + 10);
-        }
-    } else if (m_isDrawing) {
-        if (m_currentTool == ScreenshotToolType::Pen || m_currentTool == ScreenshotToolType::Mosaic) {
-            m_currentAnnotation.points.append(event->pos());
-        } else {
-            if (m_currentAnnotation.points.size() > 1) m_currentAnnotation.points[1] = event->pos();
-            else m_currentAnnotation.points.append(event->pos());
-        }
-    }
     
-    updateCursor(event->pos());
-    update();
-}
-
-void ScreenshotTool::mouseReleaseEvent(QMouseEvent* event) {
-    if (m_isDragging) {
-        m_isDragging = false;
-        m_dragHandle = -1;
-        if (selectionRect().width() > 10 && selectionRect().height() > 10) {
-            m_state = ScreenshotState::Editing;
-            m_toolbar->show();
-            QRect r = selectionRect();
-            m_toolbar->move(r.left(), r.bottom() + 10);
-        }
-    } else if (m_isDrawing) {
-        m_isDrawing = false;
-        m_annotations.append(m_currentAnnotation);
-    }
-    update();
-}
-
-void ScreenshotTool::keyPressEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_Escape) cancel();
-    else if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) confirm();
-    else if (event->modifiers() & Qt::ControlModifier) {
-        if (event->key() == Qt::Key_Z) undo();
-        else if (event->key() == Qt::Key_S) save();
-        else if (event->key() == Qt::Key_W) cancel();
-    }
-}
-
-void ScreenshotTool::mouseDoubleClickEvent(QMouseEvent* event) {
-    if (selectionRect().contains(event->pos())) {
-        confirm();
-    }
-}
-
-void ScreenshotTool::setTool(ScreenshotToolType type) {
-    m_currentTool = type;
-    update();
-}
-
-void ScreenshotTool::undo() {
-    if (!m_annotations.isEmpty()) {
-        m_annotations.removeLast();
-        update();
-    }
-}
-
-void ScreenshotTool::save() {
-    QString fileName = QFileDialog::getSaveFileName(this, "保存截图", 
-        "Screenshot_" + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".png",
-        "Images (*.png *.jpg)");
-    if (!fileName.isEmpty()) {
-        generateFinalImage().save(fileName);
-        close();
-    }
-}
-
-void ScreenshotTool::confirm() {
-    QImage final = generateFinalImage();
-    QClipboard *clipboard = QApplication::clipboard();
-    clipboard->setImage(final);
-    emit screenshotCaptured(final);
-    close();
+    m_infoBar = new SelectionInfoBar(this);
+    
+    m_textInput = new QLineEdit(this);
+    m_textInput->hide();
+    m_textInput->setFrame(false);
+    connect(m_textInput, &QLineEdit::editingFinished, this, &ScreenshotTool::commitTextInput);
 }
 
 void ScreenshotTool::cancel() {
-    close();
+    emit screenshotCanceled();
+    close(); // 因为设置了 WA_QuitOnClose = false，这里只会关闭截图层，不会退出主程序
 }
 
-QRect ScreenshotTool::selectionRect() const {
-    return QRect(m_startPoint, m_endPoint).normalized();
-}
+void ScreenshotTool::drawArrow(QPainter& p, const QPointF& start, const QPointF& end, const DrawingAnnotation& ann) {
+    double angle = std::atan2(end.y() - start.y(), end.x() - start.x());
+    double arrowSize = 15 + ann.strokeWidth;
+    
+    if (ann.arrowStyle != ArrowStyle::Outline) p.drawLine(start, end);
+    
+    auto getTriPoints = [&](QPointF tip, double ang) {
+        QPointF p1 = tip - QPointF(arrowSize * std::cos(ang - M_PI/6), arrowSize * std::sin(ang - M_PI/6));
+        QPointF p2 = tip - QPointF(arrowSize * std::cos(ang + M_PI/6), arrowSize * std::sin(ang + M_PI/6));
+        return QPolygonF() << tip << p1 << p2;
+    };
 
-QList<QRect> ScreenshotTool::getHandleRects() const {
-    QRect r = selectionRect();
-    int s = 6;
-    QList<QRect> handles;
-    handles << QRect(r.left()-s/2, r.top()-s/2, s, s);
-    handles << QRect(r.center().x()-s/2, r.top()-s/2, s, s);
-    handles << QRect(r.right()-s/2, r.top()-s/2, s, s);
-    handles << QRect(r.right()-s/2, r.center().y()-s/2, s, s);
-    handles << QRect(r.right()-s/2, r.bottom()-s/2, s, s);
-    handles << QRect(r.center().x()-s/2, r.bottom()-s/2, s, s);
-    handles << QRect(r.left()-s/2, r.bottom()-s/2, s, s);
-    handles << QRect(r.left()-s/2, r.center().y()-s/2, s, s);
-    return handles;
-}
-
-int ScreenshotTool::getHandleAt(const QPoint& pos) const {
-    auto handles = getHandleRects();
-    for (int i = 0; i < handles.size(); ++i) {
-        if (handles[i].contains(pos)) return i;
+    if (ann.arrowStyle == ArrowStyle::Solid) {
+        p.setBrush(ann.color); p.setPen(Qt::NoPen);
+        p.drawPolygon(getTriPoints(end, angle));
+    } else if (ann.arrowStyle == ArrowStyle::Thin) {
+        p.drawLine(end, end - QPointF(arrowSize * std::cos(angle - M_PI/6), arrowSize * std::sin(angle - M_PI/6)));
+        p.drawLine(end, end - QPointF(arrowSize * std::cos(angle + M_PI/6), arrowSize * std::sin(angle + M_PI/6)));
+    } else if (ann.arrowStyle == ArrowStyle::Outline) {
+        QPointF dir(std::cos(angle), std::sin(angle));
+        QPointF norm(-dir.y(), dir.x());
+        double w = ann.strokeWidth / 2.0 + 2; 
+        
+        QPointF neck = end - dir * (arrowSize * 0.8);
+        QPointF p1 = neck + norm * w;
+        QPointF p2 = start + norm * w;
+        QPointF p3 = start - norm * w;
+        QPointF p4 = neck - norm * w;
+        QPointF head1 = neck + norm * (arrowSize * 0.5); 
+        QPointF head2 = neck - norm * (arrowSize * 0.5);
+        
+        QPolygonF poly; poly << end << head1 << p1 << p2 << p3 << p4 << head2;
+        p.setBrush(Qt::transparent); p.setPen(QPen(ann.color, 2)); p.drawPolygon(poly);
+    } else if (ann.arrowStyle == ArrowStyle::Double) {
+        p.setBrush(ann.color); p.setPen(Qt::NoPen);
+        p.drawPolygon(getTriPoints(end, angle));
+        p.drawPolygon(getTriPoints(start, angle + M_PI));
+    } else if (ann.arrowStyle == ArrowStyle::DotStart) {
+        p.setBrush(ann.color); p.setPen(Qt::NoPen);
+        p.drawEllipse(start, 4 + ann.strokeWidth, 4 + ann.strokeWidth);
+        p.drawPolygon(getTriPoints(end, angle));
     }
-    return -1;
 }
 
-void ScreenshotTool::updateCursor(const QPoint& pos) {
-    int h = getHandleAt(pos);
-    if (h != -1) {
-        if (h == 0 || h == 4) setCursor(Qt::SizeFDiagCursor);
-        else if (h == 2 || h == 6) setCursor(Qt::SizeBDiagCursor);
-        else if (h == 1 || h == 5) setCursor(Qt::SizeVerCursor);
-        else setCursor(Qt::SizeHorCursor);
-    } else if (m_state == ScreenshotState::Editing && selectionRect().contains(pos)) {
-        if (m_currentTool == ScreenshotToolType::None) setCursor(Qt::SizeAllCursor);
-        else setCursor(Qt::CrossCursor);
-    } else {
-        setCursor(Qt::CrossCursor);
-    }
-}
+void ScreenshotTool::drawAnnotation(QPainter& p, const DrawingAnnotation& ann) {
+    if (ann.points.size() < 2 && ann.type != ScreenshotToolType::Text && ann.type != ScreenshotToolType::Marker) return;
+    p.setPen(QPen(ann.color, ann.strokeWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.setBrush(Qt::NoBrush);
 
-void ScreenshotTool::drawAnnotation(QPainter& painter, const DrawingAnnotation& ann) {
-    if (ann.points.isEmpty()) return;
-
-    painter.setPen(QPen(ann.color, ann.strokeWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-    painter.setBrush(Qt::NoBrush);
-
-    if (ann.type == ScreenshotToolType::Rect) {
-        if (ann.points.size() < 2) return;
-        painter.drawRect(QRectF(ann.points[0], ann.points[1]).normalized());
-    } else if (ann.type == ScreenshotToolType::Ellipse) {
-        if (ann.points.size() < 2) return;
-        painter.drawEllipse(QRectF(ann.points[0], ann.points[1]).normalized());
-    } else if (ann.type == ScreenshotToolType::Arrow) {
-        if (ann.points.size() < 2) return;
-        QPointF p1 = ann.points[0];
-        QPointF p2 = ann.points[1];
-        painter.drawLine(p1, p2);
-        double angle = std::atan2(p2.y() - p1.y(), p2.x() - p1.x());
-        double arrowLen = 15;
-        QPointF a1 = p2 - QPointF(arrowLen * std::cos(angle - M_PI/6), arrowLen * std::sin(angle - M_PI/6));
-        QPointF a2 = p2 - QPointF(arrowLen * std::cos(angle + M_PI/6), arrowLen * std::sin(angle + M_PI/6));
-        painter.drawPolygon(QPolygonF() << p2 << a1 << a2);
-    } else if (ann.type == ScreenshotToolType::Pen) {
-        QPainterPath p;
-        p.moveTo(ann.points[0]);
-        for (int i = 1; i < ann.points.size(); ++i) p.lineTo(ann.points[i]);
-        painter.drawPath(p);
+    if (ann.type == ScreenshotToolType::Rect) p.drawRect(QRectF(ann.points[0], ann.points[1]).normalized());
+    else if (ann.type == ScreenshotToolType::Ellipse) p.drawEllipse(QRectF(ann.points[0], ann.points[1]).normalized());
+    else if (ann.type == ScreenshotToolType::Line) p.drawLine(ann.points[0], ann.points[1]);
+    else if (ann.type == ScreenshotToolType::Arrow) drawArrow(p, ann.points[0], ann.points[1], ann);
+    else if (ann.type == ScreenshotToolType::Pen) {
+        QPainterPath path; path.moveTo(ann.points[0]);
+        for(int i=1; i<ann.points.size(); ++i) path.lineTo(ann.points[i]);
+        p.drawPath(path);
     } else if (ann.type == ScreenshotToolType::Marker) {
-        QPointF p = ann.points[0];
-        painter.setBrush(ann.color);
-        painter.setPen(Qt::NoPen);
-        painter.drawEllipse(p, 12, 12);
-        painter.setPen(Qt::white);
-        painter.setFont(QFont("Arial", 10, QFont::Bold));
-        painter.drawText(QRectF(p.x()-12, p.y()-12, 24, 24), Qt::AlignCenter, ann.text);
+        p.setBrush(ann.color); p.setPen(Qt::NoPen);
+        int r = 12 + ann.strokeWidth;
+        p.drawEllipse(ann.points[0], r, r);
+        p.setPen(Qt::white); p.setFont(QFont("Arial", r, QFont::Bold));
+        p.drawText(QRectF(ann.points[0].x()-r, ann.points[0].y()-r, r*2, r*2), Qt::AlignCenter, ann.text);
     } else if (ann.type == ScreenshotToolType::Mosaic) {
-        painter.save();
-        QPainterPath p;
-        p.moveTo(ann.points[0]);
-        for (int i = 1; i < ann.points.size(); ++i) p.lineTo(ann.points[i]);
-        
-        QPainterPathStroker stroker;
-        stroker.setWidth(20);
-        stroker.setCapStyle(Qt::RoundCap);
-        stroker.setJoinStyle(Qt::RoundJoin);
-        QPainterPath strokePath = stroker.createStroke(p);
-        
-        painter.setClipPath(strokePath);
-        painter.drawPixmap(0, 0, m_mosaicPixmap);
-        painter.restore();
-    } else if (ann.type == ScreenshotToolType::Text) {
-        if (!ann.text.isEmpty()) {
-            painter.setPen(ann.color);
-            painter.setFont(QFont("Microsoft YaHei", 14));
-            painter.drawText(ann.points[0], ann.text);
+        QPainterPath path; path.moveTo(ann.points[0]);
+        for(int i=1; i<ann.points.size(); ++i) path.lineTo(ann.points[i]);
+        QPainterPathStroker s; s.setWidth(ann.strokeWidth * 6);
+        p.save(); p.setClipPath(s.createStroke(path));
+        p.drawPixmap(0, 0, m_mosaicPixmap); p.restore();
+    } else if (ann.type == ScreenshotToolType::Text && !ann.text.isEmpty()) {
+        p.setPen(ann.color); p.setFont(QFont("Microsoft YaHei", 12 + ann.strokeWidth*2, QFont::Bold));
+        p.drawText(ann.points[0], ann.text);
+    }
+}
+
+void ScreenshotTool::mousePressEvent(QMouseEvent* e) {
+    if(m_textInput->isVisible() && !m_textInput->geometry().contains(e->pos())) commitTextInput();
+    if(e->button() != Qt::LeftButton) return;
+
+    if (m_state == ScreenshotState::Selecting) {
+        m_dragHandle = getHandleAt(e->pos());
+        if (m_dragHandle == -1) { m_startPoint = e->pos(); m_endPoint = m_startPoint; }
+        m_isDragging = true; m_toolbar->hide(); m_infoBar->hide();
+    } else {
+        if (selectionRect().contains(e->pos()) && m_currentTool != ScreenshotToolType::None) {
+            if (m_currentTool == ScreenshotToolType::Text) { showTextInput(e->pos()); return; }
+            m_isDrawing = true; m_toolbar->hide(); 
+            m_currentAnnotation = {m_currentTool, {e->pos()}, m_currentColor, "", m_currentStrokeWidth, LineStyle::Solid, m_currentArrowStyle};
+            if(m_currentTool == ScreenshotToolType::Marker) {
+                int c = 1; for(auto& a: m_annotations) if(a.type == ScreenshotToolType::Marker) c++;
+                m_currentAnnotation.text = QString::number(c);
+            }
+        } else if (getHandleAt(e->pos()) != -1) {
+            m_dragHandle = getHandleAt(e->pos()); m_isDragging = true; m_toolbar->hide();
+        } else if (selectionRect().contains(e->pos())) {
+             m_dragHandle = 8; m_startPoint = e->pos() - m_startPoint; m_isDragging = true; m_toolbar->hide();
+        } else {
+             m_state = ScreenshotState::Selecting; m_startPoint = e->pos(); m_endPoint = m_startPoint; m_isDragging = true; m_toolbar->hide();
         }
     }
+    update();
 }
 
+void ScreenshotTool::mouseMoveEvent(QMouseEvent* e) {
+    if (m_isDragging) {
+        if (m_state == ScreenshotState::Selecting || m_dragHandle == -1) m_endPoint = e->pos();
+        else if (m_dragHandle == 8) {
+            QRect r = selectionRect(); r.moveTo(e->pos() - m_startPoint);
+            m_startPoint = r.topLeft(); m_endPoint = r.bottomRight();
+        } else {
+            // 简单处理8点拉伸
+            QPoint p = e->pos();
+            if(m_dragHandle==0) m_startPoint = p;
+            else if(m_dragHandle==1) m_startPoint.setY(p.y());
+            else if(m_dragHandle==2) { m_startPoint.setY(p.y()); m_endPoint.setX(p.x()); }
+            else if(m_dragHandle==3) m_endPoint.setX(p.x());
+            else if(m_dragHandle==4) m_endPoint = p;
+            else if(m_dragHandle==5) m_endPoint.setY(p.y());
+            else if(m_dragHandle==6) { m_endPoint.setY(p.y()); m_startPoint.setX(p.x()); }
+            else if(m_dragHandle==7) m_startPoint.setX(p.x());
+        }
+        
+        if (!selectionRect().isEmpty()) {
+            m_infoBar->updateInfo(selectionRect());
+            m_infoBar->show();
+            m_infoBar->move(selectionRect().left(), selectionRect().top() - 35);
+            m_infoBar->raise();
+        }
+    } else if (m_isDrawing) {
+        if (m_currentTool == ScreenshotToolType::Arrow || m_currentTool == ScreenshotToolType::Line || 
+            m_currentTool == ScreenshotToolType::Rect || m_currentTool == ScreenshotToolType::Ellipse) {
+            if (m_currentAnnotation.points.size() > 1) m_currentAnnotation.points[1] = e->pos();
+            else m_currentAnnotation.points.append(e->pos());
+        } else {
+            m_currentAnnotation.points.append(e->pos());
+        }
+    }
+    updateCursor(e->pos());
+    update();
+}
+
+void ScreenshotTool::mouseReleaseEvent(QMouseEvent*) {
+    if (m_isDrawing) {
+        m_isDrawing = false; m_annotations.append(m_currentAnnotation); m_redoStack.clear();
+    } else if (m_isDragging) {
+        m_isDragging = false;
+        if (selectionRect().isValid()) m_state = ScreenshotState::Editing;
+    }
+    m_toolbar->show();
+    updateToolbarPosition();
+    update();
+}
+
+void ScreenshotTool::updateToolbarPosition() {
+    QRect r = selectionRect();
+    if(r.isEmpty()) return;
+    int x = r.right() - m_toolbar->width();
+    int y = r.bottom() + 10;
+    if (x < 0) x = 0;
+    if (y + m_toolbar->height() > height()) y = r.top() - m_toolbar->height() - 10;
+    m_toolbar->move(x, y);
+}
+
+void ScreenshotTool::paintEvent(QPaintEvent*) {
+    QPainter p(this); p.setRenderHint(QPainter::Antialiasing);
+    p.drawPixmap(0,0,m_screenPixmap);
+    QRect r = selectionRect();
+    QPainterPath path; path.addRect(rect());
+    if(r.isValid()) path.addRect(r);
+    p.fillPath(path, QColor(0,0,0,120));
+    if(r.isValid()) {
+        p.setPen(QPen(QColor(0, 120, 255), 2)); p.drawRect(r);
+        auto h = getHandleRects();
+        p.setBrush(Qt::white);
+        for(auto& hr : h) p.drawEllipse(hr);
+        p.setClipRect(r);
+        for(auto& a : m_annotations) drawAnnotation(p, a);
+        if(m_isDrawing) drawAnnotation(p, m_currentAnnotation);
+    }
+}
+
+void ScreenshotTool::setTool(ScreenshotToolType t) { if(m_textInput->isVisible()) commitTextInput(); m_currentTool = t; }
+void ScreenshotTool::setDrawColor(const QColor& c) { m_currentColor = c; }
+void ScreenshotTool::setDrawWidth(int w) { m_currentStrokeWidth = w; }
+void ScreenshotTool::setArrowStyle(ArrowStyle s) { m_currentArrowStyle = s; }
+void ScreenshotTool::undo() { if(!m_annotations.isEmpty()) { m_redoStack.append(m_annotations.takeLast()); update(); } }
+void ScreenshotTool::save() { 
+    QString f = QFileDialog::getSaveFileName(this, "Save", "cap.png", "PNG(*.png)");
+    if(!f.isEmpty()) generateFinalImage().save(f);
+    cancel();
+}
+void ScreenshotTool::confirm() { emit screenshotCaptured(generateFinalImage()); cancel(); }
+QRect ScreenshotTool::selectionRect() const { return QRect(m_startPoint, m_endPoint).normalized(); }
+QList<QRect> ScreenshotTool::getHandleRects() const {
+    QRect r = selectionRect(); QList<QRect> l;
+    if(r.isEmpty()) return l;
+    int s = 8;
+    l << QRect(r.left()-s/2, r.top()-s/2, s, s) << QRect(r.center().x()-s/2, r.top()-s/2, s, s)
+      << QRect(r.right()-s/2, r.top()-s/2, s, s) << QRect(r.right()-s/2, r.center().y()-s/2, s, s)
+      << QRect(r.right()-s/2, r.bottom()-s/2, s, s) << QRect(r.center().x()-s/2, r.bottom()-s/2, s, s)
+      << QRect(r.left()-s/2, r.bottom()-s/2, s, s) << QRect(r.left()-s/2, r.center().y()-s/2, s, s);
+    return l;
+}
+int ScreenshotTool::getHandleAt(const QPoint& p) const {
+    auto l = getHandleRects();
+    for(int i=0; i<l.size(); ++i) if(l[i].contains(p)) return i;
+    return -1;
+}
+void ScreenshotTool::updateCursor(const QPoint& p) {
+    if(selectionRect().contains(p) && m_currentTool != ScreenshotToolType::None) setCursor(Qt::CrossCursor);
+    else setCursor(Qt::ArrowCursor);
+}
+void ScreenshotTool::showTextInput(const QPoint& p) {
+    m_textInput->move(p); m_textInput->resize(100, 30); m_textInput->show(); m_textInput->setFocus();
+}
+void ScreenshotTool::commitTextInput() {
+    if(m_textInput->text().isEmpty()) { m_textInput->hide(); return; }
+    m_annotations.append({ScreenshotToolType::Text, {m_textInput->pos()}, m_currentColor, m_textInput->text(), m_currentStrokeWidth});
+    m_textInput->hide(); m_textInput->clear(); update();
+}
 QImage ScreenshotTool::generateFinalImage() {
     QRect r = selectionRect();
-    QPixmap result = m_screenPixmap.copy(r);
-    QPainter painter(&result);
-    painter.setRenderHint(QPainter::Antialiasing);
+    QPixmap p = m_screenPixmap.copy(r);
+    QPainter painter(&p);
     painter.translate(-r.topLeft());
-    for (const auto& ann : m_annotations) {
-        drawAnnotation(painter, ann);
-    }
-    return result.toImage();
+    for(auto& a : m_annotations) drawAnnotation(painter, a);
+    return p.toImage();
 }
+void ScreenshotTool::keyPressEvent(QKeyEvent* e) { if(e->key() == Qt::Key_Escape) cancel(); }
+void ScreenshotTool::mouseDoubleClickEvent(QMouseEvent* e) { if(selectionRect().contains(e->pos())) confirm(); }
