@@ -15,7 +15,7 @@ OCRManager& OCRManager::instance() {
 OCRManager::OCRManager(QObject* parent) : QObject(parent) {}
 
 void OCRManager::recognizeAsync(const QImage& image, int contextId) {
-    QtConcurrent::run(QThreadPool::globalInstance(), [this, image, contextId]() {
+    QThreadPool::globalInstance()->start([this, image, contextId]() {
         this->recognizeSync(image, contextId);
     });
 }

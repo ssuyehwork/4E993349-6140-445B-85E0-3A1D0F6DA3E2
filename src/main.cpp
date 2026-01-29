@@ -37,6 +37,7 @@ int main(int argc, char *argv[]) {
     QApplication a(argc, argv);
     a.setApplicationName("RapidNotes");
     a.setOrganizationName("RapidDev");
+    a.setQuitOnLastWindowClosed(false);
 
     // 单实例运行保护
     QString serverName = "RapidNotes_SingleInstance_Server";
