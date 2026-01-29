@@ -21,7 +21,7 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
         "#DialogContainer {"
         "  background-color: #1e1e1e;"
         "  border: 1px solid #333333;"
-        "  border-radius: 10px;"
+        "  border-radius: 12px;"
         "}"
     );
     outerLayout->addWidget(container);
@@ -38,21 +38,36 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
 
     // 标题栏
     auto* titleBar = new QWidget();
-    titleBar->setFixedHeight(36);
-    titleBar->setStyleSheet("background-color: #252526; border-top-left-radius: 10px; border-top-right-radius: 10px;");
+    titleBar->setFixedHeight(32);
+    titleBar->setStyleSheet("background-color: transparent; border-bottom: 1px solid #2D2D2D;");
     auto* titleLayout = new QHBoxLayout(titleBar);
-    titleLayout->setContentsMargins(15, 0, 8, 0);
+    titleLayout->setContentsMargins(12, 0, 0, 0);
 
     m_titleLabel = new QLabel(title);
-    m_titleLabel->setStyleSheet("color: #aaa; font-size: 12px; font-weight: bold; border: none;");
+    m_titleLabel->setStyleSheet("color: #888; font-size: 11px; font-weight: bold; border: none;");
     titleLayout->addWidget(m_titleLabel);
     titleLayout->addStretch();
 
-    auto* closeBtn = new QPushButton();
-    closeBtn->setFixedSize(24, 24);
-    closeBtn->setIcon(IconHelper::getIcon("close", "#888888", 14));
+    auto* minBtn = new QPushButton("─");
+    minBtn->setObjectName("minBtn");
+    minBtn->setFixedSize(40, 32);
+    minBtn->setAutoDefault(false);
+    minBtn->setCursor(Qt::PointingHandCursor);
+    minBtn->setStyleSheet(
+        "QPushButton { background: transparent; border: none; color: #888888; font-family: 'Segoe UI Symbol', 'Microsoft YaHei'; font-size: 10px; } "
+        "QPushButton:hover { background-color: #3E3E42; color: white; }"
+    );
+    connect(minBtn, &QPushButton::clicked, this, &QDialog::showMinimized);
+    titleLayout->addWidget(minBtn);
+
+    auto* closeBtn = new QPushButton("✕");
+    closeBtn->setFixedSize(40, 32);
+    closeBtn->setAutoDefault(false);
     closeBtn->setCursor(Qt::PointingHandCursor);
-    closeBtn->setStyleSheet("QPushButton { border: none; border-radius: 4px; } QPushButton:hover { background-color: #e74c3c; }");
+    closeBtn->setStyleSheet(
+        "QPushButton { background: transparent; border: none; color: #888888; border-top-right-radius: 12px; font-family: 'Segoe UI Symbol', 'Microsoft YaHei'; font-size: 12px; } "
+        "QPushButton:hover { background-color: #E81123; color: white; }"
+    );
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::reject);
     titleLayout->addWidget(closeBtn);
 
@@ -109,6 +124,7 @@ FramelessInputDialog::FramelessInputDialog(const QString& title, const QString& 
     btnLayout->addStretch();
     
     auto* btnOk = new QPushButton("确定");
+    btnOk->setAutoDefault(false);
     btnOk->setCursor(Qt::PointingHandCursor);
     btnOk->setStyleSheet("QPushButton { background-color: #4a90e2; color: white; border: none; border-radius: 4px; padding: 6px 20px; font-weight: bold; } QPushButton:hover { background-color: #357abd; }");
     connect(btnOk, &QPushButton::clicked, this, &QDialog::accept);
@@ -145,12 +161,14 @@ FramelessMessageBox::FramelessMessageBox(const QString& title, const QString& te
     btnLayout->addStretch();
 
     auto* btnCancel = new QPushButton("取消");
+    btnCancel->setAutoDefault(false);
     btnCancel->setCursor(Qt::PointingHandCursor);
     btnCancel->setStyleSheet("QPushButton { background-color: transparent; color: #888; border: 1px solid #555; border-radius: 4px; padding: 6px 15px; } QPushButton:hover { color: #eee; border-color: #888; }");
     connect(btnCancel, &QPushButton::clicked, this, [this](){ emit cancelled(); reject(); });
     btnLayout->addWidget(btnCancel);
 
     auto* btnOk = new QPushButton("确定");
+    btnOk->setAutoDefault(false);
     btnOk->setCursor(Qt::PointingHandCursor);
     btnOk->setStyleSheet("QPushButton { background-color: #e74c3c; color: white; border: none; border-radius: 4px; padding: 6px 20px; font-weight: bold; } QPushButton:hover { background-color: #c0392b; }");
     connect(btnOk, &QPushButton::clicked, this, [this](){ emit confirmed(); accept(); });

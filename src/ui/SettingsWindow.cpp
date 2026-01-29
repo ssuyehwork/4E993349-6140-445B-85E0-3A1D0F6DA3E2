@@ -36,6 +36,10 @@ void SettingsWindow::initSettingsUI() {
     btnSet->setStyleSheet(btnStyle);
     btnModify->setStyleSheet(btnStyle);
     btnRemove->setStyleSheet(btnStyle);
+    
+    btnSet->setAutoDefault(false);
+    btnModify->setAutoDefault(false);
+    btnRemove->setAutoDefault(false);
 
     btnSet->setVisible(!hasPwd);
     btnModify->setVisible(hasPwd);
@@ -75,6 +79,7 @@ void SettingsWindow::initSettingsUI() {
     bottomLayout->addStretch();
     auto* btnClose = new QPushButton("关闭");
     btnClose->setFixedSize(80, 30);
+    btnClose->setAutoDefault(false);
     btnClose->setStyleSheet("QPushButton { background-color: #4a90e2; color: white; border: none; border-radius: 4px; } QPushButton:hover { background-color: #357abd; }");
     connect(btnClose, &QPushButton::clicked, this, &QDialog::accept);
     bottomLayout->addWidget(btnClose);

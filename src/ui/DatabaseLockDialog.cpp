@@ -44,12 +44,14 @@ DatabaseLockDialog::DatabaseLockDialog(Mode mode, QWidget* parent)
 
     auto* btnLayout = new QHBoxLayout();
     auto* btnConfirm = new QPushButton("确认");
+    btnConfirm->setAutoDefault(false);
     btnConfirm->setFixedHeight(35);
     btnConfirm->setStyleSheet("QPushButton { background: #007acc; color: white; border: none; border-radius: 4px; font-weight: bold; } QPushButton:hover { background: #0062a3; }");
     connect(btnConfirm, &QPushButton::clicked, this, &DatabaseLockDialog::onConfirm);
     btnLayout->addWidget(btnConfirm);
 
     auto* btnCancel = new QPushButton("退出");
+    btnCancel->setAutoDefault(false);
     btnCancel->setFixedHeight(35);
     btnCancel->setStyleSheet("QPushButton { background: #3e3e42; color: #ccc; border: none; border-radius: 4px; } QPushButton:hover { background: #4e4e52; }");
     connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);

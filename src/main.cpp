@@ -26,6 +26,8 @@
 #include "ui/PathAcquisitionWindow.h"
 #include "ui/FileStorageWindow.h"
 #include "ui/TagManagerWindow.h"
+#include "ui/FileSearchWindow.h"
+#include "ui/ColorPickerWindow.h"
 #include "ui/FireworksOverlay.h"
 #include "ui/ScreenshotTool.h"
 #include "ui/SettingsWindow.h"
@@ -91,6 +93,8 @@ int main(int argc, char *argv[]) {
     PathAcquisitionWindow* pathAcqWin = new PathAcquisitionWindow();
     TagManagerWindow* tagMgrWin = new TagManagerWindow();
     FileStorageWindow* fileStorageWin = new FileStorageWindow();
+    FileSearchWindow* fileSearchWin = new FileSearchWindow();
+    ColorPickerWindow* colorPickerWin = new ColorPickerWindow();
 
     auto toggleWindow = [](QWidget* win, QWidget* parentWin = nullptr) {
         if (win->isVisible()) {
@@ -133,6 +137,8 @@ int main(int argc, char *argv[]) {
         fileStorageWin->setCurrentCategory(catId);
         toggleWindow(fileStorageWin);
     });
+    QObject::connect(toolbox, &Toolbox::showFileSearchRequested, [=](){ toggleWindow(fileSearchWin); });
+    QObject::connect(toolbox, &Toolbox::showColorPickerRequested, [=](){ toggleWindow(colorPickerWin); });
 
     // 统一显示主窗口的逻辑，处理启动锁定状态
     auto showMainWindow = [=]() {
