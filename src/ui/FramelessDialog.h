@@ -2,6 +2,7 @@
 #define FRAMELESSDIALOG_H
 
 #include <QDialog>
+#include <QKeyEvent>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>

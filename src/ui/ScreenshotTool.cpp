@@ -420,5 +420,3 @@ QImage ScreenshotTool::generateFinalImage() {
     }
     return result.toImage();
 }
-
-#include "ScreenshotTool.moc"
