@@ -4,6 +4,7 @@
 #include <QProcess>
 #include <QDir>
 #include <QDebug>
+#include <QCoreApplication>
 
 OCRManager& OCRManager::instance() {
     static OCRManager inst;
@@ -17,6 +18,10 @@ void OCRManager::recognizeAsync(const QImage& image, int contextId) {
         QString result;
 
 #ifdef Q_OS_WIN
+        // 优先检查是否存在用户放置的 Tesseract OCR
+        QString appDir = QCoreApplication::applicationDirPath();
+        QString tesseractPath = appDir + "/third_party/tesseract/bin/tesseract.exe";
+
         QTemporaryFile tempFile(QDir::tempPath() + "/ocr_XXXXXX.png");
         tempFile.setAutoRemove(true);
         if (tempFile.open()) {
@@ -24,7 +29,24 @@ void OCRManager::recognizeAsync(const QImage& image, int contextId) {
             image.save(filePath, "PNG");
             tempFile.close();
 
-            // PowerShell 脚本，利用 Windows.Media.Ocr
+            if (QFile::exists(tesseractPath)) {
+                // --- 方案 A: 调用 Tesseract OCR (Google 开源) ---
+                QString outputBase = QDir::tempPath() + "/tess_out";
+                QProcess process;
+                process.start(tesseractPath, QStringList() << filePath << outputBase << "-l" << "chi_sim+eng");
+                if (process.waitForFinished(15000)) {
+                    QFile outFile(outputBase + ".txt");
+                    if (outFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                        result = QString::fromUtf8(outFile.readAll()).trimmed();
+                        outFile.close();
+                        QFile::remove(outputBase + ".txt");
+                    }
+                }
+            }
+
+            if (result.isEmpty()) {
+                // --- 方案 B: 调用 Windows 10/11 原生 OCR 引擎 ---
+                // PowerShell 脚本，利用 Windows.Media.Ocr
             // 显式设置输出编码为 UTF8 以兼容中文
             QString psCommand = QString(
                 "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;"
