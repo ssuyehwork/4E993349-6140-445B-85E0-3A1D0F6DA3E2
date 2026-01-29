@@ -1190,12 +1190,41 @@ void ColorPickerWindow::processImage(const QString& filePath, const QImage& imag
 
 void ColorPickerWindow::pasteImage() {
     const QMimeData* mime = QApplication::clipboard()->mimeData();
-    if (mime && mime->hasImage()) {
+    if (!mime) return;
+
+    // 1. 优先尝试直接获取图片数据
+    if (mime->hasImage()) {
         QImage img = qvariant_cast<QImage>(mime->imageData());
-        processImage("", img);
-    } else {
-        showNotification("剪贴板中没有图片", true);
+        if (!img.isNull()) {
+            processImage("", img);
+            return;
+        }
     }
+
+    // 2. 尝试从 URL (文件路径) 获取图片 (支持从资源管理器复制的文件)
+    if (mime->hasUrls()) {
+        QString path = mime->urls().first().toLocalFile();
+        if (!path.isEmpty()) {
+            QImage img(path);
+            if (!img.isNull()) {
+                processImage(path, img);
+                return;
+            }
+        }
+    }
+
+    // 3. 兜底方案：如果还是失败，但确实有图片格式，尝试直接读取
+    if (mime->hasFormat("image/png") || mime->hasFormat("image/jpeg") || mime->hasFormat("image/bmp")) {
+        QImage img;
+        if (img.loadFromData(mime->data("image/png"), "PNG") ||
+            img.loadFromData(mime->data("image/jpeg"), "JPG") ||
+            img.loadFromData(mime->data("image/bmp"), "BMP")) {
+            processImage("", img);
+            return;
+        }
+    }
+
+    showNotification("剪贴板中没有图片或格式不支持", true);
 }
 
 QStringList ColorPickerWindow::extractDominantColors(const QImage& img, int num) {
