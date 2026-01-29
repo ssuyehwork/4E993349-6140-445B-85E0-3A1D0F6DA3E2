@@ -964,8 +964,8 @@ void ColorPickerWindow::updateFavoritesDisplay() {
     }
 
     auto* grid = new QGridLayout();
-    grid->setSpacing(15);
-    int cols = 5;
+    grid->setSpacing(10);
+    int cols = 7;
     for (int i = 0; i < cols; ++i) grid->setColumnStretch(i, 1);
     
     for (int i = 0; i < m_favorites.size(); ++i) {
@@ -975,44 +975,43 @@ void ColorPickerWindow::updateFavoritesDisplay() {
     layout->addLayout(grid);
 }
 
-QWidget* ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& color) {
+QWidget* ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& colorHex) {
     auto* tile = new QFrame(parent);
-    tile->setObjectName("favTile");
-    tile->setFixedSize(160, 90);
-    tile->setStyleSheet(QString("QFrame#favTile { background-color: %1; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); }").arg(color));
+    tile->setFixedSize(120, 36);
+    QColor c(colorHex);
+    QString textColor = c.lightness() > 150 ? "#333333" : "#FFFFFF";
 
-    auto* layout = new QVBoxLayout(tile);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    tile->setStyleSheet(QString(
+        "QFrame { background-color: %1; border-radius: 18px; border: 1px solid rgba(255,255,255,0.1); }"
+        "QFrame:hover { border: 1px solid rgba(255,255,255,0.5); }"
+    ).arg(colorHex));
 
-    auto* clickArea = new QPushButton("");
-    clickArea->setStyleSheet("background: transparent; border: none;");
-    clickArea->setCursor(Qt::PointingHandCursor);
-    connect(clickArea, &QPushButton::clicked, [this, color](){ useColor(color); copyHexValue(); });
-    layout->addWidget(clickArea, 1);
+    auto* layout = new QHBoxLayout(tile);
+    layout->setContentsMargins(12, 0, 4, 0);
+    layout->setSpacing(4);
     
-    auto* bottomBar = new QFrame();
-    bottomBar->setFixedHeight(30);
-    bottomBar->setStyleSheet("background: rgba(0, 0, 0, 120); border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;");
+    auto* lbl = new QLabel(colorHex);
+    lbl->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 11px; font-family: Consolas; border: none; background: transparent;").arg(textColor));
+    layout->addWidget(lbl);
     
-    auto* barL = new QHBoxLayout(bottomBar);
-    barL->setContentsMargins(10, 0, 6, 0);
+    layout->addStretch();
     
-    auto* lbl = new QLabel(color);
-    lbl->setStyleSheet("color: rgba(255,255,255,220); font-weight: bold; font-size: 11px; font-family: Consolas; border: none; background: transparent;");
-    barL->addWidget(lbl);
-
-    barL->addStretch();
-
     auto* del = new QPushButton();
-    del->setIcon(IconHelper::getIcon("close", "#FFFFFF"));
+    del->setIcon(IconHelper::getIcon("close", textColor));
     del->setIconSize(QSize(10, 10));
-    del->setFixedSize(22, 22);
-    del->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: rgba(255,255,255,0.2); border-radius: 11px; }");
-    connect(del, &QPushButton::clicked, [this, color](){ removeFavorite(color); });
-    barL->addWidget(del);
+    del->setFixedSize(24, 24);
+    del->setCursor(Qt::PointingHandCursor);
+    del->setStyleSheet(QString("QPushButton { border: none; background: transparent; } QPushButton:hover { background: rgba(0,0,0,0.15); border-radius: 12px; }"));
+    connect(del, &QPushButton::clicked, [this, colorHex](){ removeFavorite(colorHex); });
+    layout->addWidget(del);
 
-    layout->addWidget(bottomBar);
+    // 覆盖点击层 (通过在层叠中处理，或者简单地让 Label 也响应)
+    lbl->setCursor(Qt::PointingHandCursor);
+    lbl->installEventFilter(this);
+    lbl->setProperty("color", colorHex);
+    tile->setProperty("color", colorHex);
+    tile->installEventFilter(this);
+
     return tile;
 }
 
@@ -1058,7 +1057,7 @@ void ColorPickerWindow::generateGradient() {
     layout->addWidget(title, 0, Qt::AlignCenter);
     auto* grid = new QGridLayout();
     grid->setSpacing(10);
-    int cols = 6;
+    int cols = 8;
     for (int i = 0; i < cols; ++i) grid->setColumnStretch(i, 1);
     for (int i = 0; i < colors.size(); ++i) {
         QWidget* tile = createColorTile(m_gradGridContainer, colors[i]);
@@ -1068,40 +1067,30 @@ void ColorPickerWindow::generateGradient() {
     switchView("渐变预览");
 }
 
-QWidget* ColorPickerWindow::createColorTile(QWidget* parent, const QString& color) {
+QWidget* ColorPickerWindow::createColorTile(QWidget* parent, const QString& colorHex) {
     auto* tile = new QFrame(parent);
-    tile->setFixedSize(120, 80);
-    tile->setStyleSheet(QString("QFrame { background-color: %1; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); }").arg(color));
+    tile->setFixedSize(100, 32);
+    QColor c(colorHex);
+    QString textColor = c.lightness() > 150 ? "#333333" : "#FFFFFF";
 
-    auto* layout = new QVBoxLayout(tile);
+    tile->setStyleSheet(QString(
+        "QFrame { background-color: %1; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); }"
+        "QFrame:hover { border: 1px solid rgba(255,255,255,0.5); }"
+    ).arg(colorHex));
+
+    auto* layout = new QHBoxLayout(tile);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-
-    auto* clickArea = new QPushButton("");
-    clickArea->setStyleSheet("background: transparent; border: none;");
-    clickArea->setCursor(Qt::PointingHandCursor);
-    layout->addWidget(clickArea, 1);
     
-    auto* bottomBar = new QFrame();
-    bottomBar->setFixedHeight(24);
-    bottomBar->setStyleSheet("background: rgba(0, 0, 0, 100); border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;");
-    
-    auto* barL = new QHBoxLayout(bottomBar);
-    barL->setContentsMargins(8, 0, 8, 0);
-    
-    auto* lbl = new QLabel(color);
+    auto* lbl = new QLabel(colorHex);
     lbl->setAlignment(Qt::AlignCenter);
-    lbl->setStyleSheet("color: rgba(255,255,255,180); font-size: 10px; font-family: Consolas; border: none; background: transparent;");
-    barL->addWidget(lbl);
+    lbl->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 10px; font-family: Consolas; border: none; background: transparent;").arg(textColor));
+    layout->addWidget(lbl);
 
-    layout->addWidget(bottomBar);
-
-    // 设置属性并安装事件过滤器以支持左键应用、右键收藏
-    QList<QWidget*> widgets = {tile, clickArea, bottomBar, lbl};
-    for(auto* w : widgets) {
-        w->setProperty("color", color);
-        w->installEventFilter(this);
-    }
+    tile->setCursor(Qt::PointingHandCursor);
+    tile->setProperty("color", colorHex);
+    tile->installEventFilter(this);
+    lbl->setProperty("color", colorHex);
+    lbl->installEventFilter(this);
     
     return tile;
 }
@@ -1128,7 +1117,7 @@ void ColorPickerWindow::processImage(const QString& filePath, const QImage& imag
     qDeleteAll(m_extractGridContainer->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
     
     auto* layout = new QVBoxLayout(m_extractGridContainer);
-    auto* title = new QLabel("提取的调色板 (点击应用)");
+    auto* title = new QLabel("提取结果 (左键应用 / 右键收藏)");
     title->setStyleSheet("font-weight: bold; font-size: 16px; border: none; background: transparent; color: #888;");
     layout->addWidget(title, 0, Qt::AlignCenter);
     
