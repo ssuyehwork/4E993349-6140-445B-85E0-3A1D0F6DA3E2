@@ -81,6 +81,9 @@ protected:
     void mousePressEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
             if (m_callback) m_callback(m_currentColorHex);
+            // 增加视觉反馈：闪烁一下
+            m_flashTimer = 5;
+            update();
         } else if (event->button() == Qt::RightButton) {
             cancelPicker();
         }
@@ -95,6 +98,12 @@ protected:
     void paintEvent(QPaintEvent*) override {
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
+
+        if (m_flashTimer > 0) {
+            p.fillRect(rect(), QColor(255, 255, 255, 40));
+            m_flashTimer--;
+            QTimer::singleShot(30, this, QOverload<>::of(&ScreenColorPickerOverlay::update));
+        }
         p.setRenderHint(QPainter::TextAntialiasing);
 
         QPoint globalPos = QCursor::pos();
@@ -201,6 +210,7 @@ protected:
     }
 
 private:
+    int m_flashTimer = 0;
     void cancelPicker() {
         releaseMouse();
         releaseKeyboard();
@@ -1052,22 +1062,39 @@ void ColorPickerWindow::generateGradient() {
 
 QWidget* ColorPickerWindow::createColorTile(QWidget* parent, const QString& colorHex) {
     auto* tile = new QFrame(parent);
-    tile->setFixedSize(110, 34);
+    tile->setFixedSize(120, 36);
     QColor c(colorHex);
     QString textColor = c.lightness() > 150 ? "#333333" : "#FFFFFF";
 
     tile->setStyleSheet(QString(
-        "QFrame { background-color: %1; border-radius: 17px; border: 1px solid rgba(255,255,255,0.1); }"
+        "QFrame { background-color: %1; border-radius: 18px; border: 1px solid rgba(255,255,255,0.1); }"
         "QFrame:hover { border: 1px solid rgba(255,255,255,0.5); }"
     ).arg(colorHex));
 
     auto* layout = new QHBoxLayout(tile);
-    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setContentsMargins(4, 0, 4, 0);
+    layout->setSpacing(0);
+
+    auto* leftSpacer = new QWidget();
+    leftSpacer->setFixedWidth(24);
+    layout->addWidget(leftSpacer);
 
     auto* lbl = new QLabel(colorHex);
     lbl->setAlignment(Qt::AlignCenter);
     lbl->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 15px; font-family: Consolas; border: none; background: transparent;").arg(textColor));
-    layout->addWidget(lbl);
+    layout->addWidget(lbl, 1);
+
+    auto* btnCopy = new QPushButton();
+    btnCopy->setIcon(IconHelper::getIcon("copy", textColor));
+    btnCopy->setIconSize(QSize(12, 12));
+    btnCopy->setFixedSize(24, 24);
+    btnCopy->setCursor(Qt::PointingHandCursor);
+    btnCopy->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: rgba(0,0,0,0.1); border-radius: 12px; }");
+    connect(btnCopy, &QPushButton::clicked, [this, colorHex](){
+        QApplication::clipboard()->setText(colorHex);
+        showNotification("已复制 " + colorHex);
+    });
+    layout->addWidget(btnCopy);
 
     tile->setCursor(Qt::PointingHandCursor);
     tile->setProperty("color", colorHex);

@@ -22,6 +22,7 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
 
     auto* container = new QWidget(this);
     container->setObjectName("DialogContainer");
+    container->setAttribute(Qt::WA_StyledBackground);
     container->setStyleSheet(
         "#DialogContainer {"
         "  background-color: #1e1e1e;"
@@ -39,7 +40,7 @@ FramelessDialog::FramelessDialog(const QString& title, QWidget* parent)
     container->setGraphicsEffect(shadow);
 
     m_mainLayout = new QVBoxLayout(container);
-    m_mainLayout->setContentsMargins(0, 0, 0, 0);
+    m_mainLayout->setContentsMargins(0, 0, 0, 5); // 留出底部边距以确保圆角不被裁剪
     m_mainLayout->setSpacing(0);
 
     // 标题栏
