@@ -112,7 +112,12 @@ public:
         layout->setSpacing(10);
 
         auto* top = new QHBoxLayout();
-        auto* title = new QLabel("🕒 搜索历史");
+        auto* icon = new QLabel();
+        icon->setPixmap(IconHelper::getIcon("clock", "#888").pixmap(14, 14));
+        icon->setStyleSheet("border: none; background: transparent;");
+        top->addWidget(icon);
+
+        auto* title = new QLabel("搜索历史");
         title->setStyleSheet("color: #888; font-weight: bold; font-size: 11px; background: transparent; border: none;");
         top->addWidget(title);
         top->addStretch();

@@ -686,17 +686,36 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
     m_gradSteps->setFixedWidth(40);
     m_gradSteps->setAlignment(Qt::AlignCenter);
     stepsRow->addWidget(m_gradSteps);
-    stepsRow->addSpacing(20);
-    auto* btnMode = new QPushButton("变暗");
-    connect(btnMode, &QPushButton::clicked, [this, btnMode](){
-        if (m_gradMode == "变暗") m_gradMode = "变亮";
-        else if (m_gradMode == "变亮") m_gradMode = "饱和";
-        else m_gradMode = "变暗";
-        btnMode->setText(m_gradMode);
-    });
-    stepsRow->addWidget(btnMode);
     stepsRow->addStretch();
     gl->addLayout(stepsRow);
+
+    auto* modeRow = new QHBoxLayout();
+    modeRow->setSpacing(5);
+    auto createModeBtn = [&](const QString& mode) {
+        auto* btn = new QPushButton(mode);
+        btn->setCheckable(true);
+        btn->setFixedWidth(60);
+        btn->setStyleSheet(
+            "QPushButton { background: #333; border: 1px solid #444; border-radius: 4px; padding: 4px; font-size: 11px; } "
+            "QPushButton:hover { background: #444; } "
+            "QPushButton:checked { background: #007ACC; color: white; border-color: #007ACC; }"
+        );
+        if (m_gradMode == mode) btn->setChecked(true);
+        connect(btn, &QPushButton::clicked, [this, mode, modeRow](){
+            m_gradMode = mode;
+            for(int i=0; i<modeRow->count(); ++i) {
+                auto* b = qobject_cast<QPushButton*>(modeRow->itemAt(i)->widget());
+                if(b) b->setChecked(b->text() == mode);
+            }
+        });
+        return btn;
+    };
+    modeRow->addStretch();
+    modeRow->addWidget(createModeBtn("变暗"));
+    modeRow->addWidget(createModeBtn("变亮"));
+    modeRow->addWidget(createModeBtn("饱和"));
+    modeRow->addStretch();
+    gl->addLayout(modeRow);
     auto* btnGrad = new QPushButton("生成渐变");
     btnGrad->setFixedHeight(36);
     btnGrad->setStyleSheet("background: #007ACC; font-weight: bold; color: white;");
@@ -944,7 +963,7 @@ void ColorPickerWindow::removeFavorite(const QString& color) {
 }
 
 void ColorPickerWindow::updateFavoritesDisplay() {
-    auto* flow = dynamic_cast<FlowLayout*>(m_favGridContainer->layout());
+    auto* flow = qobject_cast<FlowLayout*>(m_favGridContainer->layout());
     if (!flow) return;
 
     QLayoutItem *child;
@@ -1043,7 +1062,7 @@ void ColorPickerWindow::generateGradient() {
         }
     }
     
-    auto* flow = dynamic_cast<FlowLayout*>(m_gradGridContainer->layout());
+    auto* flow = qobject_cast<FlowLayout*>(m_gradGridContainer->layout());
     if (!flow) return;
 
     QLayoutItem *child;
@@ -1124,7 +1143,7 @@ void ColorPickerWindow::processImage(const QString& filePath, const QImage& imag
     m_dropHintContainer->hide();
     m_extractGridContainer->show();
 
-    auto* flow = dynamic_cast<FlowLayout*>(m_extractGridContainer->layout());
+    auto* flow = qobject_cast<FlowLayout*>(m_extractGridContainer->layout());
     if (!flow) return;
 
     QLayoutItem *child;

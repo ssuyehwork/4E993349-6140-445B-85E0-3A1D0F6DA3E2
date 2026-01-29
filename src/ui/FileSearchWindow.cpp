@@ -140,7 +140,12 @@ public:
         layout->setSpacing(10);
 
         auto* top = new QHBoxLayout();
-        auto* title = new QLabel("🕒 最近扫描路径");
+        auto* icon = new QLabel();
+        icon->setPixmap(IconHelper::getIcon("clock", "#888").pixmap(14, 14));
+        icon->setStyleSheet("border: none; background: transparent;");
+        top->addWidget(icon);
+
+        auto* title = new QLabel("最近扫描路径");
         title->setStyleSheet("color: #888; font-weight: bold; font-size: 11px; background: transparent; border: none;");
         top->addWidget(title);
         top->addStretch();
@@ -402,9 +407,18 @@ void FileSearchWindow::initUI() {
     sidebarLayout->setContentsMargins(0, 0, 10, 0);
     sidebarLayout->setSpacing(10);
 
-    auto* sidebarHeader = new QLabel("📁 收藏夹 (可拖入)");
-    sidebarHeader->setStyleSheet("color: #888; font-weight: bold; font-size: 12px;");
-    sidebarLayout->addWidget(sidebarHeader);
+    auto* headerLayout = new QHBoxLayout();
+    headerLayout->setSpacing(5);
+    auto* sidebarIcon = new QLabel();
+    sidebarIcon->setPixmap(IconHelper::getIcon("folder", "#888").pixmap(14, 14));
+    sidebarIcon->setStyleSheet("border: none; background: transparent;");
+    headerLayout->addWidget(sidebarIcon);
+
+    auto* sidebarHeader = new QLabel("收藏夹 (可拖入)");
+    sidebarHeader->setStyleSheet("color: #888; font-weight: bold; font-size: 12px; border: none; background: transparent;");
+    headerLayout->addWidget(sidebarHeader);
+    headerLayout->addStretch();
+    sidebarLayout->addLayout(headerLayout);
 
     auto* sidebar = new FileSidebarListWidget();
     m_sidebar = sidebar;
