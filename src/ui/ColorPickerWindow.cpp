@@ -803,36 +803,38 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
     
     // 收藏容器
     auto* fl = new QVBoxLayout(m_favContent);
-    fl->setContentsMargins(20, 0, 20, 20);
-    fl->addSpacing(-10); // 向上偏移 10 像素
+    fl->setContentsMargins(20, 10, 20, 20); // 调整顶部边距以模拟上移效果
+    fl->setSpacing(10);
     auto* ft = new QLabel("我的收藏");
-    ft->setStyleSheet("font-size: 20px; font-weight: bold; color: white; margin-bottom: 10px; border: none;");
+    ft->setStyleSheet("font-size: 20px; font-weight: bold; color: white; border: none;");
     fl->addWidget(ft);
 
     m_favGridContainer = new QFrame();
     m_favGridContainer->setStyleSheet("QFrame { background: #252526; border-radius: 12px; }");
+    new QVBoxLayout(m_favGridContainer); // 预设布局
     fl->addWidget(m_favGridContainer);
     fl->addStretch();
 
     // 渐变容器
     auto* gl = new QVBoxLayout(m_gradContent);
-    gl->setContentsMargins(20, 0, 20, 20);
-    gl->addSpacing(-10); // 向上偏移 10 像素
+    gl->setContentsMargins(20, 10, 20, 20);
+    gl->setSpacing(10);
     auto* gt = new QLabel("渐变预览");
-    gt->setStyleSheet("font-size: 20px; font-weight: bold; color: white; margin-bottom: 10px; border: none;");
+    gt->setStyleSheet("font-size: 20px; font-weight: bold; color: white; border: none;");
     gl->addWidget(gt);
 
     m_gradGridContainer = new QFrame();
     m_gradGridContainer->setStyleSheet("QFrame { background: #252526; border-radius: 12px; }");
+    new QVBoxLayout(m_gradGridContainer); // 预设布局
     gl->addWidget(m_gradGridContainer);
     gl->addStretch();
 
     // 提取容器
     auto* el = new QVBoxLayout(m_extractContent);
-    el->setContentsMargins(20, 0, 20, 20);
-    el->addSpacing(-10); // 向上偏移 10 像素
+    el->setContentsMargins(20, 10, 20, 20);
+    el->setSpacing(10);
     auto* et = new QLabel("图片提取");
-    et->setStyleSheet("font-size: 20px; font-weight: bold; color: white; margin-bottom: 10px; border: none;");
+    et->setStyleSheet("font-size: 20px; font-weight: bold; color: white; border: none;");
     el->addWidget(et);
 
     m_dropHintContainer = new QFrame();
@@ -855,6 +857,7 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
 
     m_extractGridContainer = new QFrame();
     m_extractGridContainer->setStyleSheet("QFrame { background: #252526; border-radius: 12px; }");
+    new QVBoxLayout(m_extractGridContainer); // 预设布局
     el->addWidget(m_extractGridContainer);
     el->addStretch();
 
@@ -962,10 +965,16 @@ void ColorPickerWindow::removeFavorite(const QString& color) {
 }
 
 void ColorPickerWindow::updateFavoritesDisplay() {
-    if (m_favGridContainer->layout()) delete m_favGridContainer->layout();
-    qDeleteAll(m_favGridContainer->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
+    auto* layout = qobject_cast<QVBoxLayout*>(m_favGridContainer->layout());
+    if (!layout) return;
     
-    auto* layout = new QVBoxLayout(m_favGridContainer);
+    // 清理旧内容
+    QLayoutItem *child;
+    while ((child = layout->takeAt(0)) != nullptr) {
+        if (child->widget()) child->widget()->deleteLater();
+        delete child;
+    }
+
     layout->setContentsMargins(15, 15, 15, 15);
 
     if (m_favorites.isEmpty()) {
@@ -976,7 +985,9 @@ void ColorPickerWindow::updateFavoritesDisplay() {
         return;
     }
 
-    auto* grid = new QGridLayout();
+    auto* gridContainer = new QWidget();
+    auto* grid = new QGridLayout(gridContainer);
+    grid->setContentsMargins(0, 0, 0, 0);
     grid->setSpacing(10);
     int cols = 7;
     for (int i = 0; i < cols; ++i) grid->setColumnStretch(i, 1);
@@ -985,7 +996,8 @@ void ColorPickerWindow::updateFavoritesDisplay() {
         QWidget* tile = createFavoriteTile(m_favGridContainer, m_favorites[i]);
         grid->addWidget(tile, i / cols, i % cols);
     }
-    layout->addLayout(grid);
+    layout->addWidget(gridContainer);
+    layout->addStretch();
 }
 
 QWidget* ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& colorHex) {
@@ -1065,16 +1077,24 @@ void ColorPickerWindow::generateGradient() {
         }
     }
     
-    if (m_gradGridContainer->layout()) delete m_gradGridContainer->layout();
-    qDeleteAll(m_gradGridContainer->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
+    auto* layout = qobject_cast<QVBoxLayout*>(m_gradGridContainer->layout());
+    if (!layout) return;
+
+    QLayoutItem *child;
+    while ((child = layout->takeAt(0)) != nullptr) {
+        if (child->widget()) child->widget()->deleteLater();
+        delete child;
+    }
     
-    auto* layout = new QVBoxLayout(m_gradGridContainer);
     layout->setContentsMargins(15, 15, 15, 15);
 
     auto* title = new QLabel("生成结果 (左键应用 / 右键收藏)");
-    title->setStyleSheet("font-weight: bold; font-size: 16px; border: none; background: transparent; color: #888;");
+    title->setStyleSheet("font-weight: bold; font-size: 16px; border: none; background: transparent; color: #888; margin-bottom: 5px;");
     layout->addWidget(title, 0, Qt::AlignCenter);
-    auto* grid = new QGridLayout();
+
+    auto* gridContainer = new QWidget();
+    auto* grid = new QGridLayout(gridContainer);
+    grid->setContentsMargins(0, 0, 0, 0);
     grid->setSpacing(10);
     int cols = 8;
     for (int i = 0; i < cols; ++i) grid->setColumnStretch(i, 1);
@@ -1082,18 +1102,19 @@ void ColorPickerWindow::generateGradient() {
         QWidget* tile = createColorTile(m_gradGridContainer, colors[i]);
         grid->addWidget(tile, i / cols, i % cols);
     }
-    layout->addLayout(grid);
+    layout->addWidget(gridContainer);
+    layout->addStretch();
     switchView("渐变预览");
 }
 
 QWidget* ColorPickerWindow::createColorTile(QWidget* parent, const QString& colorHex) {
     auto* tile = new QFrame(parent);
-    tile->setFixedSize(100, 32);
+    tile->setFixedSize(110, 34); // 稍微加大一点，与收藏夹接近
     QColor c(colorHex);
     QString textColor = c.lightness() > 150 ? "#333333" : "#FFFFFF";
 
     tile->setStyleSheet(QString(
-        "QFrame { background-color: %1; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); }"
+        "QFrame { background-color: %1; border-radius: 17px; border: 1px solid rgba(255,255,255,0.1); }"
         "QFrame:hover { border: 1px solid rgba(255,255,255,0.5); }"
     ).arg(colorHex));
 
@@ -1102,7 +1123,7 @@ QWidget* ColorPickerWindow::createColorTile(QWidget* parent, const QString& colo
 
     auto* lbl = new QLabel(colorHex);
     lbl->setAlignment(Qt::AlignCenter);
-    lbl->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 14px; font-family: Consolas; border: none; background: transparent;").arg(textColor));
+    lbl->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 15px; font-family: Consolas; border: none; background: transparent;").arg(textColor));
     layout->addWidget(lbl);
 
     tile->setCursor(Qt::PointingHandCursor);
@@ -1132,17 +1153,25 @@ void ColorPickerWindow::processImage(const QString& filePath, const QImage& imag
     
     m_dropHintContainer->hide();
     m_extractGridContainer->show();
-    if (m_extractGridContainer->layout()) delete m_extractGridContainer->layout();
-    qDeleteAll(m_extractGridContainer->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly));
+
+    auto* layout = qobject_cast<QVBoxLayout*>(m_extractGridContainer->layout());
+    if (!layout) return;
+
+    QLayoutItem *child;
+    while ((child = layout->takeAt(0)) != nullptr) {
+        if (child->widget()) child->widget()->deleteLater();
+        delete child;
+    }
     
-    auto* layout = new QVBoxLayout(m_extractGridContainer);
     layout->setContentsMargins(15, 15, 15, 15);
 
     auto* title = new QLabel("提取结果 (左键应用 / 右键收藏)");
-    title->setStyleSheet("font-weight: bold; font-size: 16px; border: none; background: transparent; color: #888;");
+    title->setStyleSheet("font-weight: bold; font-size: 16px; border: none; background: transparent; color: #888; margin-bottom: 5px;");
     layout->addWidget(title, 0, Qt::AlignCenter);
     
-    auto* grid = new QGridLayout();
+    auto* gridContainer = new QWidget();
+    auto* grid = new QGridLayout(gridContainer);
+    grid->setContentsMargins(0, 0, 0, 0);
     grid->setSpacing(10);
     int cols = 8;
     for (int i = 0; i < cols; ++i) grid->setColumnStretch(i, 1);
@@ -1152,7 +1181,8 @@ void ColorPickerWindow::processImage(const QString& filePath, const QImage& imag
         QWidget* tile = createColorTile(m_extractGridContainer, colors[i]);
         grid->addWidget(tile, i / cols, i % cols);
     }
-    layout->addLayout(grid);
+    layout->addWidget(gridContainer);
+    layout->addStretch();
     
     switchView("图片提取");
     showNotification("图片已加载，调色板生成完毕");
