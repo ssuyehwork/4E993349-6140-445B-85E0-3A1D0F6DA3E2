@@ -37,6 +37,7 @@
 #include <QGridLayout>
 #include <QStackedWidget>
 #include <QSlider>
+#include "FlowLayout.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -792,6 +793,9 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
     auto createScroll = [&](QWidget*& content) {
         auto* scroll = new QScrollArea();
         scroll->setWidgetResizable(true);
+        scroll->setFrameShape(QFrame::NoFrame);
+        scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         content = new QWidget();
         content->setStyleSheet("background: transparent;");
         scroll->setWidget(content);
@@ -803,39 +807,47 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
     
     // 收藏容器
     auto* fl = new QVBoxLayout(m_favContent);
-    fl->setContentsMargins(20, 10, 20, 20); // 调整顶部边距以模拟上移效果
-    fl->setSpacing(10);
+    fl->setContentsMargins(20, 0, 20, 20);
+    fl->setSpacing(15);
     auto* ft = new QLabel("我的收藏");
     ft->setStyleSheet("font-size: 20px; font-weight: bold; color: white; border: none;");
     fl->addWidget(ft);
 
     m_favGridContainer = new QFrame();
     m_favGridContainer->setStyleSheet("QFrame { background: #252526; border-radius: 12px; }");
-    new QVBoxLayout(m_favGridContainer); // 预设布局
+    new FlowLayout(m_favGridContainer, 15, 10, 10);
     fl->addWidget(m_favGridContainer);
     fl->addStretch();
 
     // 渐变容器
     auto* gl = new QVBoxLayout(m_gradContent);
-    gl->setContentsMargins(20, 10, 20, 20);
-    gl->setSpacing(10);
+    gl->setContentsMargins(20, 0, 20, 20);
+    gl->setSpacing(15);
     auto* gt = new QLabel("渐变预览");
     gt->setStyleSheet("font-size: 20px; font-weight: bold; color: white; border: none;");
     gl->addWidget(gt);
 
+    auto* gt2 = new QLabel("生成结果 (左键应用 / 右键收藏)");
+    gt2->setStyleSheet("font-weight: bold; font-size: 14px; border: none; background: transparent; color: #888;");
+    gl->addWidget(gt2);
+
     m_gradGridContainer = new QFrame();
     m_gradGridContainer->setStyleSheet("QFrame { background: #252526; border-radius: 12px; }");
-    new QVBoxLayout(m_gradGridContainer); // 预设布局
+    new FlowLayout(m_gradGridContainer, 15, 10, 10);
     gl->addWidget(m_gradGridContainer);
     gl->addStretch();
 
     // 提取容器
     auto* el = new QVBoxLayout(m_extractContent);
-    el->setContentsMargins(20, 10, 20, 20);
-    el->setSpacing(10);
+    el->setContentsMargins(20, 0, 20, 20);
+    el->setSpacing(15);
     auto* et = new QLabel("图片提取");
     et->setStyleSheet("font-size: 20px; font-weight: bold; color: white; border: none;");
     el->addWidget(et);
+
+    auto* et2 = new QLabel("提取结果 (左键应用 / 右键收藏)");
+    et2->setStyleSheet("font-weight: bold; font-size: 14px; border: none; background: transparent; color: #888;");
+    el->addWidget(et2);
 
     m_dropHintContainer = new QFrame();
     m_dropHintContainer->setStyleSheet("background: transparent; border: 3px dashed #555; border-radius: 15px;");
@@ -857,7 +869,7 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
 
     m_extractGridContainer = new QFrame();
     m_extractGridContainer->setStyleSheet("QFrame { background: #252526; border-radius: 12px; }");
-    new QVBoxLayout(m_extractGridContainer); // 预设布局
+    new FlowLayout(m_extractGridContainer, 15, 10, 10);
     el->addWidget(m_extractGridContainer);
     el->addStretch();
 
@@ -965,39 +977,28 @@ void ColorPickerWindow::removeFavorite(const QString& color) {
 }
 
 void ColorPickerWindow::updateFavoritesDisplay() {
-    auto* layout = qobject_cast<QVBoxLayout*>(m_favGridContainer->layout());
-    if (!layout) return;
-    
+    auto* flow = qobject_cast<FlowLayout*>(m_favGridContainer->layout());
+    if (!flow) return;
+
     // 清理旧内容
     QLayoutItem *child;
-    while ((child = layout->takeAt(0)) != nullptr) {
+    while ((child = flow->takeAt(0)) != nullptr) {
         if (child->widget()) child->widget()->deleteLater();
         delete child;
     }
-
-    layout->setContentsMargins(15, 15, 15, 15);
 
     if (m_favorites.isEmpty()) {
         auto* lbl = new QLabel("暂无收藏\n右键点击任何颜色块即可收藏");
         lbl->setStyleSheet("color: #666; font-size: 16px; border: none; background: transparent; padding: 40px;");
         lbl->setAlignment(Qt::AlignCenter);
-        layout->addWidget(lbl, 0, Qt::AlignCenter);
+        flow->addWidget(lbl);
         return;
     }
 
-    auto* gridContainer = new QWidget();
-    auto* grid = new QGridLayout(gridContainer);
-    grid->setContentsMargins(0, 0, 0, 0);
-    grid->setSpacing(10);
-    int cols = 7;
-    for (int i = 0; i < cols; ++i) grid->setColumnStretch(i, 1);
-    
     for (int i = 0; i < m_favorites.size(); ++i) {
         QWidget* tile = createFavoriteTile(m_favGridContainer, m_favorites[i]);
-        grid->addWidget(tile, i / cols, i % cols);
+        flow->addWidget(tile);
     }
-    layout->addWidget(gridContainer);
-    layout->addStretch();
 }
 
 QWidget* ColorPickerWindow::createFavoriteTile(QWidget* parent, const QString& colorHex) {
@@ -1077,33 +1078,19 @@ void ColorPickerWindow::generateGradient() {
         }
     }
     
-    auto* layout = qobject_cast<QVBoxLayout*>(m_gradGridContainer->layout());
-    if (!layout) return;
+    auto* flow = qobject_cast<FlowLayout*>(m_gradGridContainer->layout());
+    if (!flow) return;
 
     QLayoutItem *child;
-    while ((child = layout->takeAt(0)) != nullptr) {
+    while ((child = flow->takeAt(0)) != nullptr) {
         if (child->widget()) child->widget()->deleteLater();
         delete child;
     }
     
-    layout->setContentsMargins(15, 15, 15, 15);
-
-    auto* title = new QLabel("生成结果 (左键应用 / 右键收藏)");
-    title->setStyleSheet("font-weight: bold; font-size: 16px; border: none; background: transparent; color: #888; margin-bottom: 5px;");
-    layout->addWidget(title, 0, Qt::AlignCenter);
-
-    auto* gridContainer = new QWidget();
-    auto* grid = new QGridLayout(gridContainer);
-    grid->setContentsMargins(0, 0, 0, 0);
-    grid->setSpacing(10);
-    int cols = 8;
-    for (int i = 0; i < cols; ++i) grid->setColumnStretch(i, 1);
     for (int i = 0; i < colors.size(); ++i) {
         QWidget* tile = createColorTile(m_gradGridContainer, colors[i]);
-        grid->addWidget(tile, i / cols, i % cols);
+        flow->addWidget(tile);
     }
-    layout->addWidget(gridContainer);
-    layout->addStretch();
     switchView("渐变预览");
 }
 
@@ -1154,35 +1141,20 @@ void ColorPickerWindow::processImage(const QString& filePath, const QImage& imag
     m_dropHintContainer->hide();
     m_extractGridContainer->show();
 
-    auto* layout = qobject_cast<QVBoxLayout*>(m_extractGridContainer->layout());
-    if (!layout) return;
+    auto* flow = qobject_cast<FlowLayout*>(m_extractGridContainer->layout());
+    if (!flow) return;
 
     QLayoutItem *child;
-    while ((child = layout->takeAt(0)) != nullptr) {
+    while ((child = flow->takeAt(0)) != nullptr) {
         if (child->widget()) child->widget()->deleteLater();
         delete child;
     }
     
-    layout->setContentsMargins(15, 15, 15, 15);
-
-    auto* title = new QLabel("提取结果 (左键应用 / 右键收藏)");
-    title->setStyleSheet("font-weight: bold; font-size: 16px; border: none; background: transparent; color: #888; margin-bottom: 5px;");
-    layout->addWidget(title, 0, Qt::AlignCenter);
-    
-    auto* gridContainer = new QWidget();
-    auto* grid = new QGridLayout(gridContainer);
-    grid->setContentsMargins(0, 0, 0, 0);
-    grid->setSpacing(10);
-    int cols = 8;
-    for (int i = 0; i < cols; ++i) grid->setColumnStretch(i, 1);
-    
     QStringList colors = extractDominantColors(img, 24);
     for (int i = 0; i < colors.size(); ++i) {
         QWidget* tile = createColorTile(m_extractGridContainer, colors[i]);
-        grid->addWidget(tile, i / cols, i % cols);
+        flow->addWidget(tile);
     }
-    layout->addWidget(gridContainer);
-    layout->addStretch();
     
     switchView("图片提取");
     showNotification("图片已加载，调色板生成完毕");
