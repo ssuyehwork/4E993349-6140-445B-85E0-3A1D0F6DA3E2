@@ -1,14 +1,9 @@
 #include "Toolbox.h"
 #include "IconHelper.h"
-#include <QMouseEvent>
-#include <QGraphicsDropShadowEffect>
+#include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
-
-#ifdef Q_OS_WIN
-#include <windows.h>
-#endif
 
 Toolbox::Toolbox(QWidget* parent) : FramelessDialog("工具箱", parent) {
     setObjectName("ToolboxLauncher");
@@ -61,23 +56,31 @@ void Toolbox::initUI() {
 }
 
 QPushButton* Toolbox::createToolButton(const QString& text, const QString& iconName, const QString& color) {
-    auto* btn = new QPushButton();
-    auto* layout = new QHBoxLayout(btn);
-    layout->setContentsMargins(15, 0, 15, 0);
-    layout->setSpacing(12);
-
-    auto* iconLabel = new QLabel();
-    iconLabel->setPixmap(IconHelper::getIcon(iconName, color).pixmap(20, 20));
-    layout->addWidget(iconLabel);
-
-    auto* textLabel = new QLabel(text);
-    textLabel->setStyleSheet("color: #E0E0E0; font-size: 13px; font-weight: 500;");
-    layout->addWidget(textLabel);
-    layout->addStretch();
-
+    auto* btn = new QPushButton(text);
+    btn->setIcon(IconHelper::getIcon(iconName, color));
+    btn->setIconSize(QSize(20, 20));
     btn->setFixedHeight(44);
-    btn->setStyleSheet("QPushButton { background-color: #2D2D2D; border: 1px solid #333; border-radius: 8px; } "
-                       "QPushButton:hover { background-color: #3D3D3D; border-color: #444; } "
-                       "QPushButton:pressed { background-color: #252525; }");
+
+    // 使用 qss 直接控制对齐和边距，避免子控件导致的背景分割
+    btn->setStyleSheet(QString(
+        "QPushButton {"
+        "  background-color: #2D2D2D;"
+        "  border: 1px solid #333;"
+        "  border-radius: 8px;"
+        "  color: #E0E0E0;"
+        "  font-size: 13px;"
+        "  font-weight: 500;"
+        "  text-align: left;"
+        "  padding-left: 15px;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #3D3D3D;"
+        "  border-color: #444;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #252525;"
+        "}"
+    ));
+
     return btn;
 }
