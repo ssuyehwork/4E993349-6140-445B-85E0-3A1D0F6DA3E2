@@ -20,7 +20,7 @@
 #include <functional>
 
 enum class ScreenshotState { Selecting, Editing };
-enum class ScreenshotToolType { None, Rect, Ellipse, Arrow, Line, Pen, Marker, Text, Mosaic };
+enum class ScreenshotToolType { None, Rect, Ellipse, Arrow, Line, Pen, Marker, Text, Mosaic, Eraser };
 enum class ArrowStyle {
     SolidSingle, OutlineSingle,
     SolidDouble, OutlineDouble,
@@ -39,6 +39,21 @@ struct DrawingAnnotation {
 };
 
 class ScreenshotTool;
+
+class PinnedScreenshotWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit PinnedScreenshotWidget(const QPixmap& pixmap, const QRect& screenRect, QWidget* parent = nullptr);
+protected:
+    void paintEvent(QPaintEvent*) override;
+    void mousePressEvent(QMouseEvent*) override;
+    void mouseMoveEvent(QMouseEvent*) override;
+    void mouseDoubleClickEvent(QMouseEvent*) override;
+    void contextMenuEvent(QContextMenuEvent*) override;
+private:
+    QPixmap m_pixmap;
+    QPoint m_dragPos;
+};
 
 class ScreenshotToolbar : public QWidget {
     Q_OBJECT
@@ -94,6 +109,7 @@ public:
     void copyToClipboard();
     void save();
     void confirm();
+    void pin();
     void cancel(); 
     void executeOCR();
 
