@@ -43,27 +43,53 @@ public:
         pix.fill(Qt::transparent);
         QPainter p(&pix);
         p.setRenderHint(QPainter::Antialiasing);
-        p.setPen(QPen(Qt::white, 2));
+        p.setPen(QPen(Qt::white, 2, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
         p.setBrush(Qt::white);
         
         QPointF start(5, 10), end(35, 10);
+        QPointF dir = end - start;
+        double angle = std::atan2(dir.y(), dir.x());
+        double headLen = 12;
+        double headWidth = 7;
+
         if (style == ArrowStyle::Solid) {
-            p.drawLine(start, end);
-            QPolygonF head; head << end << QPointF(25, 5) << QPointF(25, 15); p.drawPolygon(head);
+            QPointF anchor = end - (dir/30.0) * (headLen * 0.7);
+            p.drawLine(start, anchor);
+            p.setPen(Qt::NoPen);
+            QPointF p1 = end;
+            QPointF p2 = end - QPointF(headLen * std::cos(angle - 0.5), headLen * std::sin(angle - 0.5));
+            QPointF p3 = end - QPointF(headLen * 0.7 * std::cos(angle), headLen * 0.7 * std::sin(angle));
+            QPointF p4 = end - QPointF(headLen * std::cos(angle + 0.5), headLen * std::sin(angle + 0.5));
+            p.drawPolygon(QPolygonF() << p1 << p2 << p3 << p4);
         } else if (style == ArrowStyle::Thin) {
-            p.drawLine(start, end); p.drawLine(end, QPointF(28, 4)); p.drawLine(end, QPointF(28, 16));
+            p.setPen(QPen(Qt::white, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            p.drawLine(start, end);
+            p.drawLine(end, end - QPointF(10 * std::cos(angle - 0.5), 10 * std::sin(angle - 0.5)));
+            p.drawLine(end, end - QPointF(10 * std::cos(angle + 0.5), 10 * std::sin(angle + 0.5)));
         } else if (style == ArrowStyle::Outline) {
             p.setBrush(Qt::transparent);
             QPolygonF poly; poly << QPointF(5, 8) << QPointF(25, 8) << QPointF(25, 4) << QPointF(35, 10) << QPointF(25, 16) << QPointF(25, 12) << QPointF(5, 12);
             p.drawPolygon(poly);
         } else if (style == ArrowStyle::Double) {
-            p.drawLine(start, end);
-            QPolygonF h1; h1 << end << QPointF(28, 5) << QPointF(28, 15);
-            QPolygonF h2; h2 << start << QPointF(12, 5) << QPointF(12, 15);
-            p.drawPolygon(h1); p.drawPolygon(h2);
+            p.drawLine(start + (dir/30.0)*8, end - (dir/30.0)*8);
+            p.setPen(Qt::NoPen);
+            auto drawH = [&](const QPointF& e, double ang) {
+                QPointF p1 = e;
+                QPointF p2 = e - QPointF(9 * std::cos(ang - 0.5), 9 * std::sin(ang - 0.5));
+                QPointF p3 = e - QPointF(6 * std::cos(ang), 6 * std::sin(ang));
+                QPointF p4 = e - QPointF(9 * std::cos(ang + 0.5), 9 * std::sin(ang + 0.5));
+                p.drawPolygon(QPolygonF() << p1 << p2 << p3 << p4);
+            };
+            drawH(end, angle); drawH(start, angle + M_PI);
         } else if (style == ArrowStyle::DotStart) {
-            p.drawLine(start, end); p.drawEllipse(start, 3, 3);
-            QPolygonF head; head << end << QPointF(28, 5) << QPointF(28, 15); p.drawPolygon(head);
+            p.drawLine(start, end - (dir/30.0)*8);
+            p.drawEllipse(start, 3, 3);
+            p.setPen(Qt::NoPen);
+            QPointF p1 = end;
+            QPointF p2 = end - QPointF(9 * std::cos(angle - 0.5), 9 * std::sin(angle - 0.5));
+            QPointF p3 = end - QPointF(6 * std::cos(angle), 6 * std::sin(angle));
+            QPointF p4 = end - QPointF(9 * std::cos(angle + 0.5), 9 * std::sin(angle + 0.5));
+            p.drawPolygon(QPolygonF() << p1 << p2 << p3 << p4);
         }
         return QIcon(pix);
     }
@@ -325,46 +351,80 @@ void ScreenshotTool::cancel() {
 }
 
 void ScreenshotTool::drawArrow(QPainter& p, const QPointF& start, const QPointF& end, const DrawingAnnotation& ann) {
-    double angle = std::atan2(end.y() - start.y(), end.x() - start.x());
-    double arrowSize = 15 + ann.strokeWidth;
+    QPointF dir = end - start;
+    double len = std::sqrt(QPointF::dotProduct(dir, dir));
+    if (len < 1) return;
     
-    if (ann.arrowStyle != ArrowStyle::Outline) p.drawLine(start, end);
+    double angle = std::atan2(dir.y(), dir.x());
+    double headLen = 15 + ann.strokeWidth * 1.5;
+    double headWidth = headLen * 0.6;
     
-    auto getTriPoints = [&](QPointF tip, double ang) {
-        QPointF p1 = tip - QPointF(arrowSize * std::cos(ang - M_PI/6), arrowSize * std::sin(ang - M_PI/6));
-        QPointF p2 = tip - QPointF(arrowSize * std::cos(ang + M_PI/6), arrowSize * std::sin(ang + M_PI/6));
-        return QPolygonF() << tip << p1 << p2;
-    };
-
     if (ann.arrowStyle == ArrowStyle::Solid) {
-        p.setBrush(ann.color); p.setPen(Qt::NoPen);
-        p.drawPolygon(getTriPoints(end, angle));
+        QPointF anchor = end - (dir/len) * (headLen * 0.7);
+        p.setPen(QPen(ann.color, ann.strokeWidth, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
+        p.drawLine(start, anchor);
+
+        p.setPen(Qt::NoPen);
+        p.setBrush(ann.color);
+        QPointF p1 = end;
+        QPointF p2 = end - QPointF(headLen * std::cos(angle - 0.45), headLen * std::sin(angle - 0.45));
+        QPointF p3 = anchor;
+        QPointF p4 = end - QPointF(headLen * std::cos(angle + 0.45), headLen * std::sin(angle + 0.45));
+        p.drawPolygon(QPolygonF() << p1 << p2 << p3 << p4);
     } else if (ann.arrowStyle == ArrowStyle::Thin) {
-        p.drawLine(end, end - QPointF(arrowSize * std::cos(angle - M_PI/6), arrowSize * std::sin(angle - M_PI/6)));
-        p.drawLine(end, end - QPointF(arrowSize * std::cos(angle + M_PI/6), arrowSize * std::sin(angle + M_PI/6)));
+        p.setPen(QPen(ann.color, ann.strokeWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.drawLine(start, end);
+        double thinAngle = 0.5;
+        double thinLen = headLen * 0.85;
+        p.drawLine(end, end - QPointF(thinLen * std::cos(angle - thinAngle), thinLen * std::sin(angle - thinAngle)));
+        p.drawLine(end, end - QPointF(thinLen * std::cos(angle + thinAngle), thinLen * std::sin(angle + thinAngle)));
     } else if (ann.arrowStyle == ArrowStyle::Outline) {
-        QPointF dir(std::cos(angle), std::sin(angle));
-        QPointF norm(-dir.y(), dir.x());
+        QPointF d = dir/len;
+        QPointF norm(-d.y(), d.x());
         double w = ann.strokeWidth / 2.0 + 2; 
         
-        QPointF neck = end - dir * (arrowSize * 0.8);
+        QPointF neck = end - d * (headLen * 0.8);
         QPointF p1 = neck + norm * w;
         QPointF p2 = start + norm * w;
         QPointF p3 = start - norm * w;
         QPointF p4 = neck - norm * w;
-        QPointF head1 = neck + norm * (arrowSize * 0.5); 
-        QPointF head2 = neck - norm * (arrowSize * 0.5);
+        QPointF head1 = neck + norm * (headLen * 0.5);
+        QPointF head2 = neck - norm * (headLen * 0.5);
         
         QPolygonF poly; poly << end << head1 << p1 << p2 << p3 << p4 << head2;
         p.setBrush(Qt::transparent); p.setPen(QPen(ann.color, 2)); p.drawPolygon(poly);
     } else if (ann.arrowStyle == ArrowStyle::Double) {
-        p.setBrush(ann.color); p.setPen(Qt::NoPen);
-        p.drawPolygon(getTriPoints(end, angle));
-        p.drawPolygon(getTriPoints(start, angle + M_PI));
+        p.setPen(QPen(ann.color, ann.strokeWidth, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
+        QPointF anchorEnd = end - (dir/len) * (headLen * 0.7);
+        QPointF anchorStart = start + (dir/len) * (headLen * 0.7);
+        p.drawLine(anchorStart, anchorEnd);
+
+        p.setPen(Qt::NoPen);
+        p.setBrush(ann.color);
+        auto drawHead = [&](const QPointF& e, const QPointF& d, double ang) {
+            QPointF p1 = e;
+            QPointF p2 = e - QPointF(headLen * std::cos(ang - 0.45), headLen * std::sin(ang - 0.45));
+            QPointF p3 = e - (d/len) * (headLen * 0.7);
+            QPointF p4 = e - QPointF(headLen * std::cos(ang + 0.45), headLen * std::sin(ang + 0.45));
+            p.drawPolygon(QPolygonF() << p1 << p2 << p3 << p4);
+        };
+        drawHead(end, dir, angle);
+        drawHead(start, -dir, angle + M_PI);
     } else if (ann.arrowStyle == ArrowStyle::DotStart) {
-        p.setBrush(ann.color); p.setPen(Qt::NoPen);
-        p.drawEllipse(start, 4 + ann.strokeWidth, 4 + ann.strokeWidth);
-        p.drawPolygon(getTriPoints(end, angle));
+        p.setPen(QPen(ann.color, ann.strokeWidth, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
+        QPointF anchorEnd = end - (dir/len) * (headLen * 0.7);
+        p.drawLine(start, anchorEnd);
+
+        p.setPen(Qt::NoPen);
+        p.setBrush(ann.color);
+        double r = 4 + ann.strokeWidth;
+        p.drawEllipse(start, r, r);
+
+        QPointF p1 = end;
+        QPointF p2 = end - QPointF(headLen * std::cos(angle - 0.45), headLen * std::sin(angle - 0.45));
+        QPointF p3 = anchorEnd;
+        QPointF p4 = end - QPointF(headLen * std::cos(angle + 0.45), headLen * std::sin(angle + 0.45));
+        p.drawPolygon(QPolygonF() << p1 << p2 << p3 << p4);
     }
 }
 
