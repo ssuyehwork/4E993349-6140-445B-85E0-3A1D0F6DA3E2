@@ -39,71 +39,45 @@ QRect getActualWindowRect(HWND hwnd) {
 class IconFactory {
 public:
     static QIcon createArrowStyleIcon(ArrowStyle style) {
-        QPixmap pix(40, 20);
+        QPixmap pix(48, 24);
         pix.fill(Qt::transparent);
         QPainter p(&pix);
         p.setRenderHint(QPainter::Antialiasing);
-        p.setPen(QPen(Qt::white, 2, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
-        p.setBrush(Qt::white);
         
-        QPointF start(5, 10), end(35, 10);
+        QPointF start(8, 12), end(40, 12);
         QPointF dir = end - start;
-        double angle = std::atan2(dir.y(), dir.x());
-        double headLen = 14; // 增大预览图箭尖尺寸
+        QPointF unit = dir / 32.0;
+        QPointF perp(-unit.y(), unit.x());
 
-        if (style == ArrowStyle::Solid) {
-            // 预览图也改为锥形飞镖样式
-            double hLen = 15;
-            double bWid = 8;
-            double wLen = 11;
-            double wWid = 2;
-            QPointF unit_dir = dir / 30.0;
-            QPointF perp_dir(-unit_dir.y(), unit_dir.x());
+        double hLen = 12.0, bWid = 7.0, wLen = 9.0, wWid = 1.2;
+        auto getHead = [&](const QPointF& e, const QPointF& u, const QPointF& pr) {
+            return QPolygonF() << e << e - u*hLen + pr*bWid << e - u*wLen + pr*wWid;
+        };
 
+        bool isDouble = (style == ArrowStyle::SolidDouble || style == ArrowStyle::OutlineDouble);
+        bool isDot = (style == ArrowStyle::SolidDot || style == ArrowStyle::OutlineDot);
+        bool isOutline = (style == ArrowStyle::OutlineSingle || style == ArrowStyle::OutlineDouble || style == ArrowStyle::OutlineDot);
+
+        QPolygonF poly = getHead(end, unit, perp);
+        if (isDouble) {
+            poly << start + unit*wLen + perp*wWid << start - unit*hLen + perp*bWid << start << start - unit*hLen - perp*bWid << start + unit*wLen - perp*wWid;
+        } else if (isDot) {
+            poly << start + unit*wLen + perp*wWid;
+        } else {
+            poly << start;
+        }
+        poly << end - unit*wLen - perp*wWid << end - unit*hLen - perp*bWid;
+
+        if (isOutline) {
+            p.setPen(QPen(Qt::white, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            p.setBrush(Qt::NoBrush);
+        } else {
             p.setPen(Qt::NoPen);
             p.setBrush(Qt::white);
-            p.drawPolygon(QPolygonF() << end
-                << end - unit_dir * hLen + perp_dir * bWid
-                << end - unit_dir * wLen + perp_dir * wWid
-                << start
-                << end - unit_dir * wLen - perp_dir * wWid
-                << end - unit_dir * hLen - perp_dir * bWid);
-        } else if (style == ArrowStyle::Thin) {
-            p.setPen(QPen(Qt::white, 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-            p.drawLine(start, end);
-            p.drawLine(end, end - QPointF(11 * std::cos(angle - 0.55), 11 * std::sin(angle - 0.55)));
-            p.drawLine(end, end - QPointF(11 * std::cos(angle + 0.55), 11 * std::sin(angle + 0.55)));
-        } else if (style == ArrowStyle::Outline) {
-            p.setBrush(Qt::transparent);
-            QPolygonF poly; poly << QPointF(5, 8) << QPointF(25, 8) << QPointF(25, 4) << QPointF(35, 10) << QPointF(25, 16) << QPointF(25, 12) << QPointF(5, 12);
-            p.drawPolygon(poly);
-        } else if (style == ArrowStyle::Double) {
-            p.setPen(QPen(Qt::white, 2, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
-            p.drawLine(start + (dir/30.0)*6, end - (dir/30.0)*6);
-            p.setPen(Qt::NoPen);
-            auto drawH = [&](const QPointF& e, double ang) {
-                QPointF du(std::cos(ang), std::sin(ang));
-                QPointF dp(-du.y(), du.x());
-                p.drawPolygon(QPolygonF() << e
-                    << e - du * 10 + dp * 5
-                    << e - du * 7 + dp * 1
-                    << e - du * 7 - dp * 1
-                    << e - du * 10 - dp * 5);
-            };
-            drawH(end, angle); drawH(start, angle + M_PI);
-        } else if (style == ArrowStyle::DotStart) {
-            p.setPen(QPen(Qt::white, 2, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
-            p.drawLine(start, end - (dir/30.0)*6);
-            p.drawEllipse(start, 3, 3);
-            p.setPen(Qt::NoPen);
-            QPointF du(std::cos(angle), std::sin(angle));
-            QPointF dp(-du.y(), du.x());
-            p.drawPolygon(QPolygonF() << end
-                << end - du * 10 + dp * 5
-                << end - du * 7 + dp * 1
-                << end - du * 7 - dp * 1
-                << end - du * 10 - dp * 5);
         }
+        p.drawPolygon(poly);
+        if (isDot) p.drawEllipse(start, 4, 4);
+
         return QIcon(pix);
     }
 };
@@ -217,7 +191,7 @@ void ScreenshotToolbar::createOptionWidget() {
     m_arrowStyleBtn = new QPushButton();
     m_arrowStyleBtn->setFixedSize(40, 24);
     m_arrowStyleBtn->setToolTip("切换箭头样式");
-    updateArrowButtonIcon(ArrowStyle::Solid);
+    updateArrowButtonIcon(ArrowStyle::SolidSingle);
     connect(m_arrowStyleBtn, &QPushButton::clicked, this, &ScreenshotToolbar::showArrowMenu);
     layout->addWidget(m_arrowStyleBtn);
 
@@ -276,11 +250,14 @@ void ScreenshotToolbar::showArrowMenu() {
             updateArrowButtonIcon(s);
         });
     };
-    addAct(ArrowStyle::Solid, "实心箭头");
-    addAct(ArrowStyle::Thin, "细线箭头");
-    addAct(ArrowStyle::Outline, "空心箭头");
-    addAct(ArrowStyle::Double, "双向箭头");
-    addAct(ArrowStyle::DotStart, "圆点起点");
+    addAct(ArrowStyle::SolidSingle, "实心箭头");
+    addAct(ArrowStyle::OutlineSingle, "空心箭头");
+    menu.addSeparator();
+    addAct(ArrowStyle::SolidDouble, "实心双向");
+    addAct(ArrowStyle::OutlineDouble, "空心双向");
+    menu.addSeparator();
+    addAct(ArrowStyle::SolidDot, "实心圆点");
+    addAct(ArrowStyle::OutlineDot, "空心圆点");
     menu.exec(mapToGlobal(m_arrowStyleBtn->geometry().bottomLeft()));
 }
 
@@ -366,101 +343,93 @@ void ScreenshotTool::cancel() {
 void ScreenshotTool::drawArrow(QPainter& p, const QPointF& start, const QPointF& end, const DrawingAnnotation& ann) {
     QPointF dir = end - start;
     double len = std::sqrt(QPointF::dotProduct(dir, dir));
-    if (len < 2) return;
+    if (len < 5) return;
     
     QPointF unit = dir / len;
     QPointF perp(-unit.y(), unit.x());
-    double angle = std::atan2(dir.y(), dir.x());
-    double headLen = 22 + ann.strokeWidth * 2.5; // 定义在顶层作用域
     
-    if (ann.arrowStyle == ArrowStyle::Solid) {
-        // 重构：一体化锥形飞镖箭头逻辑 (PixPin/Snipaste 风格)
-        // 整个形状由 6 个点构成的闭合多边形，不再有单独的直线箭杆
-        double barbWidth = 12 + ann.strokeWidth * 2.0;
-        double waistLen = headLen * 0.75;
-        double waistWidth = 2 + ann.strokeWidth * 0.8;
+    double hLen = 14 + ann.strokeWidth * 2.0;
+    double bWid = 8 + ann.strokeWidth * 1.5;
+    double wLen = hLen * 0.75;
+    double wWid = 1.0 + ann.strokeWidth * 0.45;
 
-        QPointF p1 = end; // 尖端
-        QPointF p2 = end - unit * headLen + perp * barbWidth; // 左翼
-        QPointF p3 = end - unit * waistLen + perp * waistWidth; // 左腰
-        QPointF p4 = start; // 起点 (极细点)
-        QPointF p5 = end - unit * waistLen - perp * waistWidth; // 右腰
-        QPointF p6 = end - unit * headLen - perp * barbWidth; // 右翼
+    auto getHeadPoints = [&](const QPointF& headTip, const QPointF& u, const QPointF& pr) {
+        return QList<QPointF>({
+            headTip,
+            headTip - u * hLen + pr * bWid,
+            headTip - u * wLen + pr * wWid
+        });
+    };
 
-        p.setPen(Qt::NoPen);
-        p.setBrush(ann.color);
-        p.drawPolygon(QPolygonF() << p1 << p2 << p3 << p4 << p5 << p6);
-    } else if (ann.arrowStyle == ArrowStyle::Thin) {
-        p.setPen(QPen(ann.color, ann.strokeWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.drawLine(start, end);
-        double thinAngle = 0.5;
-        double thinLen = headLen * 0.85;
-        p.drawLine(end, end - QPointF(thinLen * std::cos(angle - thinAngle), thinLen * std::sin(angle - thinAngle)));
-        p.drawLine(end, end - QPointF(thinLen * std::cos(angle + thinAngle), thinLen * std::sin(angle + thinAngle)));
-    } else if (ann.arrowStyle == ArrowStyle::Outline) {
-        QPointF d = dir/len;
-        QPointF norm(-d.y(), d.x());
-        double w = ann.strokeWidth / 2.0 + 2; 
-        
-        QPointF neck = end - d * (headLen * 0.8);
-        QPointF p1 = neck + norm * w;
-        QPointF p2 = start + norm * w;
-        QPointF p3 = start - norm * w;
-        QPointF p4 = neck - norm * w;
-        QPointF head1 = neck + norm * (headLen * 0.5);
-        QPointF head2 = neck - norm * (headLen * 0.5);
-        
-        QPolygonF poly; poly << end << head1 << p1 << p2 << p3 << p4 << head2;
-        p.setBrush(Qt::transparent); p.setPen(QPen(ann.color, 2)); p.drawPolygon(poly);
-    } else if (ann.arrowStyle == ArrowStyle::Double) {
-        double waistLen = headLen * 0.7;
-        double barbAngle = 0.5;
+    QPolygonF poly;
+    bool isDouble = (ann.arrowStyle == ArrowStyle::SolidDouble || ann.arrowStyle == ArrowStyle::OutlineDouble);
+    bool isDot = (ann.arrowStyle == ArrowStyle::SolidDot || ann.arrowStyle == ArrowStyle::OutlineDot);
+    bool isOutline = (ann.arrowStyle == ArrowStyle::OutlineSingle || ann.arrowStyle == ArrowStyle::OutlineDouble || ann.arrowStyle == ArrowStyle::OutlineDot);
 
-        p.setPen(QPen(ann.color, ann.strokeWidth, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
-        p.drawLine(start + unit * waistLen, end - unit * waistLen);
+    // 计算路径
+    auto h1 = getHeadPoints(end, unit, perp);
+    poly << h1[0] << h1[1] << h1[2];
 
-        p.setPen(Qt::NoPen);
-        p.setBrush(ann.color);
-        auto drawH = [&](const QPointF& e, double ang) {
-            QPointF d_unit(std::cos(ang), std::sin(ang));
-            QPointF d_perp(-d_unit.y(), d_unit.x());
-            double bw = headLen * 0.5;
-            double ww = ann.strokeWidth * 0.5;
-            p.drawPolygon(QPolygonF() << e
-                << e - d_unit * headLen + d_perp * bw
-                << e - d_unit * waistLen + d_perp * ww
-                << e - d_unit * waistLen - d_perp * ww
-                << e - d_unit * headLen - d_perp * bw);
-        };
-        drawH(end, angle); drawH(start, angle + M_PI);
-    } else if (ann.arrowStyle == ArrowStyle::DotStart) {
-        double waistLen = headLen * 0.7;
-        p.setPen(QPen(ann.color, ann.strokeWidth, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
-        p.drawLine(start, end - unit * waistLen);
-
-        p.setPen(Qt::NoPen);
-        p.setBrush(ann.color);
-        p.drawEllipse(start, 4 + ann.strokeWidth, 4 + ann.strokeWidth);
-
-        double bw = headLen * 0.5;
-        double ww = ann.strokeWidth * 0.5;
-        p.drawPolygon(QPolygonF() << end
-            << end - unit * headLen + perp * bw
-            << end - unit * waistLen + perp * ww
-            << end - unit * waistLen - perp * bw
-            << end - unit * headLen - perp * bw);
+    if (isDouble) {
+        auto h2 = getHeadPoints(start, -unit, -perp);
+        poly << start + unit * wLen + perp * wWid
+             << h2[1] << h2[0] << h2[1] - perp * (bWid * 2) // 反向翼点
+             << start + unit * wLen - perp * wWid;
+    } else if (isDot) {
+        double r = 4 + ann.strokeWidth * 1.2;
+        // 圆点逻辑修复：将圆点作为起点，腰线收缩至圆点边缘
+        QPointF dotCenter = start;
+        // 圆点路径由多点模拟或单独处理
+        poly << start + unit * wLen + perp * wWid;
+        // 我们在绘制时单独画圆，或者把圆加入多边形。为了美观，单独画圆效果更好。
+    } else {
+        // 单向箭头起点
+        poly << start;
     }
+
+    // 回程对称点
+    poly << h1[2] - perp * (wWid * 2) << h1[1] - perp * (bWid * 2);
+
+    p.save();
+    p.setRenderHint(QPainter::Antialiasing);
+    if (isOutline) {
+        p.setPen(QPen(ann.color, 1.5 + ann.strokeWidth * 0.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setBrush(Qt::NoBrush);
+    } else {
+        p.setPen(Qt::NoPen);
+        p.setBrush(ann.color);
+    }
+
+    // 绘制主体
+    p.drawPolygon(poly);
+
+    // 如果是圆点模式，额外绘制起点圆
+    if (isDot) {
+        double r = 4 + ann.strokeWidth * 1.2;
+        if (isOutline) {
+            p.setBrush(Qt::transparent);
+            p.drawEllipse(start, r, r);
+        } else {
+            p.setBrush(ann.color);
+            p.drawEllipse(start, r, r);
+        }
+    }
+    p.restore();
 }
 
 void ScreenshotTool::drawAnnotation(QPainter& p, const DrawingAnnotation& ann) {
     if (ann.points.size() < 2 && ann.type != ScreenshotToolType::Text && ann.type != ScreenshotToolType::Marker) return;
+    p.setRenderHint(QPainter::Antialiasing);
     p.setPen(QPen(ann.color, ann.strokeWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     p.setBrush(Qt::NoBrush);
 
     if (ann.type == ScreenshotToolType::Rect) p.drawRect(QRectF(ann.points[0], ann.points[1]).normalized());
     else if (ann.type == ScreenshotToolType::Ellipse) p.drawEllipse(QRectF(ann.points[0], ann.points[1]).normalized());
     else if (ann.type == ScreenshotToolType::Line) p.drawLine(ann.points[0], ann.points[1]);
-    else if (ann.type == ScreenshotToolType::Arrow) drawArrow(p, ann.points[0], ann.points[1], ann);
+    else if (ann.type == ScreenshotToolType::Arrow) {
+        // 箭头绘制逻辑内部已处理画笔和画刷，此处无需重置
+        drawArrow(p, ann.points[0], ann.points[1], ann);
+    }
     else if (ann.type == ScreenshotToolType::Pen) {
         QPainterPath path; path.moveTo(ann.points[0]);
         for(int i=1; i<ann.points.size(); ++i) path.lineTo(ann.points[i]);

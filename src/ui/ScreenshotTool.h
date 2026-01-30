@@ -21,7 +21,11 @@
 
 enum class ScreenshotState { Selecting, Editing };
 enum class ScreenshotToolType { None, Rect, Ellipse, Arrow, Line, Pen, Marker, Text, Mosaic };
-enum class ArrowStyle { Solid, Thin, Outline, Double, DotStart };
+enum class ArrowStyle {
+    SolidSingle, OutlineSingle,
+    SolidDouble, OutlineDouble,
+    SolidDot, OutlineDot
+};
 enum class LineStyle { Solid, Dash, Dot };
 
 struct DrawingAnnotation {
@@ -146,7 +150,7 @@ private:
 
     QColor m_currentColor = QColor(255, 50, 50); 
     int m_currentStrokeWidth = 3; 
-    ArrowStyle m_currentArrowStyle = ArrowStyle::Solid;
+    ArrowStyle m_currentArrowStyle = ArrowStyle::SolidSingle;
     LineStyle m_currentLineStyle = LineStyle::Solid;
 };
 
