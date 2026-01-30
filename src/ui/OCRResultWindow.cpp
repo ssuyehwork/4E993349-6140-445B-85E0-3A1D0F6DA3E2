@@ -11,7 +11,7 @@ OCRResultWindow::OCRResultWindow(const QImage& image, QWidget* parent)
     : FramelessDialog("识别文本", parent), m_image(image)
 {
     setAttribute(Qt::WA_DeleteOnClose);
-    setFixedSize(500, 400);
+    setFixedSize(600, 450);
     
     // 强制更新标题栏样式
     m_titleLabel->clear();
@@ -60,14 +60,15 @@ OCRResultWindow::OCRResultWindow(const QImage& image, QWidget* parent)
     layout->addWidget(m_textEdit);
 
     auto* bottomLayout = new QHBoxLayout();
+    bottomLayout->setSpacing(10);
     
-    m_autoCopyCheck = new QCheckBox("下次直接复制文本");
+    m_autoCopyCheck = new QCheckBox("下次自动复制");
     m_autoCopyCheck->setStyleSheet("QCheckBox { color: #999; font-size: 12px; } QCheckBox::indicator { width: 16px; height: 16px; }");
     QSettings settings("RapidNotes", "OCR");
     m_autoCopyCheck->setChecked(settings.value("autoCopy", false).toBool());
     bottomLayout->addWidget(m_autoCopyCheck);
 
-    bottomLayout->addStretch();
+    bottomLayout->addStretch(1);
 
     QPushButton* toSimplifiedBtn = new QPushButton("转简体");
     toSimplifiedBtn->setFlat(true);

@@ -59,7 +59,18 @@ QImage OCRManager::preprocessImage(const QImage& original) {
         );
     }
 
-    // 3. 增强对比度（线性拉伸）
+    // 3. 自动反色处理：Tesseract 在白底黑字下表现最好
+    // 简单判断：如果四个角的像素平均值较暗，则认为可能是深色背景
+    int cornerSum = 0;
+    cornerSum += qGray(processed.pixel(0, 0));
+    cornerSum += qGray(processed.pixel(processed.width()-1, 0));
+    cornerSum += qGray(processed.pixel(0, processed.height()-1));
+    cornerSum += qGray(processed.pixel(processed.width()-1, processed.height()-1));
+    if (cornerSum / 4 < 128) {
+        processed.invertPixels();
+    }
+
+    // 4. 增强对比度（线性拉伸）
     // 泰语等细笔画文字对二值化和过度的对比度拉伸很敏感，因此我们收窄忽略范围（从 1% 降至 0.5%）
     int histogram[256] = {0};
     for (int y = 0; y < processed.height(); ++y) {
@@ -101,6 +112,28 @@ QImage OCRManager::preprocessImage(const QImage& original) {
             }
         }
     }
+
+    // 5. 简单锐化处理 (卷积)
+    // 增加文字边缘对比度，有助于 Tesseract 识别彩色变灰度后的细微笔画
+    QImage sharpened = processed;
+    int kernel[3][3] = {
+        {0, -1, 0},
+        {-1, 5, -1},
+        {0, -1, 0}
+    };
+    for (int y = 1; y < processed.height() - 1; ++y) {
+        const uchar* prevLine = processed.constScanLine(y - 1);
+        const uchar* currLine = processed.constScanLine(y);
+        const uchar* nextLine = processed.constScanLine(y + 1);
+        uchar* destLine = sharpened.scanLine(y);
+        for (int x = 1; x < processed.width() - 1; ++x) {
+            int sum = currLine[x] * kernel[1][1]
+                    + prevLine[x] * kernel[0][1] + nextLine[x] * kernel[2][1]
+                    + currLine[x-1] * kernel[1][0] + currLine[x+1] * kernel[1][2];
+            destLine[x] = static_cast<uchar>(qBound(0, sum, 255));
+        }
+    }
+    processed = sharpened;
     
     // 注意：不再手动调用 Otsu 二值化。
     // Tesseract 4.0+ 内部的二值化器（基于 Leptonica）在处理具有抗锯齿边缘的灰度图像时表现更好。
@@ -211,16 +244,13 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
             QStringList filters; filters << "*.traineddata";
             QStringList files = dir.entryList(filters, QDir::Files);
 
-            // 定义优先级：根据系统区域设置智能排序
+            // 定义优先级：优先加载中文简体和泰语，防止误识别为英文字符 (如 星号 -> BE)
             QStringList priority;
-            if (QLocale::system().language() == QLocale::Chinese) {
-                if (QLocale::system().script() == QLocale::TraditionalChineseScript) {
-                    priority = {"chi_tra", "eng", "chi_sim", "tha", "jpn", "kor"};
-                } else {
-                    priority = {"chi_sim", "eng", "chi_tra", "tha", "jpn", "kor"};
-                }
+            if (QLocale::system().language() == QLocale::Chinese &&
+                QLocale::system().script() == QLocale::TraditionalChineseScript) {
+                priority = {"chi_tra", "tha", "eng", "chi_sim", "jpn", "kor"};
             } else {
-                priority = {"eng", "chi_sim", "chi_tra", "tha", "jpn", "kor"};
+                priority = {"chi_sim", "tha", "eng", "chi_tra", "jpn", "kor"};
             }
 
             for (const QString& pLang : priority) {
