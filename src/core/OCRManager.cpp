@@ -152,16 +152,29 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
     basePaths << QDir(appPath).absolutePath() + "/../..";
 
     for (const QString& base : basePaths) {
-        QString potentialTessData = base + "/resources/Tesseract-OCR/tessdata";
-        if (QDir(potentialTessData).exists()) {
-            tessDataPath = QDir(potentialTessData).absolutePath();
+        // 搜索数据目录 (支持资源目录、根目录及标准安装路径)
+        if (tessDataPath.isEmpty()) {
+            QStringList dataPotentials;
+            dataPotentials << base + "/resources/Tesseract-OCR/tessdata"
+                           << base + "/Tesseract-OCR/tessdata"
+                           << base + "/tessdata"
+                           << "C:/Program Files/Tesseract-OCR/tessdata";
+            for (const QString& p : dataPotentials) {
+                if (QDir(p).exists()) {
+                    tessDataPath = QDir(p).absolutePath();
+                    break;
+                }
+            }
         }
 
+        // 搜索执行文件
         if (tesseractPath.isEmpty()) {
             QStringList exePotentials;
-            exePotentials << base + "/resources/Tesseract-OCR/tesseract.exe";
-            exePotentials << base + "/resources/tesseract.exe";
-            exePotentials << base + "/tesseract.exe";
+            exePotentials << base + "/resources/Tesseract-OCR/tesseract.exe"
+                           << base + "/Tesseract-OCR/tesseract.exe"
+                           << base + "/resources/tesseract.exe"
+                           << base + "/tesseract.exe"
+                           << "C:/Program Files/Tesseract-OCR/tesseract.exe";
             for (const QString& p : exePotentials) {
                 if (QFile::exists(p)) {
                     tesseractPath = QDir::toNativeSeparators(p);
