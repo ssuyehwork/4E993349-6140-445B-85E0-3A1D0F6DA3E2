@@ -116,6 +116,7 @@ void OCRResultWindow::onCopyClicked() {
     }
     QSettings settings("RapidNotes", "OCR");
     settings.setValue("autoCopy", m_autoCopyCheck->isChecked());
+    close(); // 复制后自动关闭窗口
 }
 
 void OCRResultWindow::onTypesettingClicked() {
