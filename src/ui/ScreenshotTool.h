@@ -39,7 +39,7 @@ class ScreenshotToolbar : public QWidget {
     Q_OBJECT
 public:
     explicit ScreenshotToolbar(ScreenshotTool* tool);
-    void addToolButton(QBoxLayout* layout, ScreenshotToolType type, const QString& tip);
+    void addToolButton(QBoxLayout* layout, ScreenshotToolType type, const QString& iconType, const QString& tip);
     void addActionButton(QBoxLayout* layout, const QString& iconName, const QString& tip, std::function<void()> func);
     void selectTool(ScreenshotToolType type);
     void updateArrowButtonIcon(ArrowStyle style);

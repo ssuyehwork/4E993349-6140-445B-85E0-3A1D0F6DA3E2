@@ -130,7 +130,9 @@ ScreenshotToolbar::ScreenshotToolbar(ScreenshotTool* tool)
     : QWidget(nullptr, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) 
 {
     m_tool = tool;
+    setObjectName("ScreenshotToolbar");
     setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_AlwaysShowToolTips);
     setMouseTracking(true);
 
     setStyleSheet(R"(
@@ -154,17 +156,17 @@ ScreenshotToolbar::ScreenshotToolbar(ScreenshotTool* tool)
     auto* layout = new QHBoxLayout(toolRow);
     layout->setContentsMargins(8, 6, 8, 6); layout->setSpacing(8);
 
-    addToolButton(layout, ScreenshotToolType::Rect, "rect");
-    addToolButton(layout, ScreenshotToolType::Ellipse, "ellipse");
-    addToolButton(layout, ScreenshotToolType::Arrow, "arrow");
-    addToolButton(layout, ScreenshotToolType::Line, "line");
+    addToolButton(layout, ScreenshotToolType::Rect, "rect", "矩形 (R)");
+    addToolButton(layout, ScreenshotToolType::Ellipse, "ellipse", "椭圆 (E)");
+    addToolButton(layout, ScreenshotToolType::Arrow, "arrow", "箭头 (A)");
+    addToolButton(layout, ScreenshotToolType::Line, "line", "直线 (L)");
     
     auto* line = new QFrame; line->setFrameShape(QFrame::VLine); line->setStyleSheet("color: #666;"); layout->addWidget(line);
     
-    addToolButton(layout, ScreenshotToolType::Pen, "pen");
-    addToolButton(layout, ScreenshotToolType::Marker, "marker");
-    addToolButton(layout, ScreenshotToolType::Text, "text");
-    addToolButton(layout, ScreenshotToolType::Mosaic, "mosaic");
+    addToolButton(layout, ScreenshotToolType::Pen, "pen", "画笔 (P)");
+    addToolButton(layout, ScreenshotToolType::Marker, "marker", "记号笔 (M)");
+    addToolButton(layout, ScreenshotToolType::Text, "text", "文字 (T)");
+    addToolButton(layout, ScreenshotToolType::Mosaic, "mosaic", "马赛克 (Z)");
 
     layout->addStretch();
     
@@ -180,10 +182,11 @@ ScreenshotToolbar::ScreenshotToolbar(ScreenshotTool* tool)
     mainLayout->addWidget(m_optionWidget);
 }
 
-void ScreenshotToolbar::addToolButton(QBoxLayout* layout, ScreenshotToolType type, const QString& iconType) {
+void ScreenshotToolbar::addToolButton(QBoxLayout* layout, ScreenshotToolType type, const QString& iconType, const QString& tip) {
     auto* btn = new QPushButton();
     btn->setIcon(IconFactory::createIcon(iconType));
     btn->setIconSize(QSize(20, 20));
+    btn->setToolTip(tip);
     btn->setCheckable(true); btn->setFixedSize(32, 32);
     layout->addWidget(btn);
     m_buttons[type] = btn;
@@ -207,15 +210,19 @@ void ScreenshotToolbar::createOptionWidget() {
 
     m_arrowStyleBtn = new QPushButton();
     m_arrowStyleBtn->setFixedSize(40, 24);
+    m_arrowStyleBtn->setToolTip("切换箭头样式");
     updateArrowButtonIcon(ArrowStyle::Solid);
     connect(m_arrowStyleBtn, &QPushButton::clicked, this, &ScreenshotToolbar::showArrowMenu);
     layout->addWidget(m_arrowStyleBtn);
 
     int sizes[] = {2, 4, 8};
+    QString sizeTips[] = {"细", "中", "粗"};
     auto* sizeGrp = new QButtonGroup(this);
-    for(int s : sizes) {
+    for(int i = 0; i < 3; ++i) {
+        int s = sizes[i];
         auto* btn = new QPushButton;
         btn->setProperty("sizeBtn", true); btn->setFixedSize(14 + s, 14 + s);
+        btn->setToolTip(sizeTips[i]);
         btn->setCheckable(true);
         if(s == 4) btn->setChecked(true);
         layout->addWidget(btn);
@@ -224,10 +231,13 @@ void ScreenshotToolbar::createOptionWidget() {
     }
 
     QList<QColor> colors = {Qt::red, QColor(255, 165, 0), Qt::green, QColor(0, 120, 255), Qt::white};
+    QString colorTips[] = {"红色", "橙色", "绿色", "蓝色", "白色"};
     auto* colGrp = new QButtonGroup(this);
-    for(const auto& c : colors) {
+    for(int i = 0; i < colors.size(); ++i) {
+        const auto& c = colors[i];
         auto* btn = new QPushButton;
         btn->setProperty("colorBtn", true); btn->setFixedSize(20, 20);
+        btn->setToolTip(colorTips[i]);
         btn->setStyleSheet(QString("background-color: %1;").arg(c.name()));
         btn->setCheckable(true);
         if(c == Qt::red) btn->setChecked(true);
@@ -238,6 +248,7 @@ void ScreenshotToolbar::createOptionWidget() {
     
     auto* pickerBtn = new QPushButton("...");
     pickerBtn->setFixedSize(20, 20);
+    pickerBtn->setToolTip("更多颜色");
     pickerBtn->setStyleSheet("border: 1px solid #777; border-radius: 4px; color: #ccc;");
     layout->addWidget(pickerBtn);
     connect(pickerBtn, &QPushButton::clicked, [this]{
@@ -294,6 +305,7 @@ void ScreenshotToolbar::mousePressEvent(QMouseEvent *event) {
 }
 void ScreenshotToolbar::mouseMoveEvent(QMouseEvent *event) {
     if (m_isDragging) move(event->globalPosition().toPoint() - m_dragPosition);
+    else QWidget::mouseMoveEvent(event);
 }
 void ScreenshotToolbar::mouseReleaseEvent(QMouseEvent *) { m_isDragging = false; }
 void ScreenshotToolbar::paintEvent(QPaintEvent *) {
