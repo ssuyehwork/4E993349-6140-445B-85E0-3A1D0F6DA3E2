@@ -445,16 +445,16 @@ void ScreenshotTool::mousePressEvent(QMouseEvent* e) {
     } else {
         if (selectionRect().contains(e->pos()) && m_currentTool != ScreenshotToolType::None) {
             if (m_currentTool == ScreenshotToolType::Text) { showTextInput(e->pos()); return; }
-            m_isDrawing = true; m_toolbar->hide(); 
+            m_isDrawing = true;
             m_currentAnnotation = {m_currentTool, {e->pos()}, m_currentColor, "", m_currentStrokeWidth, LineStyle::Solid, m_currentArrowStyle};
             if(m_currentTool == ScreenshotToolType::Marker) {
                 int c = 1; for(auto& a: m_annotations) if(a.type == ScreenshotToolType::Marker) c++;
                 m_currentAnnotation.text = QString::number(c);
             }
         } else if (getHandleAt(e->pos()) != -1) {
-            m_dragHandle = getHandleAt(e->pos()); m_isDragging = true; m_toolbar->hide();
+            m_dragHandle = getHandleAt(e->pos()); m_isDragging = true;
         } else if (selectionRect().contains(e->pos())) {
-             m_dragHandle = 8; m_startPoint = e->pos() - m_startPoint; m_isDragging = true; m_toolbar->hide();
+             m_dragHandle = 8; m_startPoint = e->pos() - m_startPoint; m_isDragging = true;
         } else {
              m_state = ScreenshotState::Selecting; m_startPoint = e->pos(); m_endPoint = m_startPoint; m_isDragging = true; m_toolbar->hide();
         }
@@ -504,6 +504,7 @@ void ScreenshotTool::mouseMoveEvent(QMouseEvent* e) {
             m_infoBar->show();
             m_infoBar->move(selectionRect().left(), selectionRect().top() - 35);
             m_infoBar->raise();
+            updateToolbarPosition();
         }
     } else if (m_isDrawing) {
         if (m_currentTool == ScreenshotToolType::Arrow || m_currentTool == ScreenshotToolType::Line || 
