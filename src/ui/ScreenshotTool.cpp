@@ -1,4 +1,5 @@
 #include "ScreenshotTool.h"
+#include "IconHelper.h"
 #include <QApplication>
 #include <QScreen>
 #include <QPainterPathStroker>
@@ -9,12 +10,23 @@
 #include <QInputDialog>
 #include <QStyle>
 #include <QStyleOption>
+#include <QColorDialog>
 #include <cmath>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <dwmapi.h>
 #pragma comment(lib, "dwmapi.lib")
+
+// 获取包含 DWM 阴影在内的真实窗口矩形
+QRect getActualWindowRect(HWND hwnd) {
+    RECT rect;
+    if (SUCCEEDED(DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, &rect, sizeof(rect)))) {
+        return QRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
+    }
+    GetWindowRect(hwnd, &rect);
+    return QRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
+}
 #endif
 
 #ifndef M_PI
@@ -22,56 +34,10 @@
 #endif
 
 // ==========================================
-// IconFactory
+// IconFactory - 仅保留用于特殊样式的渲染（如箭头预览）
 // ==========================================
 class IconFactory {
 public:
-    static QIcon createIcon(const QString& type, const QColor& color = Qt::white) {
-        QPixmap pix(32, 32);
-        pix.fill(Qt::transparent);
-        QPainter p(&pix);
-        p.setRenderHint(QPainter::Antialiasing);
-        p.setPen(QPen(color, 2));
-        p.setBrush(Qt::NoBrush);
-
-        if (type == "rect") p.drawRect(6, 8, 20, 16);
-        else if (type == "ellipse") p.drawEllipse(6, 8, 20, 16);
-        else if (type == "arrow") {
-            p.drawLine(6, 26, 24, 8); p.drawLine(14, 8, 24, 8); p.drawLine(24, 18, 24, 8);
-        } else if (type == "line") p.drawLine(6, 26, 26, 6);
-        else if (type == "pen") {
-            QPainterPath path; path.moveTo(6, 26); path.quadTo(12, 10, 26, 6); p.drawPath(path);
-        } else if (type == "marker") {
-            p.drawEllipse(4, 4, 24, 24);
-            p.setFont(QFont("Arial", 12, QFont::Bold)); p.drawText(pix.rect(), Qt::AlignCenter, "1");
-        } else if (type == "text") {
-            p.setFont(QFont("Times", 18, QFont::Bold)); p.drawText(pix.rect(), Qt::AlignCenter, "T");
-        } else if (type == "mosaic") {
-            p.setPen(Qt::NoPen); p.setBrush(color);
-            p.drawRect(6, 6, 8, 8); p.drawRect(18, 6, 8, 8);
-            p.drawRect(6, 18, 8, 8); p.drawRect(18, 18, 8, 8);
-        } else if (type == "undo") {
-            QPainterPath path; path.moveTo(24, 12); path.arcTo(6, 6, 20, 20, 90, 180); p.drawPath(path);
-            QPolygonF head; head << QPointF(24, 12) << QPointF(18, 8) << QPointF(18, 16);
-            p.setBrush(color); p.setPen(Qt::NoPen); p.drawPolygon(head);
-        } else if (type == "redo") {
-            QPainterPath path; path.moveTo(8, 12); path.arcTo(6, 6, 20, 20, 90, -180); p.drawPath(path);
-            QPolygonF head; head << QPointF(8, 12) << QPointF(14, 8) << QPointF(14, 16);
-            p.setBrush(color); p.setPen(Qt::NoPen); p.drawPolygon(head);
-        } else if (type == "save") {
-            p.drawRect(6, 6, 20, 20); p.fillRect(10, 6, 12, 8, color); p.drawRect(8, 18, 16, 8);
-        } else if (type == "copy") {
-            p.drawRect(12, 6, 14, 14);
-            p.setBrush(QColor(45, 45, 45)); p.drawRect(6, 12, 14, 14);
-            p.setBrush(Qt::NoBrush); p.setPen(QPen(color, 2)); p.drawRect(6, 12, 14, 14);
-        } else if (type == "close") {
-            p.setPen(QPen(Qt::red, 3)); p.drawLine(8, 8, 24, 24); p.drawLine(24, 8, 8, 24);
-        } else if (type == "confirm") {
-            p.setPen(QPen(Qt::green, 3)); p.drawLine(6, 16, 12, 24); p.drawLine(12, 24, 26, 8);
-        }
-        return QIcon(pix);
-    }
-    
     static QIcon createArrowStyleIcon(ArrowStyle style) {
         QPixmap pix(40, 20);
         pix.fill(Qt::transparent);
@@ -156,37 +122,38 @@ ScreenshotToolbar::ScreenshotToolbar(ScreenshotTool* tool)
     auto* layout = new QHBoxLayout(toolRow);
     layout->setContentsMargins(8, 6, 8, 6); layout->setSpacing(8);
 
-    addToolButton(layout, ScreenshotToolType::Rect, "rect", "矩形 (R)");
-    addToolButton(layout, ScreenshotToolType::Ellipse, "ellipse", "椭圆 (E)");
-    addToolButton(layout, ScreenshotToolType::Arrow, "arrow", "箭头 (A)");
-    addToolButton(layout, ScreenshotToolType::Line, "line", "直线 (L)");
+    addToolButton(layout, ScreenshotToolType::Rect, "screenshot_rect", "矩形 (R)");
+    addToolButton(layout, ScreenshotToolType::Ellipse, "screenshot_ellipse", "椭圆 (E)");
+    addToolButton(layout, ScreenshotToolType::Arrow, "screenshot_arrow", "箭头 (A)");
+    addToolButton(layout, ScreenshotToolType::Line, "screenshot_line", "直线 (L)");
     
     auto* line = new QFrame; line->setFrameShape(QFrame::VLine); line->setStyleSheet("color: #666;"); layout->addWidget(line);
     
-    addToolButton(layout, ScreenshotToolType::Pen, "pen", "画笔 (P)");
-    addToolButton(layout, ScreenshotToolType::Marker, "marker", "记号笔 (M)");
-    addToolButton(layout, ScreenshotToolType::Text, "text", "文字 (T)");
-    addToolButton(layout, ScreenshotToolType::Mosaic, "mosaic", "马赛克 (Z)");
+    addToolButton(layout, ScreenshotToolType::Pen, "screenshot_pen", "画笔 (P)");
+    addToolButton(layout, ScreenshotToolType::Marker, "screenshot_marker", "记号笔 (M)");
+    addToolButton(layout, ScreenshotToolType::Text, "screenshot_text", "文字 (T)");
+    addToolButton(layout, ScreenshotToolType::Mosaic, "screenshot_mosaic", "马赛克 (Z)");
 
     layout->addStretch();
     
-    addActionButton(layout, "undo", "撤销", [tool]{ tool->undo(); });
-    addActionButton(layout, "redo", "重做", [tool]{ tool->redo(); });
-    addActionButton(layout, "save", "保存", [tool]{ tool->save(); });
-    addActionButton(layout, "copy", "复制", [tool]{ tool->copyToClipboard(); });
-    addActionButton(layout, "close", "取消", [tool]{ tool->cancel(); });
-    addActionButton(layout, "confirm", "完成", [tool]{ tool->confirm(); });
+    addActionButton(layout, "undo", "撤销 (Ctrl+Z)", [tool]{ tool->undo(); });
+    addActionButton(layout, "redo", "重做 (Ctrl+Shift+Z)", [tool]{ tool->redo(); });
+    addActionButton(layout, "screenshot_ocr", "文字识别 (O)", [tool]{ tool->executeOCR(); });
+    addActionButton(layout, "screenshot_save", "保存", [tool]{ tool->save(); });
+    addActionButton(layout, "screenshot_copy", "复制 (Ctrl+C)", [tool]{ tool->copyToClipboard(); });
+    addActionButton(layout, "screenshot_close", "取消 (Esc)", [tool]{ tool->cancel(); });
+    addActionButton(layout, "screenshot_confirm", "完成 (Enter)", [tool]{ tool->confirm(); });
 
     mainLayout->addWidget(toolRow);
     createOptionWidget();
     mainLayout->addWidget(m_optionWidget);
 }
 
-void ScreenshotToolbar::addToolButton(QBoxLayout* layout, ScreenshotToolType type, const QString& iconType, const QString& tip) {
+void ScreenshotToolbar::addToolButton(QBoxLayout* layout, ScreenshotToolType type, const QString& iconName, const QString& tip) {
     auto* btn = new QPushButton();
-    btn->setIcon(IconFactory::createIcon(iconType));
+    btn->setIcon(IconHelper::getIcon(iconName));
     btn->setIconSize(QSize(20, 20));
-    btn->setToolTip(tip);
+    btn->setToolTip(tip); btn->setAutoDefault(false);
     btn->setCheckable(true); btn->setFixedSize(32, 32);
     layout->addWidget(btn);
     m_buttons[type] = btn;
@@ -195,9 +162,9 @@ void ScreenshotToolbar::addToolButton(QBoxLayout* layout, ScreenshotToolType typ
 
 void ScreenshotToolbar::addActionButton(QBoxLayout* layout, const QString& iconName, const QString& tip, std::function<void()> func) {
     auto* btn = new QPushButton();
-    btn->setIcon(IconFactory::createIcon(iconName));
+    btn->setIcon(IconHelper::getIcon(iconName));
     btn->setIconSize(QSize(20, 20));
-    btn->setToolTip(tip); btn->setFixedSize(32, 32);
+    btn->setToolTip(tip); btn->setFixedSize(32, 32); btn->setAutoDefault(false);
     layout->addWidget(btn);
     connect(btn, &QPushButton::clicked, func);
 }
@@ -246,10 +213,11 @@ void ScreenshotToolbar::createOptionWidget() {
         connect(btn, &QPushButton::clicked, [this, c]{ m_tool->setDrawColor(c); });
     }
     
-    auto* pickerBtn = new QPushButton("...");
-    pickerBtn->setFixedSize(20, 20);
+    auto* pickerBtn = new QPushButton();
+    pickerBtn->setIcon(IconHelper::getIcon("palette"));
+    pickerBtn->setFixedSize(22, 22);
     pickerBtn->setToolTip("更多颜色");
-    pickerBtn->setStyleSheet("border: 1px solid #777; border-radius: 4px; color: #ccc;");
+    pickerBtn->setStyleSheet("QPushButton { border: 1px solid #555; border-radius: 4px; background: transparent; } QPushButton:hover { background: #444; }");
     layout->addWidget(pickerBtn);
     connect(pickerBtn, &QPushButton::clicked, [this]{
         QColor c = QColorDialog::getColor(Qt::red, this);
@@ -443,7 +411,8 @@ void ScreenshotTool::mousePressEvent(QMouseEvent* e) {
         m_toolbar->hide();
         m_infoBar->hide();
     } else {
-        if (selectionRect().contains(e->pos()) && m_currentTool != ScreenshotToolType::None) {
+        int handle = getHandleAt(e->pos());
+        if (selectionRect().contains(e->pos()) && m_currentTool != ScreenshotToolType::None && handle == -1) {
             if (m_currentTool == ScreenshotToolType::Text) { showTextInput(e->pos()); return; }
             m_isDrawing = true;
             m_currentAnnotation = {m_currentTool, {e->pos()}, m_currentColor, "", m_currentStrokeWidth, LineStyle::Solid, m_currentArrowStyle};
@@ -451,8 +420,8 @@ void ScreenshotTool::mousePressEvent(QMouseEvent* e) {
                 int c = 1; for(auto& a: m_annotations) if(a.type == ScreenshotToolType::Marker) c++;
                 m_currentAnnotation.text = QString::number(c);
             }
-        } else if (getHandleAt(e->pos()) != -1) {
-            m_dragHandle = getHandleAt(e->pos()); m_isDragging = true;
+        } else if (handle != -1) {
+            m_dragHandle = handle; m_isDragging = true;
         } else if (selectionRect().contains(e->pos())) {
              m_dragHandle = 8; m_startPoint = e->pos() - m_startPoint; m_isDragging = true;
         } else {
@@ -487,16 +456,17 @@ void ScreenshotTool::mouseMoveEvent(QMouseEvent* e) {
             QRect r = selectionRect(); r.moveTo(e->pos() - m_startPoint);
             m_startPoint = r.topLeft(); m_endPoint = r.bottomRight();
         } else {
-            // 简单处理8点拉伸
+            // 8点拉伸
             QPoint p = e->pos();
-            if(m_dragHandle==0) m_startPoint = p;
-            else if(m_dragHandle==1) m_startPoint.setY(p.y());
+            QRect r = selectionRect();
+            if(m_dragHandle==0) { m_startPoint = p; }
+            else if(m_dragHandle==1) { m_startPoint.setY(p.y()); }
             else if(m_dragHandle==2) { m_startPoint.setY(p.y()); m_endPoint.setX(p.x()); }
-            else if(m_dragHandle==3) m_endPoint.setX(p.x());
-            else if(m_dragHandle==4) m_endPoint = p;
-            else if(m_dragHandle==5) m_endPoint.setY(p.y());
+            else if(m_dragHandle==3) { m_endPoint.setX(p.x()); }
+            else if(m_dragHandle==4) { m_endPoint = p; }
+            else if(m_dragHandle==5) { m_endPoint.setY(p.y()); }
             else if(m_dragHandle==6) { m_endPoint.setY(p.y()); m_startPoint.setX(p.x()); }
-            else if(m_dragHandle==7) m_startPoint.setX(p.x());
+            else if(m_dragHandle==7) { m_startPoint.setX(p.x()); }
         }
         
         if (!selectionRect().isEmpty()) {
@@ -514,8 +484,10 @@ void ScreenshotTool::mouseMoveEvent(QMouseEvent* e) {
         } else {
             m_currentAnnotation.points.append(e->pos());
         }
+    } else {
+        // 即使没有按下鼠标也更新光标
+        updateCursor(e->pos());
     }
-    updateCursor(e->pos());
     update();
 }
 
@@ -553,6 +525,7 @@ void ScreenshotTool::mouseReleaseEvent(QMouseEvent* e) {
 void ScreenshotTool::updateToolbarPosition() {
     QRect r = selectionRect();
     if(r.isEmpty()) return;
+    m_toolbar->adjustSize(); // 确保宽高已计算
     int x = r.right() - m_toolbar->width();
     int y = r.bottom() + 10;
     if (x < 0) x = 0;
@@ -615,8 +588,24 @@ int ScreenshotTool::getHandleAt(const QPoint& p) const {
     return -1;
 }
 void ScreenshotTool::updateCursor(const QPoint& p) {
-    if(selectionRect().contains(p) && m_currentTool != ScreenshotToolType::None) setCursor(Qt::CrossCursor);
-    else setCursor(Qt::ArrowCursor);
+    if (m_state == ScreenshotState::Editing) {
+        int handle = getHandleAt(p);
+        if (handle != -1) {
+            switch (handle) {
+                case 0: case 4: setCursor(Qt::SizeFDiagCursor); break;
+                case 1: case 5: setCursor(Qt::SizeVerCursor); break;
+                case 2: case 6: setCursor(Qt::SizeBDiagCursor); break;
+                case 3: case 7: setCursor(Qt::SizeHorCursor); break;
+            }
+            return;
+        }
+        if (selectionRect().contains(p)) {
+            if (m_currentTool != ScreenshotToolType::None) setCursor(Qt::CrossCursor);
+            else setCursor(Qt::SizeAllCursor);
+            return;
+        }
+    }
+    setCursor(Qt::ArrowCursor);
 }
 void ScreenshotTool::showTextInput(const QPoint& p) {
     m_textInput->move(p); m_textInput->resize(100, 30); m_textInput->show(); m_textInput->setFocus();
@@ -630,12 +619,9 @@ void ScreenshotTool::commitTextInput() {
 BOOL CALLBACK EnumChildProc(HWND hwnd, LPARAM lParam) {
     QList<QRect>* rects = reinterpret_cast<QList<QRect>*>(lParam);
     if (IsWindowVisible(hwnd)) {
-        RECT rect;
-        if (GetWindowRect(hwnd, &rect)) {
-            QRect qr(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
-            if (qr.width() > 5 && qr.height() > 5) {
-                rects->append(qr);
-            }
+        QRect qr = getActualWindowRect(hwnd);
+        if (qr.width() > 5 && qr.height() > 5) {
+            rects->append(qr);
         }
     }
     return TRUE;
@@ -643,20 +629,15 @@ BOOL CALLBACK EnumChildProc(HWND hwnd, LPARAM lParam) {
 
 BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
     QList<QRect>* rects = reinterpret_cast<QList<QRect>*>(lParam);
-    if (IsWindowVisible(hwnd)) {
-        // 排除掉一些无效窗口，比如带缩放动画的 DWM 阴影等
+    if (IsWindowVisible(hwnd) && !IsIconic(hwnd)) {
         int cloaked = 0;
         DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
         if (cloaked) return TRUE;
 
-        RECT rect;
-        if (GetWindowRect(hwnd, &rect)) {
-            QRect qr(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
-            if (qr.width() > 10 && qr.height() > 10) {
-                rects->append(qr);
-                // 递归查找子控件
-                EnumChildWindows(hwnd, EnumChildProc, lParam);
-            }
+        QRect qr = getActualWindowRect(hwnd);
+        if (qr.width() > 10 && qr.height() > 10) {
+            rects->append(qr);
+            EnumChildWindows(hwnd, EnumChildProc, lParam);
         }
     }
     return TRUE;
@@ -667,12 +648,22 @@ void ScreenshotTool::detectWindows() {
     m_detectedRects.clear();
 #ifdef Q_OS_WIN
     EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(&m_detectedRects));
-    // 转换为本地坐标以支持多显示器
     QPoint offset = mapToGlobal(QPoint(0,0));
-    for(QRect& r : m_detectedRects) {
-        r.translate(-offset);
-    }
+    for(QRect& r : m_detectedRects) r.translate(-offset);
 #endif
+}
+
+#include "OCRResultWindow.h"
+#include "../core/OCRManager.h"
+
+void ScreenshotTool::executeOCR() {
+    QImage img = generateFinalImage();
+    OCRResultWindow* resWin = new OCRResultWindow(img, this);
+    resWin->show();
+
+    // 连接信号
+    connect(&OCRManager::instance(), &OCRManager::recognitionFinished, resWin, &OCRResultWindow::setRecognizedText);
+    OCRManager::instance().recognizeAsync(img, 9999); // 9999 是 OCR 结果窗口的专用 ID
 }
 
 QImage ScreenshotTool::generateFinalImage() {
@@ -692,6 +683,8 @@ void ScreenshotTool::keyPressEvent(QKeyEvent* e) {
         undo();
     } else if (e->modifiers() == (Qt::ControlModifier | Qt::ShiftModifier) && e->key() == Qt::Key_Z) {
         redo();
+    } else if (e->modifiers() == Qt::ControlModifier && e->key() == Qt::Key_O) {
+        executeOCR();
     }
 }
 void ScreenshotTool::mouseDoubleClickEvent(QMouseEvent* e) { if(selectionRect().contains(e->pos())) confirm(); }

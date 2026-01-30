@@ -40,6 +40,8 @@ set(SOURCES
     src/ui/TimePasteWindow.cpp
     src/ui/PasswordGeneratorWindow.cpp
     src/ui/OCRWindow.cpp
+    src/ui/OCRResultWindow.h
+    src/ui/OCRResultWindow.cpp
     src/ui/PathAcquisitionWindow.cpp
     src/ui/FileStorageWindow.h
     src/ui/FileStorageWindow.cpp

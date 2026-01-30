@@ -90,6 +90,7 @@ public:
     void save();
     void confirm();
     void cancel(); 
+    void executeOCR();
 
 signals:
     void screenshotCaptured(const QImage& image);
