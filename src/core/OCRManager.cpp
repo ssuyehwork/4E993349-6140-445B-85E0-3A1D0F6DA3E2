@@ -39,16 +39,24 @@ QImage OCRManager::preprocessImage(const QImage& original) {
     // 1. 转换为灰度图 (保留 8 位深度的灰度细节，这对 Tesseract 4+ 至关重要)
     QImage processed = original.convertToFormat(QImage::Format_Grayscale8);
 
-    // 2. 优化缩放策略
-    // 目标：使文字像素高度达到 Tesseract 偏好的 30-35 像素，通常对应 300 DPI
-    // 假设屏幕截图约为 96 DPI，则需要放大 3 倍左右
+    // 2. 动态缩放策略
+    // 目标：使文字像素高度达到 Tesseract 偏好的 30-35 像素。
+    // 如果原图已经很大（宽度 > 2000），则不需要放大 3 倍，否则会导致内存占用过高且识别变慢
     int scale = 3;
-    processed = processed.scaled(
-        processed.width() * scale,
-        processed.height() * scale,
-        Qt::KeepAspectRatio,
-        Qt::SmoothTransformation
-    );
+    if (processed.width() > 2000 || processed.height() > 2000) {
+        scale = 1;
+    } else if (processed.width() > 1000 || processed.height() > 1000) {
+        scale = 2;
+    }
+
+    if (scale > 1) {
+        processed = processed.scaled(
+            processed.width() * scale,
+            processed.height() * scale,
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation
+        );
+    }
 
     // 3. 增强对比度（对比度拉伸）
     int histogram[256] = {0};
@@ -133,22 +141,42 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
     
     tempFile.close();
 
-    // 仅使用 Tesseract OCR，移除 Windows.Media.Ocr
+    // 路径探测逻辑
     QString appPath = QCoreApplication::applicationDirPath();
     QString tesseractPath = appPath + "/resources/Tesseract-OCR/tesseract.exe";
     QString tessDataPath = appPath + "/resources/Tesseract-OCR";
     
+    bool found = false;
     if (QFile::exists(tesseractPath)) {
+        found = true;
+    } else {
+        // 备选路径：应用根目录
+        tesseractPath = appPath + "/tesseract.exe";
+        if (QFile::exists(tesseractPath)) {
+            found = true;
+        } else {
+            // 备选路径：系统 PATH
+            tesseractPath = "tesseract"; // 依赖系统环境变量
+            found = true; // 假设在 PATH 中，交给 QProcess 验证
+        }
+    }
+
+    if (found) {
         QProcess tesseract;
         
-        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        env.insert("TESSDATA_PREFIX", QDir::toNativeSeparators(tessDataPath));
-        tesseract.setProcessEnvironment(env);
-        
+        // 自动探测可用语言，如果存在泰语则自动加入识别列表
+        QString currentLang = m_language;
+        if (QFile::exists(tessDataPath + "/tha.traineddata") && !currentLang.contains("tha")) {
+            currentLang += "+tha";
+        }
+
         QStringList args;
-        // --oem 1 使用 LSTM 引擎（通常更准确）
-        // --psm 3 自动页面分割
-        args << filePath << "stdout" << "-l" << m_language << "--oem" << "1" << "--psm" << "3";
+        // 使用 --tessdata-dir 明确指定数据目录，避免环境变量干扰
+        if (QFile::exists(tessDataPath)) {
+            args << "--tessdata-dir" << QDir::toNativeSeparators(tessDataPath);
+        }
+
+        args << filePath << "stdout" << "-l" << currentLang << "--oem" << "1" << "--psm" << "3";
         tesseract.start(tesseractPath, args);
         
         if (tesseract.waitForFinished(10000)) {
@@ -156,17 +184,21 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
             result = QString::fromUtf8(output).trimmed();
             
             if (!result.isEmpty()) {
-                qDebug() << "Tesseract OCR succeeded";
+                qDebug() << "Tesseract OCR succeeded using lang:" << currentLang;
                 emit recognitionFinished(result, contextId);
                 return;
             }
             result = "未识别到任何内容 (Tesseract)";
         } else {
-            result = "OCR 识别超时";
+            // 如果 "tesseract" 命令失败（比如不存在于 PATH），则会超时或报错
+            if (tesseractPath == "tesseract") {
+                 result = "未找到 Tesseract 引擎组件，请确保安装并添加至环境变量";
+            } else {
+                 result = "OCR 识别超时";
+            }
         }
     } else {
         result = "未找到 Tesseract 引擎组件";
-        qDebug() << "Tesseract not found at:" << tesseractPath;
     }
 #else
     result = "当前平台不支持 OCR 功能";
