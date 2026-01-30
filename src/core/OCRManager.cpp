@@ -29,13 +29,32 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
         image.save(filePath, "PNG");
         tempFile.close();
 
-        // PowerShell 脚本，利用 Windows.Media.Ocr
-        // 使用原始字符串字面量避免转义困扰，并显式设置 UTF8
+        // 1. 尝试 Tesseract OCR
+        QString appPath = QCoreApplication::applicationDirPath();
+        QString tesseractPath = appPath + "/resources/Tesseract-OCR/tesseract.exe";
+        if (QFile::exists(tesseractPath)) {
+            QProcess tesseract;
+            QStringList args;
+            args << filePath << "stdout" << "-l" << "chi_sim+eng";
+            tesseract.start(tesseractPath, args);
+            if (tesseract.waitForFinished(10000)) {
+                QByteArray output = tesseract.readAllStandardOutput();
+                result = QString::fromUtf8(output).trimmed();
+                if (!result.isEmpty()) {
+                    emit recognitionFinished(result, contextId);
+                    return;
+                }
+            }
+        }
+
+        // 2. Tesseract 失败或不存在，回退到 PowerShell (Windows.Media.Ocr)
+        // 修复 "GetResults" 方法调用失败问题：增加显式类型转换 [Windows.Foundation.IAsyncInfo]
         QString psScript = R"(
             [Console]::OutputEncoding = [System.Text.Encoding]::UTF8;
             $ErrorActionPreference = 'Stop';
             function Wait-WinRT($task) {
-                while ($task.Status -eq 'Started') { Start-Sleep -m 20 };
+                $asInfo = [Windows.Foundation.IAsyncInfo]$task;
+                while ($asInfo.Status -eq 'Started') { Start-Sleep -m 20 };
                 return $task.GetResults();
             }
             try {
