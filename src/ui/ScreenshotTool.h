@@ -39,6 +39,7 @@ struct DrawingAnnotation {
 };
 
 class ScreenshotTool;
+class ScreenshotToolbar;
 
 class PinnedScreenshotWidget : public QWidget {
     Q_OBJECT

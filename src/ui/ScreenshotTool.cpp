@@ -380,9 +380,32 @@ ScreenshotTool::ScreenshotTool(QWidget* parent)
     
     m_screenPixmap = QGuiApplication::primaryScreen()->grabWindow(0);
     
+    // 生成“名副其实”的马赛克纹理
     QImage img = m_screenPixmap.toImage();
-    QImage small = img.scaled(img.width()/15, img.height()/15, Qt::IgnoreAspectRatio, Qt::FastTransformation);
-    m_mosaicPixmap = QPixmap::fromImage(small.scaled(img.size(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
+    int blockSize = 12; // 基础块大小
+    QImage mosaic(img.size(), QImage::Format_ARGB32);
+
+    for (int y = 0; y < img.height(); y += blockSize) {
+        for (int x = 0; x < img.width(); x += blockSize) {
+            // 获取块内中心颜色
+            int cx = qMin(x + blockSize / 2, img.width() - 1);
+            int cy = qMin(y + blockSize / 2, img.height() - 1);
+            QColor c = img.pixelColor(cx, cy);
+
+            // 绘制像素块，带一点边缘明暗，增加“瓷砖感”
+            QRect r(x, y, blockSize, blockSize);
+            for (int dy = 0; dy < blockSize && y + dy < img.height(); ++dy) {
+                for (int dx = 0; dx < blockSize && x + dx < img.width(); ++dx) {
+                    QColor dc = c;
+                    // 模拟马赛克缝隙和立体感
+                    if (dx == 0 || dy == 0) dc = dc.lighter(110);
+                    else if (dx == blockSize - 1 || dy == blockSize - 1) dc = dc.darker(110);
+                    mosaic.setPixelColor(x + dx, y + dy, dc);
+                }
+            }
+        }
+    }
+    m_mosaicPixmap = QPixmap::fromImage(mosaic);
 
     m_toolbar = new ScreenshotToolbar(this);
     m_toolbar->hide();
@@ -515,30 +538,42 @@ void ScreenshotTool::drawAnnotation(QPainter& p, const DrawingAnnotation& ann) {
         p.drawText(QRectF(ann.points[0].x()-r, ann.points[0].y()-r, r*2, r*2), Qt::AlignCenter, ann.text);
     } else if (ann.type == ScreenshotToolType::Mosaic || ann.type == ScreenshotToolType::MosaicRect) {
         p.save();
+        // 强制裁剪至截图选区，双重保险确保马赛克不超出主选区
+        p.setClipRect(selectionRect(), Qt::IntersectClip);
+
         p.setRenderHint(QPainter::Antialiasing, false);
 
-        QPainterPath mosaicArea;
+        QPainterPath strokePath;
         if (ann.type == ScreenshotToolType::MosaicRect) {
-            mosaicArea.addRect(QRectF(ann.points[0], ann.points[1]).normalized());
+            strokePath.addRect(QRectF(ann.points[0], ann.points[1]).normalized());
         } else {
             QPainterPath path; path.moveTo(ann.points[0]);
             for(int i = 1; i < ann.points.size(); ++i) path.lineTo(ann.points[i]);
             QPainterPathStroker s; s.setWidth(ann.strokeWidth * 12);
             s.setCapStyle(Qt::RoundCap);
             s.setJoinStyle(Qt::RoundJoin);
-            mosaicArea = s.createStroke(path);
+            strokePath = s.createStroke(path);
         }
 
-        p.setClipPath(mosaicArea, Qt::IntersectClip);
+        // 这里的裁剪决定了“哪里”显示马赛克效果
+        p.setClipPath(strokePath, Qt::IntersectClip);
 
         // 核心视觉修复：将马赛克画刷的原点锁定在全屏 (0,0)
-        // 这样无论是在截图层预览，还是生成最后图片，像素点都能完美对齐，不会产生位移或重叠
         p.setBrushOrigin(p.transform().inverted().map(QPointF(0, 0)));
         p.setBrush(QBrush(m_mosaicPixmap));
         p.setPen(Qt::NoPen);
 
-        // 绘制覆盖整个区域的矩形，裁剪会限制实际显示范围
+        // 1. 绘制底层像素化背景
         p.drawRect(p.window());
+
+        // 2. 颜色混合逻辑：如果用户选择了颜色（如红色），按 30% 透明度叠加到马赛克上
+        if (ann.color.isValid() && ann.color.alpha() > 0) {
+            QColor tint = ann.color;
+            tint.setAlpha(60); // 设置透明度
+            p.setBrush(tint);
+            p.drawRect(p.window());
+        }
+
         p.restore();
     } else if (ann.type == ScreenshotToolType::Text && !ann.text.isEmpty()) {
         p.setPen(ann.color); p.setFont(QFont("Microsoft YaHei", 12 + ann.strokeWidth*2, QFont::Bold));
