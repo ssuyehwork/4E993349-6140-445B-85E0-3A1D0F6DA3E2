@@ -137,8 +137,8 @@ void OCRResultWindow::onCopyClicked() {
     QSettings settings("RapidNotes", "OCR");
     settings.setValue("autoCopy", m_autoCopyCheck->isChecked());
 
-    // 明确调用 accept() 确保对话框关闭并释放
-    accept();
+    // 明确关闭窗口。由于设置了 WA_DeleteOnClose，close() 会触发析构
+    this->close();
 }
 
 void OCRResultWindow::onTypesettingClicked() {

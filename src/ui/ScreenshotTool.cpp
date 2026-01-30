@@ -917,6 +917,12 @@ void ScreenshotTool::detectWindows() {
 
 void ScreenshotTool::executeOCR() {
     QImage img = generateFinalImage();
+    if (img.isNull()) return;
+
+    // 立即从视觉上隐藏截图界面
+    this->hide();
+    if (m_toolbar) m_toolbar->hide();
+    if (m_infoBar) m_infoBar->hide();
 
     // 确保只有一个 OCR 结果窗口实例，避免重复开启
     for (QWidget* widget : QApplication::topLevelWidgets()) {
@@ -925,7 +931,7 @@ void ScreenshotTool::executeOCR() {
         }
     }
 
-    cancel(); // 立即结束截图任务，防止持续保持截图状态
+    cancel(); // 彻底结束截图任务并清理资源
 
     // 修改：不要把 ScreenshotTool 作为父对象，否则 ScreenshotTool 关闭时它也会跟着关
     OCRResultWindow* resWin = new OCRResultWindow(img, nullptr);
