@@ -1,5 +1,6 @@
 #include "OCRResultWindow.h"
 #include "IconHelper.h"
+#include "StringUtils.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QSettings>
@@ -10,7 +11,7 @@ OCRResultWindow::OCRResultWindow(const QImage& image, QWidget* parent)
     : FramelessDialog("识别文本", parent), m_image(image)
 {
     setAttribute(Qt::WA_DeleteOnClose);
-    setFixedSize(500, 400);
+    setFixedSize(600, 450);
     
     // 强制更新标题栏样式
     m_titleLabel->clear();
@@ -59,14 +60,33 @@ OCRResultWindow::OCRResultWindow(const QImage& image, QWidget* parent)
     layout->addWidget(m_textEdit);
 
     auto* bottomLayout = new QHBoxLayout();
+    bottomLayout->setSpacing(10);
     
-    m_autoCopyCheck = new QCheckBox("下次直接复制文本");
+    m_autoCopyCheck = new QCheckBox("下次自动复制");
     m_autoCopyCheck->setStyleSheet("QCheckBox { color: #999; font-size: 12px; } QCheckBox::indicator { width: 16px; height: 16px; }");
     QSettings settings("RapidNotes", "OCR");
     m_autoCopyCheck->setChecked(settings.value("autoCopy", false).toBool());
     bottomLayout->addWidget(m_autoCopyCheck);
 
-    bottomLayout->addStretch();
+    bottomLayout->addStretch(1);
+
+    QPushButton* toSimplifiedBtn = new QPushButton("转简体");
+    toSimplifiedBtn->setFlat(true);
+    toSimplifiedBtn->setStyleSheet("QPushButton { color: #1abc9c; border: none; font-size: 13px; } QPushButton:hover { color: #2ecc71; }");
+    toSimplifiedBtn->setCursor(Qt::PointingHandCursor);
+    connect(toSimplifiedBtn, &QPushButton::clicked, [this]{
+        m_textEdit->setPlainText(StringUtils::convertChineseVariant(m_textEdit->toPlainText(), true));
+    });
+    bottomLayout->addWidget(toSimplifiedBtn);
+
+    QPushButton* toTraditionalBtn = new QPushButton("转繁体");
+    toTraditionalBtn->setFlat(true);
+    toTraditionalBtn->setStyleSheet("QPushButton { color: #f39c12; border: none; font-size: 13px; } QPushButton:hover { color: #e67e22; }");
+    toTraditionalBtn->setCursor(Qt::PointingHandCursor);
+    connect(toTraditionalBtn, &QPushButton::clicked, [this]{
+        m_textEdit->setPlainText(StringUtils::convertChineseVariant(m_textEdit->toPlainText(), false));
+    });
+    bottomLayout->addWidget(toTraditionalBtn);
 
     QPushButton* typesettingBtn = new QPushButton("排版");
     typesettingBtn->setFlat(true);
@@ -116,6 +136,7 @@ void OCRResultWindow::onCopyClicked() {
     }
     QSettings settings("RapidNotes", "OCR");
     settings.setValue("autoCopy", m_autoCopyCheck->isChecked());
+    close(); // 复制后自动关闭窗口
 }
 
 void OCRResultWindow::onTypesettingClicked() {
