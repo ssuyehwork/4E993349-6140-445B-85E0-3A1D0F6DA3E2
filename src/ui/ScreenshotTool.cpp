@@ -11,6 +11,7 @@
 #include <QStyle>
 #include <QStyleOption>
 #include <QColorDialog>
+#include <QSettings>
 #include <cmath>
 
 #ifdef Q_OS_WIN
@@ -98,11 +99,15 @@ void PinnedScreenshotWidget::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    // 绘制阴影和边框
-    QRect r = rect().adjusted(1, 1, -1, -1);
+    // 绘制主图
     p.drawPixmap(rect(), m_pixmap);
-    p.setPen(QPen(QColor(0, 122, 204), 2));
-    p.drawRect(rect().adjusted(0,0,-1,-1));
+
+    // 绘制发光蓝边 (类似用户提供的图片)
+    p.setPen(QPen(QColor(0, 120, 255, 100), 6));
+    p.drawRect(rect().adjusted(2, 2, -3, -3));
+
+    p.setPen(QPen(QColor(0, 120, 255, 200), 2));
+    p.drawRect(rect().adjusted(0, 0, -1, -1));
 }
 
 void PinnedScreenshotWidget::mousePressEvent(QMouseEvent* e) {

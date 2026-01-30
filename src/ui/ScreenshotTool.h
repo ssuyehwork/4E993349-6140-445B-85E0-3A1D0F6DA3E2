@@ -96,6 +96,7 @@ private:
 
 class ScreenshotTool : public QWidget {
     Q_OBJECT
+    friend class ScreenshotToolbar;
 public:
     explicit ScreenshotTool(QWidget* parent = nullptr);
     
