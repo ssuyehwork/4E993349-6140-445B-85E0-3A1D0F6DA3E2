@@ -93,7 +93,7 @@ target_link_libraries(RapidNotes PRIVATE
 )
 
 if(WIN32)
-    target_link_libraries(RapidNotes PRIVATE user32 shell32 psapi)
+    target_link_libraries(RapidNotes PRIVATE user32 shell32 psapi dwmapi)
     set_target_properties(RapidNotes PROPERTIES
         WIN32_EXECUTABLE TRUE
     )

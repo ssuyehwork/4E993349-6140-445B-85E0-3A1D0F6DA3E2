@@ -11,6 +11,12 @@
 #include <QStyleOption>
 #include <cmath>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
+#endif
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -315,6 +321,8 @@ ScreenshotTool::ScreenshotTool(QWidget* parent)
     m_textInput->hide();
     m_textInput->setFrame(false);
     connect(m_textInput, &QLineEdit::editingFinished, this, &ScreenshotTool::commitTextInput);
+
+    detectWindows();
 }
 
 void ScreenshotTool::cancel() {
@@ -403,9 +411,12 @@ void ScreenshotTool::mousePressEvent(QMouseEvent* e) {
     if(e->button() != Qt::LeftButton) return;
 
     if (m_state == ScreenshotState::Selecting) {
-        m_dragHandle = getHandleAt(e->pos());
-        if (m_dragHandle == -1) { m_startPoint = e->pos(); m_endPoint = m_startPoint; }
-        m_isDragging = true; m_toolbar->hide(); m_infoBar->hide();
+        m_dragHandle = -1;
+        m_startPoint = e->pos();
+        m_endPoint = m_startPoint;
+        m_isDragging = true;
+        m_toolbar->hide();
+        m_infoBar->hide();
     } else {
         if (selectionRect().contains(e->pos()) && m_currentTool != ScreenshotToolType::None) {
             if (m_currentTool == ScreenshotToolType::Text) { showTextInput(e->pos()); return; }
@@ -427,6 +438,24 @@ void ScreenshotTool::mousePressEvent(QMouseEvent* e) {
 }
 
 void ScreenshotTool::mouseMoveEvent(QMouseEvent* e) {
+    if (m_state == ScreenshotState::Selecting && !m_isDragging) {
+        QRect smallest;
+        long long minArea = -1;
+        for (const QRect& r : m_detectedRects) {
+            if (r.contains(e->pos())) {
+                long long area = (long long)r.width() * r.height();
+                if (minArea == -1 || area < minArea) {
+                    minArea = area;
+                    smallest = r;
+                }
+            }
+        }
+        if (m_highlightedRect != smallest) {
+            m_highlightedRect = smallest;
+            update();
+        }
+    }
+
     if (m_isDragging) {
         if (m_state == ScreenshotState::Selecting || m_dragHandle == -1) m_endPoint = e->pos();
         else if (m_dragHandle == 8) {
@@ -464,14 +493,33 @@ void ScreenshotTool::mouseMoveEvent(QMouseEvent* e) {
     update();
 }
 
-void ScreenshotTool::mouseReleaseEvent(QMouseEvent*) {
+void ScreenshotTool::mouseReleaseEvent(QMouseEvent* e) {
     if (m_isDrawing) {
-        m_isDrawing = false; m_annotations.append(m_currentAnnotation); m_redoStack.clear();
+        m_isDrawing = false;
+        m_annotations.append(m_currentAnnotation);
+        m_redoStack.clear();
     } else if (m_isDragging) {
         m_isDragging = false;
-        if (selectionRect().isValid()) m_state = ScreenshotState::Editing;
+        if (m_state == ScreenshotState::Selecting) {
+            // 点击判定：如果移动距离很小，且当前在高亮矩形上，则自动吸附
+            if ((e->pos() - m_startPoint).manhattanLength() < 5) {
+                if (!m_highlightedRect.isEmpty()) {
+                    m_startPoint = m_highlightedRect.topLeft();
+                    m_endPoint = m_highlightedRect.bottomRight();
+                }
+            }
+            if (selectionRect().isValid() && selectionRect().width() > 2 && selectionRect().height() > 2) {
+                m_state = ScreenshotState::Editing;
+            }
+        }
     }
-    m_toolbar->show();
+
+    if (m_state == ScreenshotState::Editing) {
+        m_toolbar->show();
+        m_infoBar->updateInfo(selectionRect());
+        m_infoBar->show();
+        m_infoBar->move(selectionRect().left(), selectionRect().top() - 35);
+    }
     updateToolbarPosition();
     update();
 }
@@ -493,6 +541,13 @@ void ScreenshotTool::paintEvent(QPaintEvent*) {
     QPainterPath path; path.addRect(rect());
     if(r.isValid()) path.addRect(r);
     p.fillPath(path, QColor(0,0,0,120));
+
+    if (m_state == ScreenshotState::Selecting && !m_isDragging && !m_highlightedRect.isEmpty()) {
+        p.setPen(QPen(QColor(0, 120, 255, 200), 2));
+        p.setBrush(QColor(0, 120, 255, 30));
+        p.drawRect(m_highlightedRect);
+    }
+
     if(r.isValid()) {
         p.setPen(QPen(QColor(0, 120, 255), 2)); p.drawRect(r);
         auto h = getHandleRects();
@@ -543,6 +598,50 @@ void ScreenshotTool::commitTextInput() {
     m_annotations.append({ScreenshotToolType::Text, {m_textInput->pos()}, m_currentColor, m_textInput->text(), m_currentStrokeWidth});
     m_textInput->hide(); m_textInput->clear(); update();
 }
+#ifdef Q_OS_WIN
+BOOL CALLBACK EnumChildProc(HWND hwnd, LPARAM lParam) {
+    QList<QRect>* rects = reinterpret_cast<QList<QRect>*>(lParam);
+    if (IsWindowVisible(hwnd)) {
+        RECT rect;
+        if (GetWindowRect(hwnd, &rect)) {
+            QRect qr(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
+            if (qr.width() > 5 && qr.height() > 5) {
+                rects->append(qr);
+            }
+        }
+    }
+    return TRUE;
+}
+
+BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
+    QList<QRect>* rects = reinterpret_cast<QList<QRect>*>(lParam);
+    if (IsWindowVisible(hwnd)) {
+        // 排除掉一些无效窗口，比如带缩放动画的 DWM 阴影等
+        int cloaked = 0;
+        DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
+        if (cloaked) return TRUE;
+
+        RECT rect;
+        if (GetWindowRect(hwnd, &rect)) {
+            QRect qr(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
+            if (qr.width() > 10 && qr.height() > 10) {
+                rects->append(qr);
+                // 递归查找子控件
+                EnumChildWindows(hwnd, EnumChildProc, lParam);
+            }
+        }
+    }
+    return TRUE;
+}
+#endif
+
+void ScreenshotTool::detectWindows() {
+    m_detectedRects.clear();
+#ifdef Q_OS_WIN
+    EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(&m_detectedRects));
+#endif
+}
+
 QImage ScreenshotTool::generateFinalImage() {
     QRect r = selectionRect();
     QPixmap p = m_screenPixmap.copy(r);

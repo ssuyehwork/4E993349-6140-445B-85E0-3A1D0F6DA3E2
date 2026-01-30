@@ -115,6 +115,7 @@ private:
     void showTextInput(const QPoint& pos);
     void commitTextInput();
     QImage generateFinalImage();
+    void detectWindows();
 
     QPixmap m_screenPixmap;
     QPixmap m_mosaicPixmap;
@@ -122,6 +123,9 @@ private:
     ScreenshotState m_state = ScreenshotState::Selecting;
     ScreenshotToolType m_currentTool = ScreenshotToolType::None;
     
+    QList<QRect> m_detectedRects;
+    QRect m_highlightedRect;
+
     QPoint m_startPoint, m_endPoint;
     bool m_isDragging = false;
     int m_dragHandle = -1; 
