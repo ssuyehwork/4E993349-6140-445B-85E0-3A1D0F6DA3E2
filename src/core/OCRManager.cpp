@@ -142,7 +142,8 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
 
     // 路径探测逻辑
     QString appPath = QCoreApplication::applicationDirPath();
-    QString tessDataPath = appPath + "/resources/Tesseract-OCR";
+    // 用户更新：数据文件现在位于 tessdata 子目录下
+    QString tessDataPath = appPath + "/resources/Tesseract-OCR/tessdata";
     
     // 深度搜索 tesseract.exe 可能出现的位置
     QStringList searchPaths;
@@ -162,18 +163,39 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
     if (!tesseractPath.isEmpty()) {
         QProcess tesseract;
         
-        // 设置 TESSDATA_PREFIX 环境变量（部分版本 Tesseract 依赖此变量）
+        // 设置 TESSDATA_PREFIX 环境变量（Tesseract 主程序所在的父目录或 tessdata 所在目录）
         QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
         if (QFile::exists(tessDataPath)) {
-            env.insert("TESSDATA_PREFIX", QDir::toNativeSeparators(tessDataPath));
+            // TESSDATA_PREFIX 通常应该是包含 tessdata 文件夹的目录
+            QDir prefixDir(tessDataPath);
+            prefixDir.cdUp();
+            env.insert("TESSDATA_PREFIX", QDir::toNativeSeparators(prefixDir.absolutePath()));
         }
         tesseract.setProcessEnvironment(env);
 
-        // 自动探测可用语言，如果存在泰语则自动加入识别列表
-        QString currentLang = m_language;
-        if (QFile::exists(tessDataPath + "/tha.traineddata") && !currentLang.contains("tha")) {
-            currentLang += "+tha";
+        // 智能语言探测：自动扫描 tessdata 目录下所有可用的训练数据
+        QStringList foundLangs;
+        QDir dir(tessDataPath);
+        if (dir.exists()) {
+            QStringList filters; filters << "*.traineddata";
+            QStringList files = dir.entryList(filters, QDir::Files);
+
+            // 定义优先级：中文和英文最优先，泰语次之
+            QStringList priority = {"chi_sim", "eng", "chi_tra", "tha", "jpn", "kor"};
+            for (const QString& pLang : priority) {
+                if (files.contains(pLang + ".traineddata")) {
+                    foundLangs << pLang;
+                    files.removeAll(pLang + ".traineddata");
+                }
+            }
+            // 其余语言按字母顺序追加
+            for (const QString& file : files) {
+                QString name = file.left(file.lastIndexOf('.'));
+                if (name != "osd") foundLangs << name;
+            }
         }
+
+        QString currentLang = foundLangs.isEmpty() ? m_language : foundLangs.join('+');
 
         QStringList args;
         // 明确指定数据目录
