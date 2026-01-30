@@ -39,7 +39,7 @@ class ScreenshotToolbar : public QWidget {
     Q_OBJECT
 public:
     explicit ScreenshotToolbar(ScreenshotTool* tool);
-    void addToolButton(QBoxLayout* layout, ScreenshotToolType type, const QString& tip);
+    void addToolButton(QBoxLayout* layout, ScreenshotToolType type, const QString& iconType, const QString& tip);
     void addActionButton(QBoxLayout* layout, const QString& iconName, const QString& tip, std::function<void()> func);
     void selectTool(ScreenshotToolType type);
     void updateArrowButtonIcon(ArrowStyle style);
@@ -85,9 +85,12 @@ public:
     
     void updateToolbarPosition();
     void undo();
+    void redo();
+    void copyToClipboard();
     void save();
     void confirm();
     void cancel(); 
+    void executeOCR();
 
 signals:
     void screenshotCaptured(const QImage& image);
@@ -95,6 +98,7 @@ signals:
 
 protected:
     void paintEvent(QPaintEvent*) override;
+    void showEvent(QShowEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
@@ -115,6 +119,7 @@ private:
     void showTextInput(const QPoint& pos);
     void commitTextInput();
     QImage generateFinalImage();
+    void detectWindows();
 
     QPixmap m_screenPixmap;
     QPixmap m_mosaicPixmap;
@@ -122,6 +127,9 @@ private:
     ScreenshotState m_state = ScreenshotState::Selecting;
     ScreenshotToolType m_currentTool = ScreenshotToolType::None;
     
+    QList<QRect> m_detectedRects;
+    QRect m_highlightedRect;
+
     QPoint m_startPoint, m_endPoint;
     bool m_isDragging = false;
     int m_dragHandle = -1; 

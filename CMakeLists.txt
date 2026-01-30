@@ -40,6 +40,8 @@ set(SOURCES
     src/ui/TimePasteWindow.cpp
     src/ui/PasswordGeneratorWindow.cpp
     src/ui/OCRWindow.cpp
+    src/ui/OCRResultWindow.h
+    src/ui/OCRResultWindow.cpp
     src/ui/PathAcquisitionWindow.cpp
     src/ui/FileStorageWindow.h
     src/ui/FileStorageWindow.cpp
@@ -93,7 +95,7 @@ target_link_libraries(RapidNotes PRIVATE
 )
 
 if(WIN32)
-    target_link_libraries(RapidNotes PRIVATE user32 shell32 psapi)
+    target_link_libraries(RapidNotes PRIVATE user32 shell32 psapi dwmapi)
     set_target_properties(RapidNotes PROPERTIES
         WIN32_EXECUTABLE TRUE
     )
