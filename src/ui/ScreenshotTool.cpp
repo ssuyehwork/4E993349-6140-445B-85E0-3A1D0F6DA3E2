@@ -663,8 +663,17 @@ void ScreenshotTool::detectWindows() {
 
 void ScreenshotTool::executeOCR() {
     QImage img = generateFinalImage();
+
+    // 确保只有一个 OCR 结果窗口实例，避免重复开启
+    for (QWidget* widget : QApplication::topLevelWidgets()) {
+        if (widget->objectName() == "OCRResultWindow" || widget->metaObject()->className() == QString("OCRResultWindow")) {
+            widget->close();
+        }
+    }
+
     // 修改：不要把 ScreenshotTool 作为父对象，否则 ScreenshotTool 关闭时它也会跟着关
     OCRResultWindow* resWin = new OCRResultWindow(img, nullptr);
+    resWin->setObjectName("OCRResultWindow");
     resWin->show();
     
     // 连接信号

@@ -154,7 +154,8 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
         return;
     }
     
-    QTemporaryFile tempFile(QDir::tempPath() + "/ocr_XXXXXX.png");
+    // 使用 BMP 格式存储临时文件，因为其写入速度最快且不涉及复杂的压缩计算，能缩短毫秒级开销
+    QTemporaryFile tempFile(QDir::tempPath() + "/ocr_XXXXXX.bmp");
     tempFile.setAutoRemove(true);
     
     if (!tempFile.open()) {
@@ -166,7 +167,7 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
     QString filePath = QDir::toNativeSeparators(tempFile.fileName());
     
     // 保存预处理后的灰度图
-    if (!processedImage.save(filePath, "PNG", 100)) {
+    if (!processedImage.save(filePath, "BMP")) {
         result = "无法保存临时图像文件";
         emit recognitionFinished(result, contextId);
         return;
@@ -259,9 +260,11 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
                     files.removeAll(pLang + ".traineddata");
                 }
             }
-            // 其余语言按字母顺序追加，但限制总数以防止 Tesseract 初始化超时
+            // 其余语言按字母顺序追加，但限制总数。
+            // 速度优化的关键：加载的语言模型（LSTM）越多，Tesseract 初始化越慢。
+            // 将上限从 10 降至 3，可使初始化速度提升数倍。
             for (const QString& file : files) {
-                if (foundLangs.size() >= 10) break;
+                if (foundLangs.size() >= 3) break;
                 QString name = file.left(file.lastIndexOf('.'));
                 if (name != "osd" && !foundLangs.contains(name)) foundLangs << name;
             }
