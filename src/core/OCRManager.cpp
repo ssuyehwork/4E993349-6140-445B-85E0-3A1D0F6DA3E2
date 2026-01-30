@@ -140,32 +140,48 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
     
     tempFile.close();
 
-    // 路径探测逻辑
+    // 路径探测逻辑：增强鲁棒性，支持从 bin 或 build 目录运行
     QString appPath = QCoreApplication::applicationDirPath();
-    // 用户更新：数据文件现在位于 tessdata 子目录下
-    QString tessDataPath = appPath + "/resources/Tesseract-OCR/tessdata";
-    
-    // 深度搜索 tesseract.exe 可能出现的位置
-    QStringList searchPaths;
-    searchPaths << appPath + "/resources/Tesseract-OCR/tesseract.exe";
-    searchPaths << appPath + "/resources/tesseract.exe";
-    searchPaths << appPath + "/tesseract.exe";
-    searchPaths << "tesseract"; // 系统 PATH 兜底
-
+    QString tessDataPath;
     QString tesseractPath;
-    for (const QString& path : searchPaths) {
-        if (path == "tesseract" || QFile::exists(path)) {
-            tesseractPath = path;
-            break;
+
+    // 尝试在多个层级寻找 resources 目录
+    QStringList basePaths;
+    basePaths << appPath;
+    basePaths << QDir(appPath).absolutePath() + "/..";
+    basePaths << QDir(appPath).absolutePath() + "/../..";
+
+    for (const QString& base : basePaths) {
+        QString potentialTessData = base + "/resources/Tesseract-OCR/tessdata";
+        if (QDir(potentialTessData).exists()) {
+            tessDataPath = QDir(potentialTessData).absolutePath();
         }
+
+        if (tesseractPath.isEmpty()) {
+            QStringList exePotentials;
+            exePotentials << base + "/resources/Tesseract-OCR/tesseract.exe";
+            exePotentials << base + "/resources/tesseract.exe";
+            exePotentials << base + "/tesseract.exe";
+            for (const QString& p : exePotentials) {
+                if (QFile::exists(p)) {
+                    tesseractPath = QDir::toNativeSeparators(p);
+                    break;
+                }
+            }
+        }
+
+        if (!tessDataPath.isEmpty() && !tesseractPath.isEmpty()) break;
     }
+
+    // 系统 PATH 兜底
+    if (tesseractPath.isEmpty()) tesseractPath = "tesseract";
 
     if (!tesseractPath.isEmpty()) {
         QProcess tesseract;
         
         // 设置 TESSDATA_PREFIX 环境变量（Tesseract 主程序所在的父目录或 tessdata 所在目录）
         QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        if (QFile::exists(tessDataPath)) {
+        if (!tessDataPath.isEmpty() && QDir(tessDataPath).exists()) {
             // TESSDATA_PREFIX 通常应该是包含 tessdata 文件夹的目录
             QDir prefixDir(tessDataPath);
             prefixDir.cdUp();
@@ -175,8 +191,9 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
 
         // 智能语言探测：自动扫描 tessdata 目录下所有可用的训练数据
         QStringList foundLangs;
-        QDir dir(tessDataPath);
-        if (dir.exists()) {
+        if (!tessDataPath.isEmpty()) {
+            QDir dir(tessDataPath);
+            if (dir.exists()) {
             QStringList filters; filters << "*.traineddata";
             QStringList files = dir.entryList(filters, QDir::Files);
 
@@ -193,9 +210,12 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
                 QString name = file.left(file.lastIndexOf('.'));
                 if (name != "osd") foundLangs << name;
             }
+            }
         }
 
         QString currentLang = foundLangs.isEmpty() ? m_language : foundLangs.join('+');
+        qDebug() << "OCR: Used tessdata path:" << tessDataPath;
+        qDebug() << "OCR: Detected languages:" << foundLangs.size() << ":" << currentLang;
 
         QStringList args;
         // 明确指定数据目录
