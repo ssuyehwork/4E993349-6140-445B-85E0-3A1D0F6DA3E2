@@ -54,8 +54,16 @@ public:
             QPainterPath path; path.moveTo(24, 12); path.arcTo(6, 6, 20, 20, 90, 180); p.drawPath(path);
             QPolygonF head; head << QPointF(24, 12) << QPointF(18, 8) << QPointF(18, 16);
             p.setBrush(color); p.setPen(Qt::NoPen); p.drawPolygon(head);
+        } else if (type == "redo") {
+            QPainterPath path; path.moveTo(8, 12); path.arcTo(6, 6, 20, 20, 90, -180); p.drawPath(path);
+            QPolygonF head; head << QPointF(8, 12) << QPointF(14, 8) << QPointF(14, 16);
+            p.setBrush(color); p.setPen(Qt::NoPen); p.drawPolygon(head);
         } else if (type == "save") {
             p.drawRect(6, 6, 20, 20); p.fillRect(10, 6, 12, 8, color); p.drawRect(8, 18, 16, 8);
+        } else if (type == "copy") {
+            p.drawRect(12, 6, 14, 14);
+            p.setBrush(QColor(45, 45, 45)); p.drawRect(6, 12, 14, 14);
+            p.setBrush(Qt::NoBrush); p.setPen(QPen(color, 2)); p.drawRect(6, 12, 14, 14);
         } else if (type == "close") {
             p.setPen(QPen(Qt::red, 3)); p.drawLine(8, 8, 24, 24); p.drawLine(24, 8, 8, 24);
         } else if (type == "confirm") {
@@ -161,7 +169,9 @@ ScreenshotToolbar::ScreenshotToolbar(ScreenshotTool* tool)
     layout->addStretch();
     
     addActionButton(layout, "undo", "撤销", [tool]{ tool->undo(); });
+    addActionButton(layout, "redo", "重做", [tool]{ tool->redo(); });
     addActionButton(layout, "save", "保存", [tool]{ tool->save(); });
+    addActionButton(layout, "copy", "复制", [tool]{ tool->copyToClipboard(); });
     addActionButton(layout, "close", "取消", [tool]{ tool->cancel(); });
     addActionButton(layout, "confirm", "完成", [tool]{ tool->confirm(); });
 
@@ -321,7 +331,10 @@ ScreenshotTool::ScreenshotTool(QWidget* parent)
     m_textInput->hide();
     m_textInput->setFrame(false);
     connect(m_textInput, &QLineEdit::editingFinished, this, &ScreenshotTool::commitTextInput);
+}
 
+void ScreenshotTool::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
     detectWindows();
 }
 
@@ -515,12 +528,12 @@ void ScreenshotTool::mouseReleaseEvent(QMouseEvent* e) {
     }
 
     if (m_state == ScreenshotState::Editing) {
+        updateToolbarPosition();
         m_toolbar->show();
         m_infoBar->updateInfo(selectionRect());
         m_infoBar->show();
         m_infoBar->move(selectionRect().left(), selectionRect().top() - 35);
     }
-    updateToolbarPosition();
     update();
 }
 
@@ -564,6 +577,8 @@ void ScreenshotTool::setDrawColor(const QColor& c) { m_currentColor = c; }
 void ScreenshotTool::setDrawWidth(int w) { m_currentStrokeWidth = w; }
 void ScreenshotTool::setArrowStyle(ArrowStyle s) { m_currentArrowStyle = s; }
 void ScreenshotTool::undo() { if(!m_annotations.isEmpty()) { m_redoStack.append(m_annotations.takeLast()); update(); } }
+void ScreenshotTool::redo() { if(!m_redoStack.isEmpty()) { m_annotations.append(m_redoStack.takeLast()); update(); } }
+void ScreenshotTool::copyToClipboard() { QApplication::clipboard()->setImage(generateFinalImage()); cancel(); }
 void ScreenshotTool::save() { 
     QString f = QFileDialog::getSaveFileName(this, "Save", "cap.png", "PNG(*.png)");
     if(!f.isEmpty()) generateFinalImage().save(f);
@@ -639,6 +654,11 @@ void ScreenshotTool::detectWindows() {
     m_detectedRects.clear();
 #ifdef Q_OS_WIN
     EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(&m_detectedRects));
+    // 转换为本地坐标以支持多显示器
+    QPoint offset = mapToGlobal(QPoint(0,0));
+    for(QRect& r : m_detectedRects) {
+        r.translate(-offset);
+    }
 #endif
 }
 
@@ -650,5 +670,15 @@ QImage ScreenshotTool::generateFinalImage() {
     for(auto& a : m_annotations) drawAnnotation(painter, a);
     return p.toImage();
 }
-void ScreenshotTool::keyPressEvent(QKeyEvent* e) { if(e->key() == Qt::Key_Escape) cancel(); }
+void ScreenshotTool::keyPressEvent(QKeyEvent* e) {
+    if(e->key() == Qt::Key_Escape) {
+        cancel();
+    } else if(e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter || e->key() == Qt::Key_Space) {
+        if(m_state == ScreenshotState::Editing) copyToClipboard();
+    } else if (e->modifiers() == Qt::ControlModifier && e->key() == Qt::Key_Z) {
+        undo();
+    } else if (e->modifiers() == (Qt::ControlModifier | Qt::ShiftModifier) && e->key() == Qt::Key_Z) {
+        redo();
+    }
+}
 void ScreenshotTool::mouseDoubleClickEvent(QMouseEvent* e) { if(selectionRect().contains(e->pos())) confirm(); }

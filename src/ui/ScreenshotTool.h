@@ -85,6 +85,8 @@ public:
     
     void updateToolbarPosition();
     void undo();
+    void redo();
+    void copyToClipboard();
     void save();
     void confirm();
     void cancel(); 
@@ -95,6 +97,7 @@ signals:
 
 protected:
     void paintEvent(QPaintEvent*) override;
+    void showEvent(QShowEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
