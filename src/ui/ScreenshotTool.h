@@ -17,6 +17,7 @@
 #include <QMenu>
 #include <QColorDialog>
 #include <QList>
+#include <functional>
 
 enum class ScreenshotState { Selecting, Editing };
 enum class ScreenshotToolType { None, Rect, Ellipse, Arrow, Line, Pen, Marker, Text, Mosaic };
