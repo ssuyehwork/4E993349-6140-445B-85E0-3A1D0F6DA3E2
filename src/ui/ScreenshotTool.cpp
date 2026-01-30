@@ -477,6 +477,7 @@ void ScreenshotTool::mouseMoveEvent(QMouseEvent* e) {
             updateToolbarPosition();
         }
     } else if (m_isDrawing) {
+        updateToolbarPosition(); // 绘画时也保持工具栏位置更新和显示
         if (m_currentTool == ScreenshotToolType::Arrow || m_currentTool == ScreenshotToolType::Line || 
             m_currentTool == ScreenshotToolType::Rect || m_currentTool == ScreenshotToolType::Ellipse) {
             if (m_currentAnnotation.points.size() > 1) m_currentAnnotation.points[1] = e->pos();
@@ -531,6 +532,10 @@ void ScreenshotTool::updateToolbarPosition() {
     if (x < 0) x = 0;
     if (y + m_toolbar->height() > height()) y = r.top() - m_toolbar->height() - 10;
     m_toolbar->move(x, y);
+    if (m_state == ScreenshotState::Editing && !m_toolbar->isVisible()) {
+        m_toolbar->show();
+    }
+    if (m_toolbar->isVisible()) m_toolbar->raise();
 }
 
 void ScreenshotTool::paintEvent(QPaintEvent*) {
