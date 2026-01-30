@@ -371,11 +371,11 @@ void ScreenshotTool::drawArrow(QPainter& p, const QPointF& start, const QPointF&
     QPointF unit = dir / len;
     QPointF perp(-unit.y(), unit.x());
     double angle = std::atan2(dir.y(), dir.x());
+    double headLen = 22 + ann.strokeWidth * 2.5; // 定义在顶层作用域
     
     if (ann.arrowStyle == ArrowStyle::Solid) {
         // 重构：一体化锥形飞镖箭头逻辑 (PixPin/Snipaste 风格)
         // 整个形状由 6 个点构成的闭合多边形，不再有单独的直线箭杆
-        double headLen = 22 + ann.strokeWidth * 2.5;
         double barbWidth = 12 + ann.strokeWidth * 2.0;
         double waistLen = headLen * 0.75;
         double waistWidth = 2 + ann.strokeWidth * 0.8;
@@ -413,7 +413,6 @@ void ScreenshotTool::drawArrow(QPainter& p, const QPointF& start, const QPointF&
         QPolygonF poly; poly << end << head1 << p1 << p2 << p3 << p4 << head2;
         p.setBrush(Qt::transparent); p.setPen(QPen(ann.color, 2)); p.drawPolygon(poly);
     } else if (ann.arrowStyle == ArrowStyle::Double) {
-        double headLen = 18 + ann.strokeWidth * 1.5;
         double waistLen = headLen * 0.7;
         double barbAngle = 0.5;
 
@@ -435,7 +434,6 @@ void ScreenshotTool::drawArrow(QPainter& p, const QPointF& start, const QPointF&
         };
         drawH(end, angle); drawH(start, angle + M_PI);
     } else if (ann.arrowStyle == ArrowStyle::DotStart) {
-        double headLen = 18 + ann.strokeWidth * 1.5;
         double waistLen = headLen * 0.7;
         p.setPen(QPen(ann.color, ann.strokeWidth, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
         p.drawLine(start, end - unit * waistLen);

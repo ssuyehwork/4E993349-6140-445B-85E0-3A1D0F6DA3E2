@@ -8,6 +8,7 @@
 #include <QDebug>
 #include <QLocale>
 #include <QCoreApplication>
+#include <utility>
 
 OCRManager& OCRManager::instance() {
     static OCRManager inst;
@@ -186,7 +187,7 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
     basePaths << QDir(appPath).absolutePath() + "/..";
     basePaths << QDir(appPath).absolutePath() + "/../..";
 
-    for (const QString& base : basePaths) {
+    for (const QString& base : std::as_const(basePaths)) {
         // 搜索数据目录 (支持资源目录、根目录及标准安装路径)
         if (tessDataPath.isEmpty()) {
             QStringList dataPotentials;
@@ -194,7 +195,7 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
                            << base + "/Tesseract-OCR/tessdata"
                            << base + "/tessdata"
                            << "C:/Program Files/Tesseract-OCR/tessdata";
-            for (const QString& p : dataPotentials) {
+            for (const QString& p : std::as_const(dataPotentials)) {
                 if (QDir(p).exists()) {
                     tessDataPath = QDir(p).absolutePath();
                     break;
@@ -210,7 +211,7 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
                            << base + "/resources/tesseract.exe"
                            << base + "/tesseract.exe"
                            << "C:/Program Files/Tesseract-OCR/tesseract.exe";
-            for (const QString& p : exePotentials) {
+            for (const QString& p : std::as_const(exePotentials)) {
                 if (QFile::exists(p)) {
                     tesseractPath = QDir::toNativeSeparators(p);
                     break;
@@ -254,7 +255,7 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
                 priority = {"chi_sim", "tha", "eng", "chi_tra", "jpn", "kor"};
             }
 
-            for (const QString& pLang : priority) {
+            for (const QString& pLang : std::as_const(priority)) {
                 if (files.contains(pLang + ".traineddata")) {
                     foundLangs << pLang;
                     files.removeAll(pLang + ".traineddata");
@@ -263,7 +264,7 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
             // 其余语言按字母顺序追加，但限制总数。
             // 速度优化的关键：加载的语言模型（LSTM）越多，Tesseract 初始化越慢。
             // 将上限从 10 降至 3，可使初始化速度提升数倍。
-            for (const QString& file : files) {
+            for (const QString& file : std::as_const(files)) {
                 if (foundLangs.size() >= 3) break;
                 QString name = file.left(file.lastIndexOf('.'));
                 if (name != "osd" && !foundLangs.contains(name)) foundLangs << name;
