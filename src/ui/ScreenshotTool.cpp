@@ -658,12 +658,15 @@ void ScreenshotTool::detectWindows() {
 
 void ScreenshotTool::executeOCR() {
     QImage img = generateFinalImage();
-    OCRResultWindow* resWin = new OCRResultWindow(img, this);
+    // 修改：不要把 ScreenshotTool 作为父对象，否则 ScreenshotTool 关闭时它也会跟着关
+    OCRResultWindow* resWin = new OCRResultWindow(img, nullptr);
     resWin->show();
     
     // 连接信号
     connect(&OCRManager::instance(), &OCRManager::recognitionFinished, resWin, &OCRResultWindow::setRecognizedText);
     OCRManager::instance().recognizeAsync(img, 9999); // 9999 是 OCR 结果窗口的专用 ID
+
+    cancel(); // 识别后关闭截图
 }
 
 QImage ScreenshotTool::generateFinalImage() {
