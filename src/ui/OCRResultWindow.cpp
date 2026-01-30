@@ -1,5 +1,6 @@
 #include "OCRResultWindow.h"
 #include "IconHelper.h"
+#include "StringUtils.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QSettings>
@@ -67,6 +68,24 @@ OCRResultWindow::OCRResultWindow(const QImage& image, QWidget* parent)
     bottomLayout->addWidget(m_autoCopyCheck);
 
     bottomLayout->addStretch();
+
+    QPushButton* toSimplifiedBtn = new QPushButton("转简体");
+    toSimplifiedBtn->setFlat(true);
+    toSimplifiedBtn->setStyleSheet("QPushButton { color: #1abc9c; border: none; font-size: 13px; } QPushButton:hover { color: #2ecc71; }");
+    toSimplifiedBtn->setCursor(Qt::PointingHandCursor);
+    connect(toSimplifiedBtn, &QPushButton::clicked, [this]{
+        m_textEdit->setPlainText(StringUtils::convertChineseVariant(m_textEdit->toPlainText(), true));
+    });
+    bottomLayout->addWidget(toSimplifiedBtn);
+
+    QPushButton* toTraditionalBtn = new QPushButton("转繁体");
+    toTraditionalBtn->setFlat(true);
+    toTraditionalBtn->setStyleSheet("QPushButton { color: #f39c12; border: none; font-size: 13px; } QPushButton:hover { color: #e67e22; }");
+    toTraditionalBtn->setCursor(Qt::PointingHandCursor);
+    connect(toTraditionalBtn, &QPushButton::clicked, [this]{
+        m_textEdit->setPlainText(StringUtils::convertChineseVariant(m_textEdit->toPlainText(), false));
+    });
+    bottomLayout->addWidget(toTraditionalBtn);
 
     QPushButton* typesettingBtn = new QPushButton("排版");
     typesettingBtn->setFlat(true);

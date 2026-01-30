@@ -6,6 +6,7 @@
 #include <QProcess>
 #include <QDir>
 #include <QDebug>
+#include <QLocale>
 #include <QCoreApplication>
 
 OCRManager& OCRManager::instance() {
@@ -210,8 +211,18 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
             QStringList filters; filters << "*.traineddata";
             QStringList files = dir.entryList(filters, QDir::Files);
 
-            // 定义优先级：中文和英文最优先，泰语次之
-            QStringList priority = {"chi_sim", "eng", "chi_tra", "tha", "jpn", "kor"};
+            // 定义优先级：根据系统区域设置智能排序
+            QStringList priority;
+            if (QLocale::system().language() == QLocale::Chinese) {
+                if (QLocale::system().script() == QLocale::TraditionalChineseScript) {
+                    priority = {"chi_tra", "eng", "chi_sim", "tha", "jpn", "kor"};
+                } else {
+                    priority = {"chi_sim", "eng", "chi_tra", "tha", "jpn", "kor"};
+                }
+            } else {
+                priority = {"eng", "chi_sim", "chi_tra", "tha", "jpn", "kor"};
+            }
+
             for (const QString& pLang : priority) {
                 if (files.contains(pLang + ".traineddata")) {
                     foundLangs << pLang;
