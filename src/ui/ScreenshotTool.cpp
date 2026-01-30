@@ -49,23 +49,26 @@ public:
         QPointF start(5, 10), end(35, 10);
         QPointF dir = end - start;
         double angle = std::atan2(dir.y(), dir.x());
-        double headLen = 12;
-        double headWidth = 7;
+        double headLen = 14; // 增大预览图箭尖尺寸
 
         if (style == ArrowStyle::Solid) {
-            QPointF anchor = end - (dir/30.0) * (headLen * 0.7);
+            // 绘制箭杆，确保在箭尖凹陷处停止
+            QPointF anchor = end - (dir/30.0) * (headLen * 0.6);
+            p.setPen(QPen(Qt::white, 3, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin)); // 加粗预览线条
             p.drawLine(start, anchor);
+
             p.setPen(Qt::NoPen);
+            p.setBrush(Qt::white);
             QPointF p1 = end;
-            QPointF p2 = end - QPointF(headLen * std::cos(angle - 0.5), headLen * std::sin(angle - 0.5));
-            QPointF p3 = end - QPointF(headLen * 0.7 * std::cos(angle), headLen * 0.7 * std::sin(angle));
-            QPointF p4 = end - QPointF(headLen * std::cos(angle + 0.5), headLen * std::sin(angle + 0.5));
+            QPointF p2 = end - QPointF(headLen * std::cos(angle - 0.6), headLen * std::sin(angle - 0.6));
+            QPointF p3 = anchor;
+            QPointF p4 = end - QPointF(headLen * std::cos(angle + 0.6), headLen * std::sin(angle + 0.6));
             p.drawPolygon(QPolygonF() << p1 << p2 << p3 << p4);
         } else if (style == ArrowStyle::Thin) {
-            p.setPen(QPen(Qt::white, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            p.setPen(QPen(Qt::white, 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             p.drawLine(start, end);
-            p.drawLine(end, end - QPointF(10 * std::cos(angle - 0.5), 10 * std::sin(angle - 0.5)));
-            p.drawLine(end, end - QPointF(10 * std::cos(angle + 0.5), 10 * std::sin(angle + 0.5)));
+            p.drawLine(end, end - QPointF(11 * std::cos(angle - 0.55), 11 * std::sin(angle - 0.55)));
+            p.drawLine(end, end - QPointF(11 * std::cos(angle + 0.55), 11 * std::sin(angle + 0.55)));
         } else if (style == ArrowStyle::Outline) {
             p.setBrush(Qt::transparent);
             QPolygonF poly; poly << QPointF(5, 8) << QPointF(25, 8) << QPointF(25, 4) << QPointF(35, 10) << QPointF(25, 16) << QPointF(25, 12) << QPointF(5, 12);
@@ -356,20 +359,19 @@ void ScreenshotTool::drawArrow(QPainter& p, const QPointF& start, const QPointF&
     if (len < 1) return;
     
     double angle = std::atan2(dir.y(), dir.x());
-    double headLen = 15 + ann.strokeWidth * 1.5;
-    double headWidth = headLen * 0.6;
+    double headLen = 18 + ann.strokeWidth * 2.0; // 增大实画箭尖尺寸
     
     if (ann.arrowStyle == ArrowStyle::Solid) {
-        QPointF anchor = end - (dir/len) * (headLen * 0.7);
+        QPointF anchor = end - (dir/len) * (headLen * 0.6); // 深度设为 0.6 使燕尾更明显
         p.setPen(QPen(ann.color, ann.strokeWidth, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
         p.drawLine(start, anchor);
 
         p.setPen(Qt::NoPen);
         p.setBrush(ann.color);
         QPointF p1 = end;
-        QPointF p2 = end - QPointF(headLen * std::cos(angle - 0.45), headLen * std::sin(angle - 0.45));
+        QPointF p2 = end - QPointF(headLen * std::cos(angle - 0.55), headLen * std::sin(angle - 0.55));
         QPointF p3 = anchor;
-        QPointF p4 = end - QPointF(headLen * std::cos(angle + 0.45), headLen * std::sin(angle + 0.45));
+        QPointF p4 = end - QPointF(headLen * std::cos(angle + 0.55), headLen * std::sin(angle + 0.55));
         p.drawPolygon(QPolygonF() << p1 << p2 << p3 << p4);
     } else if (ann.arrowStyle == ArrowStyle::Thin) {
         p.setPen(QPen(ann.color, ann.strokeWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
