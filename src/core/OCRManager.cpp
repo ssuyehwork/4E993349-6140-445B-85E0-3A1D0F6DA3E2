@@ -58,7 +58,8 @@ QImage OCRManager::preprocessImage(const QImage& original) {
         );
     }
 
-    // 3. 增强对比度（对比度拉伸）
+    // 3. 增强对比度（线性拉伸）
+    // 泰语等细笔画文字对二值化和过度的对比度拉伸很敏感，因此我们收窄忽略范围（从 1% 降至 0.5%）
     int histogram[256] = {0};
     for (int y = 0; y < processed.height(); ++y) {
         const uchar* line = processed.constScanLine(y);
@@ -67,14 +68,13 @@ QImage OCRManager::preprocessImage(const QImage& original) {
         }
     }
     
-    // 找到有效的灰度范围（忽略边缘 1% 的噪点）
     int totalPixels = processed.width() * processed.height();
     int minGray = 0, maxGray = 255;
     int count = 0;
     
     for (int i = 0; i < 256; ++i) {
         count += histogram[i];
-        if (count > totalPixels * 0.01) {
+        if (count > totalPixels * 0.005) {
             minGray = i;
             break;
         }
@@ -83,13 +83,12 @@ QImage OCRManager::preprocessImage(const QImage& original) {
     count = 0;
     for (int i = 255; i >= 0; --i) {
         count += histogram[i];
-        if (count > totalPixels * 0.01) {
+        if (count > totalPixels * 0.005) {
             maxGray = i;
             break;
         }
     }
     
-    // 应用对比度拉伸，使背景更白，文字更黑
     if (maxGray > minGray) {
         for (int y = 0; y < processed.height(); ++y) {
             uchar* line = processed.scanLine(y);
@@ -143,27 +142,33 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
 
     // 路径探测逻辑
     QString appPath = QCoreApplication::applicationDirPath();
-    QString tesseractPath = appPath + "/resources/Tesseract-OCR/tesseract.exe";
     QString tessDataPath = appPath + "/resources/Tesseract-OCR";
     
-    bool found = false;
-    if (QFile::exists(tesseractPath)) {
-        found = true;
-    } else {
-        // 备选路径：应用根目录
-        tesseractPath = appPath + "/tesseract.exe";
-        if (QFile::exists(tesseractPath)) {
-            found = true;
-        } else {
-            // 备选路径：系统 PATH
-            tesseractPath = "tesseract"; // 依赖系统环境变量
-            found = true; // 假设在 PATH 中，交给 QProcess 验证
+    // 深度搜索 tesseract.exe 可能出现的位置
+    QStringList searchPaths;
+    searchPaths << appPath + "/resources/Tesseract-OCR/tesseract.exe";
+    searchPaths << appPath + "/resources/tesseract.exe";
+    searchPaths << appPath + "/tesseract.exe";
+    searchPaths << "tesseract"; // 系统 PATH 兜底
+
+    QString tesseractPath;
+    for (const QString& path : searchPaths) {
+        if (path == "tesseract" || QFile::exists(path)) {
+            tesseractPath = path;
+            break;
         }
     }
 
-    if (found) {
+    if (!tesseractPath.isEmpty()) {
         QProcess tesseract;
         
+        // 设置 TESSDATA_PREFIX 环境变量（部分版本 Tesseract 依赖此变量）
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        if (QFile::exists(tessDataPath)) {
+            env.insert("TESSDATA_PREFIX", QDir::toNativeSeparators(tessDataPath));
+        }
+        tesseract.setProcessEnvironment(env);
+
         // 自动探测可用语言，如果存在泰语则自动加入识别列表
         QString currentLang = m_language;
         if (QFile::exists(tessDataPath + "/tha.traineddata") && !currentLang.contains("tha")) {
@@ -171,7 +176,7 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
         }
 
         QStringList args;
-        // 使用 --tessdata-dir 明确指定数据目录，避免环境变量干扰
+        // 明确指定数据目录
         if (QFile::exists(tessDataPath)) {
             args << "--tessdata-dir" << QDir::toNativeSeparators(tessDataPath);
         }
@@ -184,21 +189,20 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
             result = QString::fromUtf8(output).trimmed();
             
             if (!result.isEmpty()) {
-                qDebug() << "Tesseract OCR succeeded using lang:" << currentLang;
+                qDebug() << "Tesseract OCR succeeded using:" << tesseractPath << "with lang:" << currentLang;
                 emit recognitionFinished(result, contextId);
                 return;
             }
-            result = "未识别到任何内容 (Tesseract)";
+            result = "未识别到任何内容。请检查 Tesseract 数据包是否完整。";
         } else {
-            // 如果 "tesseract" 命令失败（比如不存在于 PATH），则会超时或报错
             if (tesseractPath == "tesseract") {
-                 result = "未找到 Tesseract 引擎组件，请确保安装并添加至环境变量";
+                 result = "未找到 Tesseract 引擎组件。请检查资源文件或安装 Tesseract 并添加至系统 PATH。";
             } else {
-                 result = "OCR 识别超时";
+                 result = "OCR 识别超时。";
             }
         }
     } else {
-        result = "未找到 Tesseract 引擎组件";
+        result = "未找到 Tesseract 引擎组件。搜索路径包括 resources/Tesseract-OCR。";
     }
 #else
     result = "当前平台不支持 OCR 功能";
