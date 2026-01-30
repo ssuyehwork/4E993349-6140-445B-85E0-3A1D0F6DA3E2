@@ -20,7 +20,7 @@
 #include <functional>
 
 enum class ScreenshotState { Selecting, Editing };
-enum class ScreenshotToolType { None, Rect, Ellipse, Arrow, Line, Pen, Marker, Text, Mosaic, Eraser };
+enum class ScreenshotToolType { None, Rect, Ellipse, Arrow, Line, Pen, Marker, Text, Mosaic, MosaicRect, Eraser };
 enum class ArrowStyle {
     SolidSingle, OutlineSingle,
     SolidDouble, OutlineDouble,
@@ -85,6 +85,7 @@ public:
 
 class SelectionInfoBar : public QWidget {
     Q_OBJECT
+    friend class ScreenshotToolbar;
 public:
     explicit SelectionInfoBar(QWidget* parent = nullptr);
     void updateInfo(const QRect& rect);

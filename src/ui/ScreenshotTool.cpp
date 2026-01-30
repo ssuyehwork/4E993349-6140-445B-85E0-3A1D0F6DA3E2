@@ -201,7 +201,8 @@ ScreenshotToolbar::ScreenshotToolbar(ScreenshotTool* tool)
     addToolButton(layout, ScreenshotToolType::Pen, "screenshot_pen", "画笔 (P)");
     addToolButton(layout, ScreenshotToolType::Marker, "screenshot_marker", "记号笔 (M)");
     addToolButton(layout, ScreenshotToolType::Text, "screenshot_text", "文字 (T)");
-    addToolButton(layout, ScreenshotToolType::Mosaic, "screenshot_mosaic", "马赛克 (Z)");
+    addToolButton(layout, ScreenshotToolType::Mosaic, "screenshot_mosaic", "画笔马赛克 (Z)");
+    addToolButton(layout, ScreenshotToolType::MosaicRect, "screenshot_rect", "矩形马赛克 (M)");
     addToolButton(layout, ScreenshotToolType::Eraser, "screenshot_eraser", "橡皮擦 (X)");
 
     layout->addStretch();
@@ -512,18 +513,32 @@ void ScreenshotTool::drawAnnotation(QPainter& p, const DrawingAnnotation& ann) {
         p.drawEllipse(ann.points[0], r, r);
         p.setPen(Qt::white); p.setFont(QFont("Arial", r, QFont::Bold));
         p.drawText(QRectF(ann.points[0].x()-r, ann.points[0].y()-r, r*2, r*2), Qt::AlignCenter, ann.text);
-    } else if (ann.type == ScreenshotToolType::Mosaic) {
-        QPainterPath path; path.moveTo(ann.points[0]);
-        for(int i=1; i<ann.points.size(); ++i) path.lineTo(ann.points[i]);
-        QPainterPathStroker s; s.setWidth(ann.strokeWidth * 10);
+    } else if (ann.type == ScreenshotToolType::Mosaic || ann.type == ScreenshotToolType::MosaicRect) {
         p.save();
-        p.setClipPath(s.createStroke(path));
-        // 关键：确保马赛克图片与屏幕位置完全对齐
-        // 获取当前绘制区域在屏幕上的实际位置
-        QRect drawingRect = p.clipBoundingRect().toRect();
-        // 如果 painter 有位移（如生成最终图时），需要还原到全屏坐标
-        QRect screenRect = p.transform().inverted().mapRect(drawingRect);
-        p.drawPixmap(drawingRect, m_mosaicPixmap, screenRect);
+        p.setRenderHint(QPainter::Antialiasing, false);
+
+        QPainterPath mosaicArea;
+        if (ann.type == ScreenshotToolType::MosaicRect) {
+            mosaicArea.addRect(QRectF(ann.points[0], ann.points[1]).normalized());
+        } else {
+            QPainterPath path; path.moveTo(ann.points[0]);
+            for(int i = 1; i < ann.points.size(); ++i) path.lineTo(ann.points[i]);
+            QPainterPathStroker s; s.setWidth(ann.strokeWidth * 12);
+            s.setCapStyle(Qt::RoundCap);
+            s.setJoinStyle(Qt::RoundJoin);
+            mosaicArea = s.createStroke(path);
+        }
+
+        p.setClipPath(mosaicArea, Qt::IntersectClip);
+
+        // 核心视觉修复：将马赛克画刷的原点锁定在全屏 (0,0)
+        // 这样无论是在截图层预览，还是生成最后图片，像素点都能完美对齐，不会产生位移或重叠
+        p.setBrushOrigin(p.transform().inverted().map(QPointF(0, 0)));
+        p.setBrush(QBrush(m_mosaicPixmap));
+        p.setPen(Qt::NoPen);
+
+        // 绘制覆盖整个区域的矩形，裁剪会限制实际显示范围
+        p.drawRect(p.window());
         p.restore();
     } else if (ann.type == ScreenshotToolType::Text && !ann.text.isEmpty()) {
         p.setPen(ann.color); p.setFont(QFont("Microsoft YaHei", 12 + ann.strokeWidth*2, QFont::Bold));
@@ -532,6 +547,7 @@ void ScreenshotTool::drawAnnotation(QPainter& p, const DrawingAnnotation& ann) {
 }
 
 void ScreenshotTool::mousePressEvent(QMouseEvent* e) {
+    setFocus(); // 确保接收键盘事件
     if(m_textInput->isVisible() && !m_textInput->geometry().contains(e->pos())) commitTextInput();
     if(e->button() != Qt::LeftButton) return;
 
@@ -640,10 +656,10 @@ void ScreenshotTool::mouseMoveEvent(QMouseEvent* e) {
             updateToolbarPosition();
         }
     } else if (m_isDrawing) {
-        updateToolbarPosition(); // 绘画时也保持工具栏位置更新和显示
+        updateToolbarPosition();
         QPointF p = e->position();
         if (e->modifiers() & Qt::ShiftModifier) {
-            if (m_currentTool == ScreenshotToolType::Rect || m_currentTool == ScreenshotToolType::Ellipse) {
+            if (m_currentTool == ScreenshotToolType::Rect || m_currentTool == ScreenshotToolType::Ellipse || m_currentTool == ScreenshotToolType::MosaicRect) {
                 double dx = p.x() - m_currentAnnotation.points[0].x();
                 double dy = p.y() - m_currentAnnotation.points[0].y();
                 if (std::abs(dx) > std::abs(dy)) p.setY(m_currentAnnotation.points[0].y() + (dy > 0 ? std::abs(dx) : -std::abs(dx)));
@@ -660,7 +676,8 @@ void ScreenshotTool::mouseMoveEvent(QMouseEvent* e) {
         }
 
         if (m_currentTool == ScreenshotToolType::Arrow || m_currentTool == ScreenshotToolType::Line || 
-            m_currentTool == ScreenshotToolType::Rect || m_currentTool == ScreenshotToolType::Ellipse) {
+            m_currentTool == ScreenshotToolType::Rect || m_currentTool == ScreenshotToolType::Ellipse ||
+            m_currentTool == ScreenshotToolType::MosaicRect) {
             if (m_currentAnnotation.points.size() > 1) m_currentAnnotation.points[1] = p;
             else m_currentAnnotation.points.append(p);
         } else {
@@ -901,10 +918,11 @@ void ScreenshotTool::keyPressEvent(QKeyEvent* e) {
     } else if(e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter || e->key() == Qt::Key_Space) {
         if(m_state == ScreenshotState::Editing) copyToClipboard();
     } else if (e->modifiers() & Qt::ControlModifier) {
-        if (e->key() == Qt::Key_Z) {
+        int key = e->key();
+        if (key == Qt::Key_Z) {
             if (e->modifiers() & Qt::ShiftModifier) redo();
             else undo();
-        } else if (e->key() == Qt::Key_Y) {
+        } else if (key == Qt::Key_Y) {
             redo();
         } else if (e->key() == Qt::Key_O) {
             executeOCR();
