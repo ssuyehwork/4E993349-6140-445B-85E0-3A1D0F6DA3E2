@@ -218,10 +218,11 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
                     files.removeAll(pLang + ".traineddata");
                 }
             }
-            // 其余语言按字母顺序追加
+            // 其余语言按字母顺序追加，但限制总数以防止 Tesseract 初始化超时
             for (const QString& file : files) {
+                if (foundLangs.size() >= 10) break;
                 QString name = file.left(file.lastIndexOf('.'));
-                if (name != "osd") foundLangs << name;
+                if (name != "osd" && !foundLangs.contains(name)) foundLangs << name;
             }
             }
         }
@@ -239,8 +240,11 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
         args << filePath << "stdout" << "-l" << currentLang << "--oem" << "1" << "--psm" << "3";
         tesseract.start(tesseractPath, args);
         
-        if (tesseract.waitForFinished(10000)) {
+        if (!tesseract.waitForStarted()) {
+            result = "无法启动 Tesseract 引擎。路径: " + tesseractPath;
+        } else if (tesseract.waitForFinished(20000)) {
             QByteArray output = tesseract.readAllStandardOutput();
+            QByteArray errorOutput = tesseract.readAllStandardError();
             result = QString::fromUtf8(output).trimmed();
             
             if (!result.isEmpty()) {
@@ -248,13 +252,15 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
                 emit recognitionFinished(result, contextId);
                 return;
             }
-            result = "未识别到任何内容。请检查 Tesseract 数据包是否完整。";
-        } else {
-            if (tesseractPath == "tesseract") {
-                 result = "未找到 Tesseract 引擎组件。请检查资源文件或安装 Tesseract 并添加至系统 PATH。";
+
+            if (!errorOutput.isEmpty()) {
+                result = "Tesseract 错误: " + QString::fromUtf8(errorOutput).left(100);
             } else {
-                 result = "OCR 识别超时。";
+                result = "未识别到任何内容。请检查数据包及语言。";
             }
+        } else {
+            tesseract.kill();
+            result = "OCR 识别超时 (20s)。语言包过量或图片过大。";
         }
     } else {
         result = "未找到 Tesseract 引擎组件。搜索路径包括 resources/Tesseract-OCR。";
