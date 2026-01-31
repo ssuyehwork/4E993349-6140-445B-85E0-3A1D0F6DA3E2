@@ -3,7 +3,6 @@
 #include <QObject>
 #include <QImage>
 #include <QString>
-#include <QMutex>
 
 class OCRManager : public QObject {
     Q_OBJECT
@@ -27,7 +26,6 @@ signals:
 private:
     OCRManager(QObject* parent = nullptr);
     QString m_language = "chi_sim+eng"; // 默认中文简体+英文
-    mutable QMutex m_mutex;
 };
 
 #endif // OCRMANAGER_H

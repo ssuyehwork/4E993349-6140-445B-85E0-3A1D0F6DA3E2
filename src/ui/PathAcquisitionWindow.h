@@ -5,7 +5,10 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QLabel>
+#include <QUrl>
+#include <QCheckBox>
 
 class PathAcquisitionWindow : public FramelessDialog {
     Q_OBJECT
@@ -22,7 +25,11 @@ private:
 
     QListWidget* m_pathList;
     QLabel* m_dropHint;
+    QCheckBox* m_recursiveCheck;
     QPoint m_dragPos;
+    
+    QList<QUrl> m_currentUrls;  // 缓存当前拖入的 URL，用于自动刷新
+    void processStoredUrls();   // 处理缓存的 URL
 };
 
 #endif // PATHACQUISITIONWINDOW_H

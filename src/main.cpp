@@ -33,11 +33,42 @@
 #include "ui/SettingsWindow.h"
 #include "core/KeyboardHook.h"
 
+// 日志文件输出
+static QFile* logFile = nullptr;
+static void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& msg) {
+    QString formattedMsg = QString("[%1] %2\n")
+        .arg(QDateTime::currentDateTime().toString("HH:mm:ss.zzz"))
+        .arg(msg);
+    
+    // 输出到控制台
+    fprintf(stderr, "%s", formattedMsg.toLocal8Bit().constData());
+    
+    // 输出到文件
+    if (logFile && logFile->isOpen()) {
+        QTextStream stream(logFile);
+        stream << formattedMsg;
+        stream.flush();
+    }
+}
+
 int main(int argc, char *argv[]) {
     QApplication a(argc, argv);
     a.setApplicationName("RapidNotes");
     a.setOrganizationName("RapidDev");
     a.setQuitOnLastWindowClosed(false);
+
+    // 创建日志文件
+    QString logPath = QCoreApplication::applicationDirPath() + "/debug.log";
+    logFile = new QFile(logPath);
+    if (logFile->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        qInstallMessageHandler(messageHandler);
+        qDebug() << "========================================";
+        qDebug() << "[Main] 程序启动" << QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+        qDebug() << "[Main] 日志文件:" << logPath;
+        qDebug() << "========================================";
+    } else {
+        qWarning() << "无法创建日志文件:" << logPath;
+    }
 
     // 单实例运行保护
     QString serverName = "RapidNotes_SingleInstance_Server";

@@ -10,15 +10,24 @@
 #include <QDropEvent>
 #include <QFileInfo>
 #include <QDateTime>
+#include <QThread>
 
 OCRWindow::OCRWindow(QWidget* parent) : FramelessDialog("文字识别", parent) {
-    setFixedSize(800, 500); // 增加宽度以适应三栏
+    setFixedSize(800, 500);
     setAcceptDrops(true);
 
     initUI();
     onClearResults();
-
-    connect(&OCRManager::instance(), &OCRManager::recognitionFinished, this, &OCRWindow::onRecognitionFinished);
+    
+    // 初始化处理定时器
+    m_processTimer = new QTimer(this);
+    m_processTimer->setSingleShot(true);
+    connect(m_processTimer, &QTimer::timeout, this, &OCRWindow::processNextImage);
+    
+    qDebug() << "[OCR] OCRWindow 初始化完成，使用顺序处理模式";
+    
+    connect(&OCRManager::instance(), &OCRManager::recognitionFinished, 
+            this, &OCRWindow::onRecognitionFinished, Qt::QueuedConnection);
 }
 
 OCRWindow::~OCRWindow() {
@@ -102,6 +111,15 @@ void OCRWindow::initUI() {
     resultLabel->setStyleSheet("color: #888; font-size: 11px; font-weight: bold;");
     rightLayout->addWidget(resultLabel);
 
+    
+    // 进度条
+    m_progressBar = new QProgressBar();
+    m_progressBar->setTextVisible(true);
+    m_progressBar->setAlignment(Qt::AlignCenter);
+    m_progressBar->setStyleSheet("QProgressBar { border: none; background: #333; border-radius: 4px; height: 6px; text-align: center; color: transparent; } QProgressBar::chunk { background-color: #4a90e2; border-radius: 4px; }");
+    m_progressBar->hide();
+    rightLayout->addWidget(m_progressBar);
+
     m_ocrResult = new QTextEdit();
     m_ocrResult->setReadOnly(true);
     m_ocrResult->setPlaceholderText("选择左侧项目查看识别结果...");
@@ -112,44 +130,56 @@ void OCRWindow::initUI() {
 }
 
 void OCRWindow::onPasteAndRecognize() {
-    const QMimeData* mime = QApplication::clipboard()->mimeData();
-    if (!mime) return;
+    qDebug() << "[OCR] 粘贴识别: 开始";
+    
+    // 自动清空之前的数据
+    onClearResults();
+    
+    const QClipboard* clipboard = QApplication::clipboard();
+    const QMimeData* mimeData = clipboard->mimeData();
 
     QList<QPair<QImage, QString>> imageData;
 
-    if (mime->hasImage()) {
-        QImage img = qvariant_cast<QImage>(mime->imageData());
-        if (!img.isNull()) imageData << qMakePair(img, "来自剪贴板的图片");
-    }
+    if (!mimeData) return;
 
-    if (mime->hasUrls()) {
-        for (const QUrl& url : mime->urls()) {
+    if (mimeData->hasImage()) {
+        QImage img = qvariant_cast<QImage>(mimeData->imageData());
+        if (!img.isNull()) {
+            imageData.append({img, "粘贴的图片"});
+        }
+    } else if (mimeData->hasUrls()) {
+        for (const QUrl& url : mimeData->urls()) {
             QString path = url.toLocalFile();
             if (!path.isEmpty()) {
                 QImage img(path);
-                if (!img.isNull()) imageData << qMakePair(img, QFileInfo(path).fileName());
+                if (!img.isNull()) {
+                    imageData.append({img, QFileInfo(path).fileName()});
+                }
             }
         }
     }
 
     if (!imageData.isEmpty()) {
-        int firstNewIdx = 0;
+        // 限制最多 10 张图片
+        if (imageData.size() > 10) {
+            qDebug() << "[OCR] 粘贴识别: 图片数量超过限制，仅处理前 10 张";
+            imageData = imageData.mid(0, 10);
+        }
+        
+        qDebug() << "[OCR] 粘贴识别: 开始处理" << imageData.size() << "张图片";
         QList<QImage> imgs;
-        {
-            QMutexLocker locker(&m_itemsMutex);
-            firstNewIdx = m_items.size();
-            for (auto& p : imageData) {
-                OCRItem item;
-                item.image = p.first;
-                item.name = p.second;
-                item.id = ++m_lastUsedId;
-                m_items.append(item);
-                imgs << p.first;
+        for (auto& p : imageData) {
+            OCRItem item;
+            item.image = p.first;
+            item.name = p.second;
+            item.id = ++m_lastUsedId;
+            m_items.append(item);
+            imgs << p.first;
+            qDebug() << "[OCR] 添加任务 ID:" << item.id << "名称:" << item.name;
 
-                auto* listItem = new QListWidgetItem(item.name, m_itemList);
-                listItem->setData(Qt::UserRole, item.id);
-                listItem->setIcon(IconHelper::getIcon("image", "#888"));
-            }
+            auto* listItem = new QListWidgetItem(item.name, m_itemList);
+            listItem->setData(Qt::UserRole, item.id);
+            listItem->setIcon(IconHelper::getIcon("image", "#888"));
         }
         processImages(imgs);
         
@@ -162,23 +192,32 @@ void OCRWindow::onBrowseAndRecognize() {
     QStringList files = QFileDialog::getOpenFileNames(this, "选择识别图片", "", "图片文件 (*.png *.jpg *.jpeg *.bmp *.gif)");
     if (files.isEmpty()) return;
 
-    QList<QImage> imgs;
-    {
-        QMutexLocker locker(&m_itemsMutex);
-        for (const QString& file : files) {
-            QImage img(file);
-            if (!img.isNull()) {
-                OCRItem item;
-                item.image = img;
-                item.name = QFileInfo(file).fileName();
-                item.id = ++m_lastUsedId;
-                m_items.append(item);
-                imgs << img;
+    // 自动清空之前的数据
+    onClearResults();
 
-                auto* listItem = new QListWidgetItem(item.name, m_itemList);
-                listItem->setData(Qt::UserRole, item.id);
-                listItem->setIcon(IconHelper::getIcon("image", "#888"));
-            }
+    qDebug() << "[OCR] 浏览识别: 选择了" << files.size() << "个文件";
+    
+    // 限制最多 10 张图片
+    if (files.size() > 10) {
+        qDebug() << "[OCR] 浏览识别: 文件数量超过限制，仅处理前 10 个";
+        files = files.mid(0, 10);
+    }
+    
+    QList<QImage> imgs;
+    for (const QString& file : std::as_const(files)) {
+        QImage img(file);
+        if (!img.isNull()) {
+            OCRItem item;
+            item.image = img;
+            item.name = QFileInfo(file).fileName();
+            item.id = ++m_lastUsedId;
+            m_items.append(item);
+            imgs << img;
+            qDebug() << "[OCR] 添加任务 ID:" << item.id << "文件:" << file;
+
+            auto* listItem = new QListWidgetItem(item.name, m_itemList);
+            listItem->setData(Qt::UserRole, item.id);
+            listItem->setIcon(IconHelper::getIcon("image", "#888"));
         }
     }
 
@@ -189,10 +228,23 @@ void OCRWindow::onBrowseAndRecognize() {
 }
 
 void OCRWindow::onClearResults() {
-    QMutexLocker locker(&m_itemsMutex);
+    qDebug() << "[OCR] 清空结果";
+    
+    m_isProcessing = false;
+    m_processingQueue.clear();
+    // 移除定时器相关操作，因为我们不再依赖定时器循环
+    // if (m_processTimer) { m_processTimer->stop(); }
+    
     m_itemList->clear();
     m_items.clear();
     m_ocrResult->clear();
+    
+    // 重置进度条
+    if (m_progressBar) {
+        m_progressBar->hide();
+        m_progressBar->setValue(0);
+    }
+    
     // 不重置 m_lastUsedId，防止异步回调 ID 冲突
     
     auto* summaryItem = new QListWidgetItem("--- 全部结果汇总 ---", m_itemList);
@@ -208,43 +260,57 @@ void OCRWindow::dragEnterEvent(QDragEnterEvent* event) {
 }
 
 void OCRWindow::dropEvent(QDropEvent* event) {
+    qDebug() << "[OCR] 拖入识别: 开始";
+    
+    // 自动清空之前的数据
+    onClearResults();
+    
     const QMimeData* mime = event->mimeData();
     QList<QImage> imgsToProcess;
-    {
-        QMutexLocker locker(&m_itemsMutex);
-        if (mime->hasImage()) {
-            QImage img = qvariant_cast<QImage>(mime->imageData());
-            if (!img.isNull()) {
-                OCRItem item;
-                item.image = img;
-                item.name = "拖入的图片";
-                item.id = ++m_lastUsedId;
-                m_items.append(item);
-                imgsToProcess << img;
 
-                auto* listItem = new QListWidgetItem(item.name, m_itemList);
-                listItem->setData(Qt::UserRole, item.id);
-                listItem->setIcon(IconHelper::getIcon("image", "#888"));
-            }
+    // 限制最多 10 张图片
+    int imageCount = 0;
+    const int MAX_IMAGES = 10;
+
+    if (mime->hasImage()) {
+        QImage img = qvariant_cast<QImage>(mime->imageData());
+        if (!img.isNull() && imageCount < MAX_IMAGES) {
+            OCRItem item;
+            item.image = img;
+            item.name = "拖入的图片";
+            item.id = ++m_lastUsedId;
+            m_items.append(item);
+            imgsToProcess << img;
+            imageCount++;
+
+            auto* listItem = new QListWidgetItem(item.name, m_itemList);
+            listItem->setData(Qt::UserRole, item.id);
+            listItem->setIcon(IconHelper::getIcon("image", "#888"));
         }
+    }
 
-        if (mime->hasUrls()) {
-            for (const QUrl& url : mime->urls()) {
-                QString path = url.toLocalFile();
-                if (!path.isEmpty()) {
-                    QImage img(path);
-                    if (!img.isNull()) {
-                        OCRItem item;
-                        item.image = img;
-                        item.name = QFileInfo(path).fileName();
-                        item.id = ++m_lastUsedId;
-                        m_items.append(item);
-                        imgsToProcess << img;
+    if (mime->hasUrls()) {
+        for (const QUrl& url : mime->urls()) {
+            if (imageCount >= MAX_IMAGES) {
+                qDebug() << "[OCR] 拖入识别: 已达到最大图片数量限制 (10 张)";
+                break;
+            }
+            
+            QString path = url.toLocalFile();
+            if (!path.isEmpty()) {
+                QImage img(path);
+                if (!img.isNull()) {
+                    OCRItem item;
+                    item.image = img;
+                    item.name = QFileInfo(path).fileName();
+                    item.id = ++m_lastUsedId;
+                    m_items.append(item);
+                    imgsToProcess << img;
+                    imageCount++;
 
-                        auto* listItem = new QListWidgetItem(item.name, m_itemList);
-                        listItem->setData(Qt::UserRole, item.id);
-                        listItem->setIcon(IconHelper::getIcon("image", "#888"));
-                    }
+                    auto* listItem = new QListWidgetItem(item.name, m_itemList);
+                    listItem->setData(Qt::UserRole, item.id);
+                    listItem->setIcon(IconHelper::getIcon("image", "#888"));
                 }
             }
         }
@@ -258,58 +324,181 @@ void OCRWindow::dropEvent(QDropEvent* event) {
 }
 
 void OCRWindow::processImages(const QList<QImage>& images) {
-    QMutexLocker locker(&m_itemsMutex);
-    // 基于刚才添加的 item 顺序进行识别
+    qDebug() << "[OCR] processImages: 添加" << images.size() << "张图片到队列";
+    
+    // 将所有图片添加到队列
     int startIdx = m_items.size() - images.size();
     for (int i = 0; i < images.size(); ++i) {
-        OCRManager::instance().recognizeAsync(images[i], m_items[startIdx + i].id);
+        int taskId = m_items[startIdx + i].id;
+        m_processingQueue.enqueue(taskId);
+        qDebug() << "[OCR] 添加到队列 ID:" << taskId;
+    }
+    
+    // 显示并初始化进度条
+    if (m_progressBar && !images.isEmpty()) {
+        m_progressBar->setMaximum(m_items.size());
+        m_progressBar->setValue(0);
+        m_progressBar->show();
+    }
+    
+    // 如果当前没有在处理，立即开始处理
+    if (!m_isProcessing) {
+        qDebug() << "[OCR] 开始顺序处理";
+        processNextImage();
     }
 }
 
-void OCRWindow::onRecognitionFinished(const QString& text, int contextId) {
-    {
-        QMutexLocker locker(&m_itemsMutex);
-        for (auto& item : m_items) {
-            if (item.id == contextId) {
-                item.result = text.trimmed();
-                item.isFinished = true;
-                break;
-            }
+void OCRWindow::processNextImage() {
+    // 检查队列是否为空
+    if (m_processingQueue.isEmpty()) {
+        qDebug() << "[OCR] 所有任务处理完成";
+        m_isProcessing = false;
+        updateRightDisplay();
+        return;
+    }
+    
+    m_isProcessing = true;
+    int taskId = m_processingQueue.dequeue();
+    
+    qDebug() << "[OCR] 开始处理 ID:" << taskId << "剩余:" << m_processingQueue.size();
+    
+    // 找到对应的图片
+    OCRItem* item = nullptr;
+    for (auto& it : m_items) {
+        if (it.id == taskId) {
+            item = &it;
+            break;
         }
     }
-    updateRightDisplay();
+    
+    if (!item) {
+        qDebug() << "[OCR] 错误: 未找到任务 ID:" << taskId;
+        // 继续处理下一个
+        QTimer::singleShot(0, this, &OCRWindow::processNextImage);
+        return;
+    }
+    
+    // 启动异步识别
+    // 注意：这里我们使用 recognizeAsync，它会在后台线程运行
+    // 识别完成后会发射 recognitionFinished 信号，我们在槽函数中触发下一个任务
+    qDebug() << "[OCR] 调用 recognizeAsync ID:" << taskId;
+    OCRManager::instance().recognizeAsync(item->image, taskId);
 }
+
 
 void OCRWindow::onItemSelectionChanged() {
     updateRightDisplay();
 }
 
+void OCRWindow::onRecognitionFinished(const QString& text, int contextId) {
+    qDebug() << "[OCR] onRecognitionFinished: 收到识别结果 ID:" << contextId 
+             << "线程:" << QThread::currentThread() << "文本长度:" << text.length();
+    
+    bool found = false;
+    for (auto& item : m_items) {
+        if (item.id == contextId) {
+            // 检查会话版本号
+            if (item.sessionVersion != m_sessionVersion) {
+                qDebug() << "[OCR] 忽略过期回调 ID:" << contextId 
+                         << "任务会话:" << item.sessionVersion 
+                         << "当前会话:" << m_sessionVersion;
+                // 注意：旧任务的回调不应该触发下一个新任务的处理
+                // 因为新任务的处理循环是由新的 processImages 启动的
+                return; 
+            }
+            
+            item.result = text.trimmed();
+            item.isFinished = true;
+            found = true;
+            qDebug() << "[OCR] 更新任务状态 ID:" << contextId << "名称:" << item.name;
+            break;
+        }
+    }
+    
+    if (!found) {
+        // 如果未找到任务（可能已被清空），也不要触发下一个
+        qDebug() << "[OCR] 警告: 未找到对应的任务 ID:" << contextId;
+        return;
+    }
+    
+    // 统计完成进度
+    int finished = 0;
+    for (const auto& item : std::as_const(m_items)) {
+        if (item.isFinished) finished++;
+    }
+    qDebug() << "[OCR] 识别进度:" << finished << "/" << m_items.size();
+    
+    // 更新进度条
+    if (m_progressBar) {
+        m_progressBar->setValue(finished);
+        if (finished >= m_items.size()) {
+            QTimer::singleShot(1000, m_progressBar, &QProgressBar::hide); // 完成1秒后隐藏
+        }
+    }
+    
+    updateRightDisplay();
+    
+    // 处理下一个任务
+    qDebug() << "[OCR] 当前任务完成，准备处理下一个";
+    QTimer::singleShot(0, this, &OCRWindow::processNextImage);
+}
+
 void OCRWindow::updateRightDisplay() {
+    qDebug() << "[OCR] updateRightDisplay: 开始更新显示 线程:" << QThread::currentThread();
+    
+    if (!m_itemList) {
+        qDebug() << "[OCR] updateRightDisplay: m_itemList 为空";
+        return;
+    }
+    
+    if (!m_ocrResult) {
+        qDebug() << "[OCR] updateRightDisplay: m_ocrResult 为空";
+        return;
+    }
+    
     auto* current = m_itemList->currentItem();
-    if (!current) return;
+    if (!current) {
+        qDebug() << "[OCR] updateRightDisplay: 没有选中项";
+        return;
+    }
 
     int id = current->data(Qt::UserRole).toInt();
+    qDebug() << "[OCR] updateRightDisplay: 当前选中 ID:" << id << "m_items 大小:" << m_items.size();
 
-    QMutexLocker locker(&m_itemsMutex);
     if (id == 0) {
         // 展示全部
+        qDebug() << "[OCR] updateRightDisplay: 展示全部结果";
         QString allText;
-        for (const auto& item : m_items) {
+        int itemCount = 0;
+        for (const auto& item : std::as_const(m_items)) {
+            itemCount++;
             if (!allText.isEmpty()) allText += "\n\n";
             allText += QString("【%1】\n").arg(item.name);
             allText += item.isFinished ? item.result : "正在识别管理中...";
             allText += "\n-----------------------------------";
         }
+        qDebug() << "[OCR] updateRightDisplay: 处理了" << itemCount << "个项目，文本长度:" << allText.length();
         m_ocrResult->setPlainText(allText);
+        qDebug() << "[OCR] updateRightDisplay: setPlainText 完成";
     } else {
         // 展示单个
-        for (const auto& item : m_items) {
+        qDebug() << "[OCR] updateRightDisplay: 展示单个结果 ID:" << id;
+        bool found = false;
+        for (const auto& item : std::as_const(m_items)) {
             if (item.id == id) {
-                m_ocrResult->setPlainText(item.isFinished ? item.result : "正在识别中，请稍候...");
+                found = true;
+                QString text = item.isFinished ? item.result : "正在识别中，请稍候...";
+                qDebug() << "[OCR] updateRightDisplay: 找到项目，文本长度:" << text.length();
+                m_ocrResult->setPlainText(text);
+                qDebug() << "[OCR] updateRightDisplay: setPlainText 完成";
                 break;
             }
         }
+        if (!found) {
+            qDebug() << "[OCR] updateRightDisplay: 警告 - 未找到 ID:" << id;
+        }
     }
+    qDebug() << "[OCR] updateRightDisplay: 完成";
 }
 
 void OCRWindow::onCopyResult() {

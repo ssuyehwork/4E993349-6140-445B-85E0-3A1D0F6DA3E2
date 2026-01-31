@@ -18,18 +18,22 @@ OCRManager& OCRManager::instance() {
 OCRManager::OCRManager(QObject* parent) : QObject(parent) {}
 
 void OCRManager::setLanguage(const QString& lang) {
-    QMutexLocker locker(&m_mutex);
     m_language = lang;
 }
 
 QString OCRManager::getLanguage() const {
-    QMutexLocker locker(&m_mutex);
     return m_language;
 }
 
 void OCRManager::recognizeAsync(const QImage& image, int contextId) {
+    qDebug() << "[OCRManager] recognizeAsync: 接收任务 ID:" << contextId 
+             << "图片大小:" << image.width() << "x" << image.height() 
+             << "主线程:" << QThread::currentThread();
     (void)QtConcurrent::run(QThreadPool::globalInstance(), [this, image, contextId]() {
+        qDebug() << "[OCRManager] 工作线程开始执行 ID:" << contextId 
+                 << "线程:" << QThread::currentThread();
         this->recognizeSync(image, contextId);
+        qDebug() << "[OCRManager] 工作线程完成 ID:" << contextId;
     });
 }
 
@@ -144,12 +148,9 @@ QImage OCRManager::preprocessImage(const QImage& original) {
 }
 
 void OCRManager::recognizeSync(const QImage& image, int contextId) {
+    qDebug() << "[OCRManager] recognizeSync: 开始识别 ID:" << contextId 
+             << "线程:" << QThread::currentThread();
     QString result;
-    QString langToUse;
-    {
-        QMutexLocker locker(&m_mutex);
-        langToUse = m_language;
-    }
 
 #ifdef Q_OS_WIN
     // 预处理图像以提高识别准确度
@@ -278,7 +279,7 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
             }
         }
 
-        QString currentLang = foundLangs.isEmpty() ? langToUse : foundLangs.join('+');
+        QString currentLang = foundLangs.isEmpty() ? m_language : foundLangs.join('+');
         qDebug() << "OCR: Used tessdata path:" << tessDataPath;
         qDebug() << "OCR: Detected languages:" << foundLangs.size() << ":" << currentLang;
 
@@ -324,5 +325,16 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
         result = "未能从图片中识别出任何文字";
     }
     
-    emit recognitionFinished(result, contextId);
+    qDebug() << "[OCRManager] recognizeSync: 识别完成 ID:" << contextId 
+             << "结果长度:" << result.length() << "线程:" << QThread::currentThread();
+    qDebug() << "[OCRManager] 准备发送 recognitionFinished 信号 ID:" << contextId;
+    
+    try {
+        emit recognitionFinished(result, contextId);
+        qDebug() << "[OCRManager] recognitionFinished 信号已发送 ID:" << contextId;
+    } catch (const std::exception& e) {
+        qDebug() << "[OCRManager] 异常: 发送信号时出错 ID:" << contextId << "错误:" << e.what();
+    } catch (...) {
+        qDebug() << "[OCRManager] 异常: 发送信号时出现未知错误 ID:" << contextId;
+    }
 }
