@@ -243,10 +243,11 @@ void OCRWindow::onClearResults() {
     m_sessionVersion++;
     m_isProcessing = false;
     m_processingQueue.clear();
-    // 移除定时器相关操作，因为我们不再依赖定时器循环
-    // if (m_processTimer) { m_processTimer->stop(); }
     
+    m_itemList->blockSignals(true);
     m_itemList->clear();
+    m_itemList->blockSignals(false);
+
     m_items.clear();
     m_ocrResult->clear();
     
@@ -458,61 +459,34 @@ void OCRWindow::onRecognitionFinished(const QString& text, int contextId) {
 }
 
 void OCRWindow::updateRightDisplay() {
-    qDebug() << "[OCR] updateRightDisplay: 开始更新显示 线程:" << QThread::currentThread();
-    
-    if (!m_itemList) {
-        qDebug() << "[OCR] updateRightDisplay: m_itemList 为空";
-        return;
-    }
-    
-    if (!m_ocrResult) {
-        qDebug() << "[OCR] updateRightDisplay: m_ocrResult 为空";
-        return;
-    }
+    if (!m_itemList || !m_ocrResult) return;
     
     auto* current = m_itemList->currentItem();
-    if (!current) {
-        qDebug() << "[OCR] updateRightDisplay: 没有选中项";
-        return;
-    }
+    if (!current) return;
 
     int id = current->data(Qt::UserRole).toInt();
-    qDebug() << "[OCR] updateRightDisplay: 当前选中 ID:" << id << "m_items 大小:" << m_items.size();
 
     if (id == 0) {
-        // 展示全部
-        qDebug() << "[OCR] updateRightDisplay: 展示全部结果";
-        QString allText;
-        int itemCount = 0;
+        // 展示全部：使用 QStringList 优化大文本拼接性能
+        QStringList allTextList;
+        allTextList.reserve(m_items.size() * 4);
+
         for (const auto& item : std::as_const(m_items)) {
-            itemCount++;
-            if (!allText.isEmpty()) allText += "\n\n";
-            allText += QString("【%1】\n").arg(item.name);
-            allText += item.isFinished ? item.result : "正在识别管理中...";
-            allText += "\n-----------------------------------";
+            if (!allTextList.isEmpty()) allTextList << "\n\n";
+            allTextList << QString("【%1】\n").arg(item.name);
+            allTextList << (item.isFinished ? item.result : "正在识别中...");
+            allTextList << "\n-----------------------------------";
         }
-        qDebug() << "[OCR] updateRightDisplay: 处理了" << itemCount << "个项目，文本长度:" << allText.length();
-        m_ocrResult->setPlainText(allText);
-        qDebug() << "[OCR] updateRightDisplay: setPlainText 完成";
+        m_ocrResult->setPlainText(allTextList.join(""));
     } else {
         // 展示单个
-        qDebug() << "[OCR] updateRightDisplay: 展示单个结果 ID:" << id;
-        bool found = false;
         for (const auto& item : std::as_const(m_items)) {
             if (item.id == id) {
-                found = true;
-                QString text = item.isFinished ? item.result : "正在识别中，请稍候...";
-                qDebug() << "[OCR] updateRightDisplay: 找到项目，文本长度:" << text.length();
-                m_ocrResult->setPlainText(text);
-                qDebug() << "[OCR] updateRightDisplay: setPlainText 完成";
+                m_ocrResult->setPlainText(item.isFinished ? item.result : "正在识别中，请稍候...");
                 break;
             }
         }
-        if (!found) {
-            qDebug() << "[OCR] updateRightDisplay: 警告 - 未找到 ID:" << id;
-        }
     }
-    qDebug() << "[OCR] updateRightDisplay: 完成";
 }
 
 void OCRWindow::onCopyResult() {

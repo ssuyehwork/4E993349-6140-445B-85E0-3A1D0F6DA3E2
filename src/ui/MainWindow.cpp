@@ -67,7 +67,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindo
     m_refreshTimer = new QTimer(this);
     m_refreshTimer->setSingleShot(true);
     m_refreshTimer->setInterval(200);
-    connect(m_refreshTimer, &QTimer::timeout, this, &MainWindow::refreshData);
+    connect(m_refreshTimer, &QTimer::timeout, this, [this](){
+        if (isVisible()) refreshData();
+    });
 
     refreshData();
 
@@ -1114,6 +1116,10 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr
 #endif
 
 void MainWindow::onNoteAdded(const QVariantMap& note) {
+    if (!isVisible()) {
+        m_refreshTimer->start();
+        return;
+    }
     m_noteModel->prependNote(note);
     m_noteList->scrollToTop();
 }

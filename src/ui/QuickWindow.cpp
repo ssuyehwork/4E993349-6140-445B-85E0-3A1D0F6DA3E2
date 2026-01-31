@@ -212,21 +212,23 @@ QuickWindow::QuickWindow(QWidget* parent)
     m_refreshTimer->setSingleShot(true);
     m_refreshTimer->setInterval(200);
     connect(m_refreshTimer, &QTimer::timeout, this, [this](){
-        refreshData();
-        refreshSidebar();
+        if (isVisible()) {
+            refreshData();
+            refreshSidebar();
+        }
     });
 
     connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, this, &QuickWindow::onNoteAdded);
 
-    connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, [this](){
+    connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, this, [this](){
         m_refreshTimer->start();
     });
 
-    connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, [this](){
+    connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, this, [this](){
         m_refreshTimer->start();
     });
 
-    connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, [this](){
+    connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, this, [this](){
         m_model->updateCategoryMap();
         
         // 如果当前正在查看某个分类，同步更新其高亮色
@@ -888,6 +890,12 @@ void QuickWindow::refreshSidebar() {
 }
 
 void QuickWindow::onNoteAdded(const QVariantMap& note) {
+    // 窗口隐藏时仅标记需要刷新，不执行任何重型逻辑
+    if (!isVisible()) {
+        m_refreshTimer->start();
+        return;
+    }
+
     // 基础过滤检查
     bool matches = true;
     QString keyword = m_searchEdit->text().trimmed();
