@@ -49,6 +49,7 @@
 #include <QPainter>
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
+#include <QElapsedTimer>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -212,8 +213,11 @@ QuickWindow::QuickWindow(QWidget* parent)
     m_refreshTimer->setSingleShot(true);
     m_refreshTimer->setInterval(200); // 200ms 节流
     connect(m_refreshTimer, &QTimer::timeout, this, [this](){
+        QElapsedTimer timer;
+        timer.start();
         refreshData();
         refreshSidebar();
+        qDebug() << "[Perf] QuickWindow throttled refresh took:" << timer.elapsed() << "ms";
     });
 
     connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, [this](const QVariantMap&){
@@ -799,6 +803,8 @@ void QuickWindow::setupShortcuts() {
 }
 
 void QuickWindow::refreshData() {
+    QElapsedTimer timer;
+    timer.start();
     QString keyword = m_searchEdit->text();
     
     int totalCount = DatabaseManager::instance().getNotesCount(keyword, m_currentFilterType, m_currentFilterValue);
@@ -836,6 +842,7 @@ void QuickWindow::refreshData() {
     
     auto* totalLabel = findChild<QLabel*>("totalLabel");
     if (totalLabel) totalLabel->setText(QString::number(m_totalPages));
+    qDebug() << "[Perf] QuickWindow refreshData took:" << timer.elapsed() << "ms";
 }
 
 void QuickWindow::updatePartitionStatus(const QString& name) {

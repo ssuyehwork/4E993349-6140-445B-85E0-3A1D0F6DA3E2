@@ -9,6 +9,7 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QBuffer>
+#include <QElapsedTimer>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include "core/DatabaseManager.h"
@@ -213,7 +214,11 @@ int main(int argc, char *argv[]) {
     QObject::connect(&OCRManager::instance(), &OCRManager::recognitionFinished, [](const QString& text, int noteId){
         // 仅处理有效的数据库笔记 ID (通常较小)
         if (noteId > 0 && noteId < 1000000 && noteId != 9999) {
+            QElapsedTimer timer;
+            timer.start();
+            qDebug() << "[Perf] Main OCR result received for note ID:" << noteId;
             DatabaseManager::instance().updateNoteState(noteId, "content", text);
+            qDebug() << "[Perf] Main OCR result DB update completed in:" << timer.elapsed() << "ms";
         }
     });
 

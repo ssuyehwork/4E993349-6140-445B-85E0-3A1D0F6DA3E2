@@ -2,6 +2,7 @@
 #include <QDebug>
 #include <QSqlRecord>
 #include <QtConcurrent>
+#include <QElapsedTimer>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QFile>
@@ -161,6 +162,8 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
                              const QString& color, int categoryId,
                              const QString& itemType, const QByteArray& dataBlob,
                              const QString& sourceApp, const QString& sourceTitle) {
+    QElapsedTimer timer;
+    timer.start();
     QVariantMap newNoteMap;
     bool success = false;
     QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
@@ -261,6 +264,7 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
         emit noteAdded(newNoteMap);
     }
     
+    qDebug() << "[Perf] Database addNote took:" << timer.elapsed() << "ms";
     return success;
 }
 
@@ -419,6 +423,8 @@ bool DatabaseManager::restoreAllFromTrash() {
 
 // 【修复核心】防止死锁的 updateNoteState
 bool DatabaseManager::updateNoteState(int id, const QString& column, const QVariant& value) {
+    QElapsedTimer timer;
+    timer.start();
     bool success = false;
     QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
 
@@ -496,6 +502,7 @@ bool DatabaseManager::updateNoteState(int id, const QString& column, const QVari
     } 
 
     if (success) emit noteUpdated();
+    qDebug() << "[Perf] Database updateNoteState (" << column << ") took:" << timer.elapsed() << "ms";
     return success;
 }
 
@@ -699,6 +706,8 @@ void DatabaseManager::addNoteAsync(const QString& title, const QString& content,
 }
 
 QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QString& filterType, const QVariant& filterValue, int page, int pageSize, const QVariantMap& criteria) {
+    QElapsedTimer timer;
+    timer.start();
     QMutexLocker locker(&m_mutex);
     QList<QVariantMap> results;
     if (!m_db.isOpen()) return results;
@@ -814,6 +823,7 @@ QList<QVariantMap> DatabaseManager::searchNotes(const QString& keyword, const QS
     } else {
         qCritical() << "searchNotes failed:" << query.lastError().text();
     }
+    qDebug() << "[Perf] Database searchNotes (keyword:" << keyword << ") took:" << timer.elapsed() << "ms";
     return results;
 }
 
@@ -1469,6 +1479,8 @@ bool DatabaseManager::deleteTagGlobally(const QString& tagName) {
 }
 
 void DatabaseManager::syncFts(int id, const QString& title, const QString& content, const QString& preStrippedContent) {
+    QElapsedTimer timer;
+    timer.start();
     // 假设已在锁的作用域内
     QSqlQuery query(m_db);
     query.prepare("DELETE FROM notes_fts WHERE rowid = ?");
@@ -1486,6 +1498,7 @@ void DatabaseManager::syncFts(int id, const QString& title, const QString& conte
     }
 
     query.exec();
+    qDebug() << "[Perf] Database syncFts took:" << timer.elapsed() << "ms";
 }
 
 void DatabaseManager::removeFts(int id) {

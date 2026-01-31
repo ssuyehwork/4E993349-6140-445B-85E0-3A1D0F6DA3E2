@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QDebug>
 #include <QLocale>
+#include <QElapsedTimer>
 #include <QCoreApplication>
 #include <utility>
 
@@ -144,6 +145,9 @@ QImage OCRManager::preprocessImage(const QImage& original) {
 }
 
 void OCRManager::recognizeSync(const QImage& image, int contextId) {
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+
     QString result;
     QString langToUse;
     {
@@ -152,8 +156,12 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
     }
 
 #ifdef Q_OS_WIN
+    QElapsedTimer stageTimer;
+    stageTimer.start();
+
     // 预处理图像以提高识别准确度
     QImage processedImage = preprocessImage(image);
+    qDebug() << "[Perf] OCR preprocessImage took:" << stageTimer.restart() << "ms";
     
     if (processedImage.isNull()) {
         result = "图像无效";
@@ -179,6 +187,7 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
         emit recognitionFinished(result, contextId);
         return;
     }
+    qDebug() << "[Perf] OCR save temporary BMP took:" << stageTimer.restart() << "ms";
     
     tempFile.close();
 
@@ -298,12 +307,14 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
         if (!tesseract.waitForStarted()) {
             result = "无法启动 Tesseract 引擎。路径: " + tesseractPath;
         } else if (tesseract.waitForFinished(20000)) {
+            qDebug() << "[Perf] Tesseract process execution took:" << stageTimer.restart() << "ms";
             QByteArray output = tesseract.readAllStandardOutput();
             QByteArray errorOutput = tesseract.readAllStandardError();
             result = QString::fromUtf8(output).trimmed();
             
             if (!result.isEmpty()) {
                 qDebug() << "Tesseract OCR succeeded using:" << tesseractPath << "with lang:" << currentLang;
+                qDebug() << "[Perf] Total OCR task took:" << totalTimer.elapsed() << "ms (Context ID:" << contextId << ")";
                 emit recognitionFinished(result, contextId);
                 return;
             }
