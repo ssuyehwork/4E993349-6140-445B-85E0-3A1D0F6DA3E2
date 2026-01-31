@@ -186,96 +186,86 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
     QString tesseractPath;
     QStringList foundLangs;
 
-    // 路径探测与语言检测逻辑：引入缓存以优化批量识别性能
+    // 路径探测与语言检测逻辑：采用双检锁模式，将耗时 I/O 移出锁外
+    bool isCached = false;
     {
         QMutexLocker locker(&m_mutex);
-        if (!m_cachedTesseractPath.isEmpty() && !m_cachedTessDataPath.isEmpty()) {
+        if (!m_cachedTesseractPath.isEmpty()) {
             tessDataPath = m_cachedTessDataPath;
             tesseractPath = m_cachedTesseractPath;
             foundLangs = m_cachedDetectedLangs;
-        } else {
-            // 路径探测逻辑：增强鲁棒性，支持从 bin 或 build 目录运行
-            QString appPath = QCoreApplication::applicationDirPath();
+            isCached = true;
+        }
+    }
 
-            // 尝试在多个层级寻找 resources 目录
-            QStringList basePaths;
-            basePaths << appPath;
-            basePaths << QDir(appPath).absolutePath() + "/..";
-            basePaths << QDir(appPath).absolutePath() + "/../..";
+    if (!isCached) {
+        // --- 锁外执行耗时的磁盘 I/O 和路径搜索 ---
+        QString appPath = QCoreApplication::applicationDirPath();
+        QString detectedTessData;
+        QString detectedTesseract;
+        QStringList detectedLangs;
 
-            for (const QString& base : std::as_const(basePaths)) {
-                // 搜索数据目录 (支持资源目录、根目录及标准安装路径)
-                if (tessDataPath.isEmpty()) {
-                    QStringList dataPotentials;
-                    dataPotentials << base + "/resources/Tesseract-OCR/tessdata"
-                                   << base + "/Tesseract-OCR/tessdata"
-                                   << base + "/tessdata"
-                                   << "C:/Program Files/Tesseract-OCR/tessdata";
-                    for (const QString& p : std::as_const(dataPotentials)) {
-                        if (QDir(p).exists()) {
-                            tessDataPath = QDir(p).absolutePath();
-                            break;
-                        }
-                    }
-                }
+        QStringList basePaths;
+        basePaths << appPath;
+        basePaths << QDir(appPath).absolutePath() + "/..";
+        basePaths << QDir(appPath).absolutePath() + "/../..";
 
-                // 搜索执行文件
-                if (tesseractPath.isEmpty()) {
-                    QStringList exePotentials;
-                    exePotentials << base + "/resources/Tesseract-OCR/tesseract.exe"
-                                   << base + "/Tesseract-OCR/tesseract.exe"
-                                   << base + "/resources/tesseract.exe"
-                                   << base + "/tesseract.exe"
-                                   << "C:/Program Files/Tesseract-OCR/tesseract.exe";
-                    for (const QString& p : std::as_const(exePotentials)) {
-                        if (QFile::exists(p)) {
-                            tesseractPath = QDir::toNativeSeparators(p);
-                            break;
-                        }
-                    }
-                }
-
-                if (!tessDataPath.isEmpty() && !tesseractPath.isEmpty()) break;
-            }
-
-            // 系统 PATH 兜底
-            if (tesseractPath.isEmpty()) tesseractPath = "tesseract";
-
-            // 智能语言探测：自动扫描 tessdata 目录下所有可用的训练数据
-            if (!tessDataPath.isEmpty()) {
-                QDir dir(tessDataPath);
-                if (dir.exists()) {
-                    QStringList filters; filters << "*.traineddata";
-                    QStringList files = dir.entryList(filters, QDir::Files);
-
-                    // 定义优先级：优先加载中文简体和泰语，防止误识别为英文字符
-                    QStringList priority;
-                    if (QLocale::system().language() == QLocale::Chinese &&
-                        QLocale::system().script() == QLocale::TraditionalChineseScript) {
-                        priority = {"chi_tra", "tha", "eng", "chi_sim", "jpn", "kor"};
-                    } else {
-                        priority = {"chi_sim", "tha", "eng", "chi_tra", "jpn", "kor"};
-                    }
-
-                    for (const QString& pLang : std::as_const(priority)) {
-                        if (files.contains(pLang + ".traineddata")) {
-                            foundLangs << pLang;
-                            files.removeAll(pLang + ".traineddata");
-                        }
-                    }
-                    // 其余语言按字母顺序追加，但限制总数。
-                    for (const QString& file : std::as_const(files)) {
-                        if (foundLangs.size() >= 3) break;
-                        QString name = file.left(file.lastIndexOf('.'));
-                        if (name != "osd" && !foundLangs.contains(name)) foundLangs << name;
-                    }
+        for (const QString& base : std::as_const(basePaths)) {
+            if (detectedTessData.isEmpty()) {
+                QStringList dataPotentials = {
+                    base + "/resources/Tesseract-OCR/tessdata",
+                    base + "/Tesseract-OCR/tessdata",
+                    base + "/tessdata",
+                    "C:/Program Files/Tesseract-OCR/tessdata"
+                };
+                for (const QString& p : std::as_const(dataPotentials)) {
+                    if (QDir(p).exists()) { detectedTessData = QDir(p).absolutePath(); break; }
                 }
             }
+            if (detectedTesseract.isEmpty()) {
+                QStringList exePotentials = {
+                    base + "/resources/Tesseract-OCR/tesseract.exe",
+                    base + "/Tesseract-OCR/tesseract.exe",
+                    base + "/resources/tesseract.exe",
+                    base + "/tesseract.exe",
+                    "C:/Program Files/Tesseract-OCR/tesseract.exe"
+                };
+                for (const QString& p : std::as_const(exePotentials)) {
+                    if (QFile::exists(p)) { detectedTesseract = QDir::toNativeSeparators(p); break; }
+                }
+            }
+            if (!detectedTessData.isEmpty() && !detectedTesseract.isEmpty()) break;
+        }
 
-            // 写入缓存
-            m_cachedTessDataPath = tessDataPath;
-            m_cachedTesseractPath = tesseractPath;
-            m_cachedDetectedLangs = foundLangs;
+        if (detectedTesseract.isEmpty()) detectedTesseract = "tesseract";
+
+        if (!detectedTessData.isEmpty() && QDir(detectedTessData).exists()) {
+            QStringList files = QDir(detectedTessData).entryList({"*.traineddata"}, QDir::Files);
+            QStringList priority = (QLocale::system().language() == QLocale::Chinese && QLocale::system().script() == QLocale::TraditionalChineseScript)
+                                   ? QStringList{"chi_tra", "tha", "eng", "chi_sim", "jpn", "kor"}
+                                   : QStringList{"chi_sim", "tha", "eng", "chi_tra", "jpn", "kor"};
+
+            for (const QString& pLang : std::as_const(priority)) {
+                if (files.contains(pLang + ".traineddata")) { detectedLangs << pLang; files.removeAll(pLang + ".traineddata"); }
+            }
+            for (const QString& file : std::as_const(files)) {
+                if (detectedLangs.size() >= 3) break;
+                QString name = file.left(file.lastIndexOf('.'));
+                if (name != "osd" && !detectedLangs.contains(name)) detectedLangs << name;
+            }
+        }
+
+        // --- 重新加锁并写入缓存 (双检) ---
+        {
+            QMutexLocker locker(&m_mutex);
+            if (m_cachedTesseractPath.isEmpty()) {
+                m_cachedTessDataPath = detectedTessData;
+                m_cachedTesseractPath = detectedTesseract;
+                m_cachedDetectedLangs = detectedLangs;
+            }
+            tessDataPath = m_cachedTessDataPath;
+            tesseractPath = m_cachedTesseractPath;
+            foundLangs = m_cachedDetectedLangs;
         }
     }
 
