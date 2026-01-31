@@ -27,6 +27,13 @@ signals:
 private:
     OCRManager(QObject* parent = nullptr);
     QString m_language = "chi_sim+eng"; // 默认中文简体+英文
+
+    // 缓存探测到的路径和语言，避免重复磁盘 I/O
+    QString m_cachedTesseractPath;
+    QString m_cachedTessDataPath;
+    QString m_cachedLangs;
+    bool m_isPathCached = false;
+
     mutable QMutex m_mutex;
 };
 

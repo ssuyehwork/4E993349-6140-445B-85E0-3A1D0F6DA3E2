@@ -24,7 +24,10 @@ OCRWindow::OCRWindow(QWidget* parent) : FramelessDialog("文字识别", parent) 
     m_updateTimer = new QTimer(this);
     m_updateTimer->setInterval(500);
     m_updateTimer->setSingleShot(true);
-    connect(m_updateTimer, &QTimer::timeout, this, &OCRWindow::updateRightDisplay);
+    connect(m_updateTimer, &QTimer::timeout, this, [this]() {
+        updateRightDisplay();
+        updateProgressLabel();
+    });
 
     initUI();
     onClearResults();
@@ -138,7 +141,7 @@ void OCRWindow::onPasteAndRecognize() {
     }
 
     if (mime->hasUrls()) {
-        for (const QUrl& url : mime->urls()) {
+        for (const QUrl& url : std::as_const(mime->urls())) {
             QString path = url.toLocalFile();
             if (!path.isEmpty()) {
                 QImage img(path);
@@ -156,7 +159,7 @@ void OCRWindow::onPasteAndRecognize() {
         QList<QImage> imgs;
         {
             QMutexLocker locker(&m_itemsMutex);
-            for (auto& p : imageData) {
+            for (auto& p : std::as_const(imageData)) {
                 OCRItem item;
                 item.image = p.first;
                 item.name = p.second;
@@ -258,7 +261,7 @@ void OCRWindow::dropEvent(QDropEvent* event) {
         }
 
         if (mime->hasUrls()) {
-            for (const QUrl& url : mime->urls()) {
+            for (const QUrl& url : std::as_const(mime->urls())) {
                 QString path = url.toLocalFile();
                 if (!path.isEmpty()) {
                     QImage img(path);
@@ -301,7 +304,10 @@ void OCRWindow::processImages(const QList<QImage>& images) {
     if (!m_processingTimer->isActive()) {
         m_processingTimer->start();
     }
-    updateProgressLabel();
+
+    if (!m_updateTimer->isActive()) {
+        m_updateTimer->start();
+    }
 }
 
 void OCRWindow::processNextBatch() {
@@ -315,7 +321,10 @@ void OCRWindow::processNextBatch() {
     if (m_pendingImages.isEmpty() && m_activeCount == 0) {
         m_processingTimer->stop();
     }
-    updateProgressLabel();
+
+    if (!m_updateTimer->isActive()) {
+        m_updateTimer->start();
+    }
 }
 
 void OCRWindow::onRecognitionFinished(const QString& text, int contextId) {
@@ -339,7 +348,6 @@ void OCRWindow::onRecognitionFinished(const QString& text, int contextId) {
     if (!m_updateTimer->isActive()) {
         m_updateTimer->start();
     }
-    updateProgressLabel();
 }
 
 void OCRWindow::onItemSelectionChanged() {

@@ -169,6 +169,9 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
     QByteArray hashData = dataBlob.isEmpty() ? content.toUtf8() : dataBlob;
     QString contentHash = QCryptographicHash::hash(hashData, QCryptographicHash::Sha256).toHex();
 
+    // 在锁外进行耗时的 HTML 清理
+    QString strippedContent = stripHtml(content);
+
     {   // === 锁的作用域开始 ===
         QMutexLocker locker(&m_mutex);
         if (!m_db.isOpen()) return false;
@@ -239,7 +242,7 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
         if (query.exec()) {
             success = true;
             QVariant lastId = query.lastInsertId();
-            syncFts(lastId.toInt(), title, content);
+            syncFts(lastId.toInt(), title, strippedContent, true);
             QSqlQuery fetch(m_db);
             fetch.prepare("SELECT * FROM notes WHERE id = :id");
             fetch.bindValue(":id", lastId);
@@ -265,6 +268,10 @@ bool DatabaseManager::updateNote(int id, const QString& title, const QString& co
                                 const QString& color, int categoryId) {
     bool success = false;
     QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+
+    // 在锁外进行耗时的 HTML 清理
+    QString strippedContent = stripHtml(content);
+
     {
         QMutexLocker locker(&m_mutex);
         if (!m_db.isOpen()) return false;
@@ -306,7 +313,7 @@ bool DatabaseManager::updateNote(int id, const QString& title, const QString& co
         query.bindValue(":id", id);
         
         success = query.exec();
-        if (success) syncFts(id, title, content);
+        if (success) syncFts(id, title, strippedContent, true);
     }
 
     if (success) emit noteUpdated();
@@ -414,6 +421,14 @@ bool DatabaseManager::restoreAllFromTrash() {
 bool DatabaseManager::updateNoteState(int id, const QString& column, const QVariant& value) {
     bool success = false;
     QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+
+    QString preStripped;
+    bool hasPreStripped = false;
+    if (column == "content") {
+        preStripped = stripHtml(value.toString());
+        hasPreStripped = true;
+    }
+
     {
         QMutexLocker locker(&m_mutex);
         if (!m_db.isOpen()) return false;
@@ -469,7 +484,11 @@ bool DatabaseManager::updateNoteState(int id, const QString& column, const QVari
             fetch.prepare("SELECT title, content FROM notes WHERE id = ?");
             fetch.addBindValue(id);
             if (fetch.exec() && fetch.next()) {
-                syncFts(id, fetch.value(0).toString(), fetch.value(1).toString());
+                if (column == "content") {
+                    syncFts(id, fetch.value(0).toString(), preStripped, true);
+                } else {
+                    syncFts(id, fetch.value(0).toString(), fetch.value(1).toString());
+                }
             }
         }
     } 
@@ -1447,7 +1466,7 @@ bool DatabaseManager::deleteTagGlobally(const QString& tagName) {
     return ok;
 }
 
-void DatabaseManager::syncFts(int id, const QString& title, const QString& content) {
+void DatabaseManager::syncFts(int id, const QString& title, const QString& content, bool isPreStripped) {
     // 假设已在锁的作用域内
     QSqlQuery query(m_db);
     query.prepare("DELETE FROM notes_fts WHERE rowid = ?");
@@ -1457,7 +1476,7 @@ void DatabaseManager::syncFts(int id, const QString& title, const QString& conte
     query.prepare("INSERT INTO notes_fts(rowid, title, content) VALUES (?, ?, ?)");
     query.addBindValue(id);
     query.addBindValue(title);
-    query.addBindValue(stripHtml(content));
+    query.addBindValue(isPreStripped ? content : stripHtml(content));
     query.exec();
 }
 

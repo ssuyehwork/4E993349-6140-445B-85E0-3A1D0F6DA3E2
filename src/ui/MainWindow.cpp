@@ -64,6 +64,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindo
     m_searchTimer->setSingleShot(true);
     connect(m_searchTimer, &QTimer::timeout, this, &MainWindow::refreshData);
 
+    m_refreshTimer = new QTimer(this);
+    m_refreshTimer->setInterval(200);
+    m_refreshTimer->setSingleShot(true);
+    connect(m_refreshTimer, &QTimer::timeout, this, &MainWindow::refreshData);
+
     refreshData();
 
     // 【关键修改】区分两种信号
@@ -71,8 +76,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindo
     connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, this, &MainWindow::onNoteAdded);
     
     // 2. 全量刷新：修改、删除、分类变化（锁定状态）时才刷新全表
-    connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, this, &MainWindow::refreshData);
-    connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, this, &MainWindow::refreshData);
+    connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, this, [this](){ m_refreshTimer->start(); });
+    connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, this, [this](){ m_refreshTimer->start(); });
 
     restoreLayout(); // 恢复布局
 }
