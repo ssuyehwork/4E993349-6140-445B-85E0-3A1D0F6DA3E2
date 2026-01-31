@@ -16,6 +16,7 @@ OCRWindow::OCRWindow(QWidget* parent) : FramelessDialog("文字识别", parent) 
     setFixedSize(800, 500);
     setAcceptDrops(true);
 
+    m_sessionVersion = 0;
     initUI();
     onClearResults();
     
@@ -23,6 +24,12 @@ OCRWindow::OCRWindow(QWidget* parent) : FramelessDialog("文字识别", parent) 
     m_processTimer = new QTimer(this);
     m_processTimer->setSingleShot(true);
     connect(m_processTimer, &QTimer::timeout, this, &OCRWindow::processNextImage);
+
+    // 初始化 UI 刷新节流定时器
+    m_updateTimer = new QTimer(this);
+    m_updateTimer->setSingleShot(true);
+    m_updateTimer->setInterval(300); // 300ms 节流
+    connect(m_updateTimer, &QTimer::timeout, this, &OCRWindow::updateRightDisplay);
     
     qDebug() << "[OCR] OCRWindow 初始化完成，使用顺序处理模式";
     
@@ -132,9 +139,6 @@ void OCRWindow::initUI() {
 void OCRWindow::onPasteAndRecognize() {
     qDebug() << "[OCR] 粘贴识别: 开始";
     
-    // 自动清空之前的数据
-    onClearResults();
-    
     const QClipboard* clipboard = QApplication::clipboard();
     const QMimeData* mimeData = clipboard->mimeData();
 
@@ -160,31 +164,7 @@ void OCRWindow::onPasteAndRecognize() {
     }
 
     if (!imageData.isEmpty()) {
-        // 限制最多 10 张图片
-        if (imageData.size() > 10) {
-            qDebug() << "[OCR] 粘贴识别: 图片数量超过限制，仅处理前 10 张";
-            imageData = imageData.mid(0, 10);
-        }
-        
-        qDebug() << "[OCR] 粘贴识别: 开始处理" << imageData.size() << "张图片";
-        QList<QImage> imgs;
-        for (auto& p : imageData) {
-            OCRItem item;
-            item.image = p.first;
-            item.name = p.second;
-            item.id = ++m_lastUsedId;
-            m_items.append(item);
-            imgs << p.first;
-            qDebug() << "[OCR] 添加任务 ID:" << item.id << "名称:" << item.name;
-
-            auto* listItem = new QListWidgetItem(item.name, m_itemList);
-            listItem->setData(Qt::UserRole, item.id);
-            listItem->setIcon(IconHelper::getIcon("image", "#888"));
-        }
-        processImages(imgs);
-        
-        // 自动选中第一个新加入的项目
-        m_itemList->setCurrentRow(m_itemList->count() - imageData.size());
+        addOcrTasks(imageData);
     }
 }
 
@@ -192,44 +172,23 @@ void OCRWindow::onBrowseAndRecognize() {
     QStringList files = QFileDialog::getOpenFileNames(this, "选择识别图片", "", "图片文件 (*.png *.jpg *.jpeg *.bmp *.gif)");
     if (files.isEmpty()) return;
 
-    // 自动清空之前的数据
-    onClearResults();
-
-    qDebug() << "[OCR] 浏览识别: 选择了" << files.size() << "个文件";
-    
-    // 限制最多 10 张图片
-    if (files.size() > 10) {
-        qDebug() << "[OCR] 浏览识别: 文件数量超过限制，仅处理前 10 个";
-        files = files.mid(0, 10);
-    }
-    
-    QList<QImage> imgs;
+    QList<QPair<QImage, QString>> imageData;
     for (const QString& file : std::as_const(files)) {
         QImage img(file);
         if (!img.isNull()) {
-            OCRItem item;
-            item.image = img;
-            item.name = QFileInfo(file).fileName();
-            item.id = ++m_lastUsedId;
-            m_items.append(item);
-            imgs << img;
-            qDebug() << "[OCR] 添加任务 ID:" << item.id << "文件:" << file;
-
-            auto* listItem = new QListWidgetItem(item.name, m_itemList);
-            listItem->setData(Qt::UserRole, item.id);
-            listItem->setIcon(IconHelper::getIcon("image", "#888"));
+            imageData.append({img, QFileInfo(file).fileName()});
         }
     }
 
-    if (!imgs.isEmpty()) {
-        processImages(imgs);
-        m_itemList->setCurrentRow(m_itemList->count() - imgs.size());
+    if (!imageData.isEmpty()) {
+        addOcrTasks(imageData);
     }
 }
 
 void OCRWindow::onClearResults() {
     qDebug() << "[OCR] 清空结果";
     
+    m_sessionVersion++; // 递增会话版本，忽略之前的异步回调
     m_isProcessing = false;
     m_processingQueue.clear();
     // 移除定时器相关操作，因为我们不再依赖定时器循环
@@ -262,70 +221,73 @@ void OCRWindow::dragEnterEvent(QDragEnterEvent* event) {
 void OCRWindow::dropEvent(QDropEvent* event) {
     qDebug() << "[OCR] 拖入识别: 开始";
     
-    // 自动清空之前的数据
-    onClearResults();
-    
     const QMimeData* mime = event->mimeData();
-    QList<QImage> imgsToProcess;
-
-    // 限制最多 10 张图片
-    int imageCount = 0;
-    const int MAX_IMAGES = 10;
+    QList<QPair<QImage, QString>> imageData;
 
     if (mime->hasImage()) {
         QImage img = qvariant_cast<QImage>(mime->imageData());
-        if (!img.isNull() && imageCount < MAX_IMAGES) {
-            OCRItem item;
-            item.image = img;
-            item.name = "拖入的图片";
-            item.id = ++m_lastUsedId;
-            m_items.append(item);
-            imgsToProcess << img;
-            imageCount++;
-
-            auto* listItem = new QListWidgetItem(item.name, m_itemList);
-            listItem->setData(Qt::UserRole, item.id);
-            listItem->setIcon(IconHelper::getIcon("image", "#888"));
+        if (!img.isNull()) {
+            imageData.append({img, "拖入的图片"});
         }
     }
 
     if (mime->hasUrls()) {
         for (const QUrl& url : mime->urls()) {
-            if (imageCount >= MAX_IMAGES) {
-                qDebug() << "[OCR] 拖入识别: 已达到最大图片数量限制 (10 张)";
-                break;
-            }
-            
             QString path = url.toLocalFile();
             if (!path.isEmpty()) {
                 QImage img(path);
                 if (!img.isNull()) {
-                    OCRItem item;
-                    item.image = img;
-                    item.name = QFileInfo(path).fileName();
-                    item.id = ++m_lastUsedId;
-                    m_items.append(item);
-                    imgsToProcess << img;
-                    imageCount++;
-
-                    auto* listItem = new QListWidgetItem(item.name, m_itemList);
-                    listItem->setData(Qt::UserRole, item.id);
-                    listItem->setIcon(IconHelper::getIcon("image", "#888"));
+                    imageData.append({img, QFileInfo(path).fileName()});
                 }
             }
         }
     }
 
-    if (!imgsToProcess.isEmpty()) {
-        processImages(imgsToProcess);
-        m_itemList->setCurrentRow(m_itemList->count() - imgsToProcess.size());
+    if (!imageData.isEmpty()) {
+        addOcrTasks(imageData);
         event->acceptProposedAction();
+    }
+}
+
+void OCRWindow::addOcrTasks(const QList<QPair<QImage, QString>>& data) {
+    // 自动清空之前的数据
+    onClearResults();
+
+    QList<QPair<QImage, QString>> limitedData = data;
+    if (limitedData.size() > 10) {
+        qDebug() << "[OCR] 图片数量超过限制，仅处理前 10 张";
+        limitedData = limitedData.mid(0, 10);
+    }
+
+    qDebug() << "[OCR] 添加任务:" << limitedData.size() << "张图片";
+    QList<QImage> imgs;
+    for (const auto& p : limitedData) {
+        OCRItem item;
+        item.image = p.first;
+        item.name = p.second;
+        item.id = ++m_lastUsedId;
+        item.sessionVersion = m_sessionVersion;
+        m_items.append(item);
+        imgs << p.first;
+        qDebug() << "[OCR] 添加任务 ID:" << item.id << "名称:" << item.name;
+
+        auto* listItem = new QListWidgetItem(item.name, m_itemList);
+        listItem->setData(Qt::UserRole, item.id);
+        listItem->setIcon(IconHelper::getIcon("image", "#888"));
+    }
+
+    if (!imgs.isEmpty()) {
+        processImages(imgs);
+        // 自动选中第一个新加入的项目
+        m_itemList->setCurrentRow(m_itemList->count() - imgs.size());
     }
 }
 
 void OCRWindow::processImages(const QList<QImage>& images) {
     qDebug() << "[OCR] processImages: 添加" << images.size() << "张图片到队列";
     
+    if (images.isEmpty()) return;
+
     // 将所有图片添加到队列
     int startIdx = m_items.size() - images.size();
     for (int i = 0; i < images.size(); ++i) {
@@ -335,8 +297,8 @@ void OCRWindow::processImages(const QList<QImage>& images) {
     }
     
     // 显示并初始化进度条
-    if (m_progressBar && !images.isEmpty()) {
-        m_progressBar->setMaximum(m_items.size());
+    if (m_progressBar) {
+        m_progressBar->setMaximum(images.size());
         m_progressBar->setValue(0);
         m_progressBar->show();
     }
@@ -432,11 +394,30 @@ void OCRWindow::onRecognitionFinished(const QString& text, int contextId) {
     if (m_progressBar) {
         m_progressBar->setValue(finished);
         if (finished >= m_items.size()) {
-            QTimer::singleShot(1000, m_progressBar, &QProgressBar::hide); // 完成1秒后隐藏
+            // 使用 QTimer 防止频繁闪烁，并检查 sessionVersion 确保是当前任务的隐藏
+            int currentVersion = m_sessionVersion;
+            QTimer::singleShot(1500, this, [this, currentVersion]() {
+                if (this->m_sessionVersion == currentVersion && m_progressBar) {
+                    m_progressBar->hide();
+                }
+            });
         }
     }
     
-    updateRightDisplay();
+    // 只有当汇总项被选中，或者当前完成的项被选中时，才更新显示
+    auto* currentItem = m_itemList->currentItem();
+    if (currentItem) {
+        int selectedId = currentItem->data(Qt::UserRole).toInt();
+        if (selectedId == 0) {
+            // 汇总模式使用节流刷新
+            if (!m_updateTimer->isActive()) {
+                m_updateTimer->start();
+            }
+        } else if (selectedId == contextId) {
+            // 当前选中项直接刷新
+            updateRightDisplay();
+        }
+    }
     
     // 处理下一个任务
     qDebug() << "[OCR] 当前任务完成，准备处理下一个";
