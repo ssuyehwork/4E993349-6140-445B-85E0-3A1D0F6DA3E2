@@ -33,11 +33,12 @@ protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dragLeaveEvent(QDragLeaveEvent* event) override;
     void dropEvent(QDropEvent* event) override;
+    static void renderBook(QPainter* p, const QString& skinName, float bookY);
+    static void renderPen(QPainter* p, const QString& skinName, float penX, float penY, float penAngle);
 
 private:
     void switchSkin(const QString& name);
-    void drawBook(QPainter* p);
-    void drawPen(QPainter* p);
+    // drawBook 和 drawPen 已改为静态 renderBook/renderPen
     void burstParticles();
     void updatePhysics();
     void updateParticles();

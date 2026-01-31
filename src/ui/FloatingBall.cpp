@@ -60,20 +60,27 @@ void FloatingBall::paintEvent(QPaintEvent* event) {
     // 3. 绘制笔记本
     painter.save();
     painter.translate(cx, cy + m_bookY);
-    drawBook(&painter);
+    renderBook(&painter, m_skinName, 0); // 在 paintEvent 中只有 y 偏移是 translate 处理的，book 内部绘制居中
     painter.restore();
 
     // 4. 绘制钢笔
     painter.save();
+    // paintEvent 中 pen 的位置偏移已经在 translate 中处理了
+    // 但是原始代码是 translate(cx + m_penX, cy + m_penY - 5);
+    // renderPen 需要 relative 坐标吗？
+    // 让我们保持 renderPen 只负责画笔本身，坐标变换在外部做。
     painter.translate(cx + m_penX, cy + m_penY - 5);
     painter.rotate(m_penAngle);
-    drawPen(&painter);
+    renderPen(&painter, m_skinName, 0, 0, 0); // 坐标和旋转已在外部 Transform 中完成
     painter.restore();
 }
 
-void FloatingBall::drawBook(QPainter* p) {
+void FloatingBall::renderBook(QPainter* p, const QString& skinName, float /*bookY*/) {
+    // bookY 参数在此场景下其实不需要，因为 painter 已经 translate 了
+    // 为了保持静态函数的通用性，我们保留接口
+    
     p->setPen(Qt::NoPen);
-    if (m_skinName == "open") {
+    if (skinName == "open") {
         float w = 80, h = 50;
         p->rotate(-5);
         QPainterPath path;
@@ -95,7 +102,7 @@ void FloatingBall::drawBook(QPainter* p) {
         }
     } else {
         float w = 56, h = 76;
-        if (m_skinName == "classic") {
+        if (skinName == "classic") {
             p->setBrush(QColor("#ebebe6"));
             p->drawRoundedRect(QRectF(-w/2+6, -h/2+6, w, h), 3, 3);
             QLinearGradient grad(-w, -h, w, h);
@@ -104,7 +111,7 @@ void FloatingBall::drawBook(QPainter* p) {
             p->drawRoundedRect(QRectF(-w/2, -h/2, w, h), 3, 3);
             p->setBrush(QColor(10, 10, 10, 200));
             p->drawRect(QRectF(w/2 - 12, -h/2, 6, h));
-        } else if (m_skinName == "royal") {
+        } else if (skinName == "royal") {
             p->setBrush(QColor("#f0f0eb"));
             p->drawRoundedRect(QRectF(-w/2+6, -h/2+6, w, h), 2, 2);
             QLinearGradient grad(-w, -h, w, 0);
@@ -115,7 +122,7 @@ void FloatingBall::drawBook(QPainter* p) {
             float c_size = 12;
             QPolygonF poly; poly << QPointF(w/2, -h/2) << QPointF(w/2-c_size, -h/2) << QPointF(w/2, -h/2+c_size);
             p->drawPolygon(poly);
-        } else if (m_skinName == "matcha") {
+        } else if (skinName == "matcha") {
             p->setBrush(QColor("#fafaf5"));
             p->drawRoundedRect(QRectF(-w/2+5, -h/2+5, w, h), 3, 3);
             QLinearGradient grad(-w, -h, w, h);
@@ -137,14 +144,14 @@ void FloatingBall::drawBook(QPainter* p) {
     }
 }
 
-void FloatingBall::drawPen(QPainter* p) {
+void FloatingBall::renderPen(QPainter* p, const QString& skinName, float, float, float) {
     p->setPen(Qt::NoPen);
     QColor c_light, c_mid, c_dark;
-    if (m_skinName == "royal") {
+    if (skinName == "royal") {
         c_light = QColor(60, 60, 70); c_mid = QColor(20, 20, 25); c_dark = QColor(0, 0, 0);
-    } else if (m_skinName == "classic") {
+    } else if (skinName == "classic") {
         c_light = QColor(80, 80, 80); c_mid = QColor(30, 30, 30); c_dark = QColor(10, 10, 10);
-    } else if (m_skinName == "matcha") {
+    } else if (skinName == "matcha") {
         c_light = QColor(255, 255, 250); c_mid = QColor(240, 240, 230); c_dark = QColor(200, 200, 190);
     } else {
         c_light = QColor(180, 60, 70); c_mid = QColor(140, 20, 30); c_dark = QColor(60, 5, 10);
@@ -286,16 +293,43 @@ void FloatingBall::dropEvent(QDropEvent* event) {
 }
 
 QIcon FloatingBall::generateBallIcon() {
-    FloatingBall temp(nullptr);
-    temp.m_timer->stop(); // 停止动画
-    temp.setAttribute(Qt::WA_DontShowOnScreen);
-    temp.m_particles.clear();
-    temp.switchSkin("mocha");
-    temp.m_timeStep = 0; // 静态
-    
-    QPixmap pixmap(temp.size());
+    QPixmap pixmap(120, 120);
     pixmap.fill(Qt::transparent);
-    temp.render(&pixmap);
+    
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    
+    float cx = 60.0f;
+    float cy = 60.0f;
+    
+    // 静态状态参数 (无动画)
+    float bookY = 0.0f;
+    float penX = 0.0f;
+    float penY = 0.0f;
+    float penAngle = -45.0f;
+    QString skinName = "mocha";
+    
+    // 阴影
+    painter.save();
+    painter.translate(cx, cy + bookY + 15);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(0, 0, 0, 40));
+    painter.drawEllipse(QRectF(-35, -10, 70, 20));
+    painter.restore();
+    
+    // 笔记本
+    painter.save();
+    painter.translate(cx, cy + bookY);
+    renderBook(&painter, skinName, 0);
+    painter.restore();
+    
+    // 钢笔
+    painter.save();
+    painter.translate(cx + penX, cy + penY - 5);
+    painter.rotate(penAngle);
+    renderPen(&painter, skinName, 0, 0, 0);
+    painter.restore();
+    
     return QIcon(pixmap);
 }
 

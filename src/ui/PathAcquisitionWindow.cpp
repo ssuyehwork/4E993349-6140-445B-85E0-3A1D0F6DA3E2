@@ -10,6 +10,10 @@
 #include <QToolTip>
 #include <QDirIterator>
 #include <QCheckBox>
+#include <QMenu>
+#include <QAction>
+#include <QProcess>
+#include <QDesktopServices>
 
 PathAcquisitionWindow::PathAcquisitionWindow(QWidget* parent) : FramelessDialog("路径提取", parent) {
     setAcceptDrops(true);
@@ -74,10 +78,11 @@ void PathAcquisitionWindow::initUI() {
     listLabel->setStyleSheet("color: #888; font-size: 12px; font-weight: bold;");
     rightLayout->addWidget(listLabel);
 
-    m_pathList = new QListWidget();
-    m_pathList->setStyleSheet("QListWidget { background-color: #252526; border: 1px solid #333; border-radius: 6px; color: #AAA; padding: 5px; font-size: 12px; } "
+    m_pathList->setStyleSheet("QListWidget { background-color: #252526; border: 1px solid #333; border-radius: 6px; color: #AAA; padding: 5px; font-size: 12px; outline: none; } "
                               "QListWidget::item { padding: 4px; border-bottom: 1px solid #2d2d2d; } "
                               "QListWidget::item:selected { background-color: #3E3E42; color: #FFF; }");
+    m_pathList->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_pathList, &QListWidget::customContextMenuRequested, this, &PathAcquisitionWindow::onShowContextMenu);
     rightLayout->addWidget(m_pathList);
 
     mainLayout->addWidget(rightPanel);
@@ -129,13 +134,56 @@ void PathAcquisitionWindow::processStoredUrls() {
     }
     
     if (!paths.isEmpty()) {
-        QApplication::clipboard()->setText(paths.join("\n"));
-        QToolTip::showText(QCursor::pos(), "✅ 已提取并复制 " + QString::number(paths.size()) + " 条路径", this);
+        // QApplication::clipboard()->setText(paths.join("\n")); // 移除自动复制
+        // QToolTip::showText(QCursor::pos(), "✅ 已提取并复制 " + QString::number(paths.size()) + " 条路径", this);
+        // 改为仅提示提取成功
+        QToolTip::showText(QCursor::pos(), "✅ 已提取 " + QString::number(paths.size()) + " 条路径\n右键可复制或定位", this);
     } else if (!m_currentUrls.isEmpty()) {
         // 如果处理了 URL 但没有产出（例如空文件夹），也提示一下
          QToolTip::showText(QCursor::pos(), "⚠️ 没有找到文件", this);
     }
     
     m_pathList->scrollToBottom();
+}
+
+void PathAcquisitionWindow::onShowContextMenu(const QPoint& pos) {
+    auto* item = m_pathList->itemAt(pos);
+    if (!item) return;
+
+    QString path = item->text();
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background: #2d2d2d; border: 1px solid #3d3d3d; color: #eee; } QMenu::item { padding: 5px 20px; } QMenu::item:selected { background: #3d3d3d; }");
+
+    auto* actCopyPath = menu.addAction("复制路径");
+    connect(actCopyPath, &QAction::triggered, [path]() {
+        QApplication::clipboard()->setText(path);
+    });
+
+    auto* actCopyFile = menu.addAction("复制文件");
+    connect(actCopyFile, &QAction::triggered, [path]() {
+        QMimeData* mimeData = new QMimeData;
+        QList<QUrl> urls;
+        urls << QUrl::fromLocalFile(path);
+        mimeData->setUrls(urls);
+        QApplication::clipboard()->setMimeData(mimeData);
+    });
+
+    menu.addSeparator();
+
+    auto* actLocateFile = menu.addAction("定位文件");
+    connect(actLocateFile, &QAction::triggered, [path]() {
+        // explorer.exe /select,filename
+        QString nativePath = QDir::toNativeSeparators(path);
+        QProcess::startDetached("explorer.exe", QStringList() << "/select," << nativePath);
+    });
+
+    auto* actLocateFolder = menu.addAction("定位文件夹");
+    connect(actLocateFolder, &QAction::triggered, [path]() {
+        QFileInfo fi(path);
+        QString dirPath = fi.isDir() ? path : fi.absolutePath();
+        QDesktopServices::openUrl(QUrl::fromLocalFile(dirPath));
+    });
+
+    menu.exec(m_pathList->mapToGlobal(pos));
 }
 

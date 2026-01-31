@@ -30,6 +30,7 @@ private:
     
     QList<QUrl> m_currentUrls;  // 缓存当前拖入的 URL，用于自动刷新
     void processStoredUrls();   // 处理缓存的 URL
+    void onShowContextMenu(const QPoint& pos); // 右键菜单
 };
 
 #endif // PATHACQUISITIONWINDOW_H
