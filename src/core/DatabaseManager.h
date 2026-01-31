@@ -95,7 +95,7 @@ private:
     DatabaseManager& operator=(const DatabaseManager&) = delete;
 
     bool createTables();
-    void syncFts(int id, const QString& title, const QString& content);
+    void syncFts(int id, const QString& title, const QString& plainContent);
     void removeFts(int id);
     QString stripHtml(const QString& html);
     void applySecurityFilter(QString& whereClause, QVariantList& params, const QString& filterType);
