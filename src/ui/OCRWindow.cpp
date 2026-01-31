@@ -17,6 +17,7 @@ OCRWindow::OCRWindow(QWidget* parent) : FramelessDialog("文字识别", parent) 
     setAcceptDrops(true);
 
     m_sessionVersion = 0;
+    m_lastUsedId = 1000000; // 临时任务 ID 从 1,000,000 起步，避免与数据库笔记 ID 冲突
     initUI();
     onClearResults();
     
@@ -305,8 +306,8 @@ void OCRWindow::processImages(const QList<QImage>& images) {
     
     // 如果当前没有在处理，立即开始处理
     if (!m_isProcessing) {
-        qDebug() << "[OCR] 开始顺序处理";
-        processNextImage();
+        qDebug() << "[OCR] 开始顺序处理 (平滑提交模式)";
+        m_processTimer->start(100);
     }
 }
 
@@ -335,8 +336,8 @@ void OCRWindow::processNextImage() {
     
     if (!item) {
         qDebug() << "[OCR] 错误: 未找到任务 ID:" << taskId;
-        // 继续处理下一个
-        QTimer::singleShot(0, this, &OCRWindow::processNextImage);
+        // 100ms 后尝试处理下一个
+        m_processTimer->start(100);
         return;
     }
     
@@ -419,9 +420,9 @@ void OCRWindow::onRecognitionFinished(const QString& text, int contextId) {
         }
     }
     
-    // 处理下一个任务
+    // 处理下一个任务 (平滑提交，100ms 间隔)
     qDebug() << "[OCR] 当前任务完成，准备处理下一个";
-    QTimer::singleShot(0, this, &OCRWindow::processNextImage);
+    m_processTimer->start(100);
 }
 
 void OCRWindow::updateRightDisplay() {
@@ -449,16 +450,18 @@ void OCRWindow::updateRightDisplay() {
     if (id == 0) {
         // 展示全部
         qDebug() << "[OCR] updateRightDisplay: 展示全部结果";
-        QString allText;
-        int itemCount = 0;
+        QStringList resultList;
+        resultList.reserve(m_items.size());
+
         for (const auto& item : std::as_const(m_items)) {
-            itemCount++;
-            if (!allText.isEmpty()) allText += "\n\n";
-            allText += QString("【%1】\n").arg(item.name);
-            allText += item.isFinished ? item.result : "正在识别管理中...";
-            allText += "\n-----------------------------------";
+            QString block = QString("【%1】\n").arg(item.name);
+            block += item.isFinished ? item.result : "正在识别管理中...";
+            block += "\n-----------------------------------";
+            resultList << block;
         }
-        qDebug() << "[OCR] updateRightDisplay: 处理了" << itemCount << "个项目，文本长度:" << allText.length();
+
+        QString allText = resultList.join("\n\n");
+        qDebug() << "[OCR] updateRightDisplay: 处理了" << resultList.size() << "个项目，文本长度:" << allText.length();
         m_ocrResult->setPlainText(allText);
         qDebug() << "[OCR] updateRightDisplay: setPlainText 完成";
     } else {
