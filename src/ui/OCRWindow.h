@@ -2,7 +2,7 @@
 #define OCRWINDOW_H
 
 #include "FramelessDialog.h"
-#include <QTextEdit>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -39,22 +39,28 @@ private:
     void updateProgressLabel();
 
     struct OCRItem {
-        QImage image;
         QString name;
         QString result;
         bool isFinished = false;
         int id = -1;
     };
 
+    struct PendingOCRTask {
+        QImage image;
+        QString path;
+        int id;
+        bool isPath = false;
+    };
+
     static const int MAX_BATCH_SIZE = 10;
     static const int MAX_CONCURRENT_OCR = 3;
 
     QListWidget* m_itemList = nullptr;
-    QTextEdit* m_ocrResult = nullptr;
+    QPlainTextEdit* m_ocrResult = nullptr;
     QLabel* m_progressLabel = nullptr;
     
     QList<OCRItem> m_items;
-    QQueue<QPair<QImage, int>> m_pendingImages;
+    QQueue<PendingOCRTask> m_pendingTasks;
     QTimer* m_processingTimer = nullptr;
     QTimer* m_updateTimer = nullptr;
     int m_activeCount = 0;

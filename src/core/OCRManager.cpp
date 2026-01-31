@@ -33,22 +33,36 @@ void OCRManager::recognizeAsync(const QImage& image, int contextId) {
     });
 }
 
+void OCRManager::recognizeAsync(const QString& imagePath, int contextId) {
+    (void)QtConcurrent::run(QThreadPool::globalInstance(), [this, imagePath, contextId]() {
+        QImage image(imagePath);
+        if (image.isNull()) {
+            emit recognitionFinished("无法加载图像文件: " + imagePath, contextId);
+            return;
+        }
+        this->recognizeSync(image, contextId);
+    });
+}
+
 // 图像预处理函数：提高 OCR 识别准确度
 QImage OCRManager::preprocessImage(const QImage& original) {
-    if (original.isNull()) {
-        return original;
+    if (original.isNull()) return original;
+    
+    QImage processed = original;
+
+    // 0. 尺寸上限保护：防止超大图导致内存溢出
+    if (processed.width() > 4000 || processed.height() > 4000) {
+        processed = processed.scaled(4000, 4000, Qt::KeepAspectRatio, Qt::FastTransformation);
     }
+
+    // 1. 转换为灰度图 (保留 8 位深度的灰度细节)
+    processed = processed.convertToFormat(QImage::Format_Grayscale8);
     
-    // 1. 转换为灰度图 (保留 8 位深度的灰度细节，这对 Tesseract 4+ 至关重要)
-    QImage processed = original.convertToFormat(QImage::Format_Grayscale8);
-    
-    // 2. 动态缩放策略
-    // 目标：使文字像素高度达到 Tesseract 偏好的 30-35 像素。
-    // 如果原图已经很大（宽度 > 2000），则不需要放大 3 倍，否则会导致内存占用过高且识别变慢
-    int scale = 3;
-    if (processed.width() > 2000 || processed.height() > 2000) {
-        scale = 1;
-    } else if (processed.width() > 1000 || processed.height() > 1000) {
+    // 2. 动态缩放策略 (优化为 FastTransformation 提高速度)
+    int scale = 1;
+    if (processed.width() < 1000 && processed.height() < 1000) {
+        scale = 3;
+    } else if (processed.width() < 2000 && processed.height() < 2000) {
         scale = 2;
     }
     
@@ -57,7 +71,7 @@ QImage OCRManager::preprocessImage(const QImage& original) {
             processed.width() * scale, 
             processed.height() * scale, 
             Qt::KeepAspectRatio, 
-            Qt::SmoothTransformation
+            Qt::FastTransformation
         );
     }
     
@@ -115,27 +129,28 @@ QImage OCRManager::preprocessImage(const QImage& original) {
         }
     }
 
-    // 5. 简单锐化处理 (卷积)
-    // 增加文字边缘对比度，有助于 Tesseract 识别彩色变灰度后的细微笔画
-    QImage sharpened = processed;
-    int kernel[3][3] = {
-        {0, -1, 0},
-        {-1, 5, -1},
-        {0, -1, 0}
-    };
-    for (int y = 1; y < processed.height() - 1; ++y) {
-        const uchar* prevLine = processed.constScanLine(y - 1);
-        const uchar* currLine = processed.constScanLine(y);
-        const uchar* nextLine = processed.constScanLine(y + 1);
-        uchar* destLine = sharpened.scanLine(y);
-        for (int x = 1; x < processed.width() - 1; ++x) {
-            int sum = currLine[x] * kernel[1][1]
-                    + prevLine[x] * kernel[0][1] + nextLine[x] * kernel[2][1]
-                    + currLine[x-1] * kernel[1][0] + currLine[x+1] * kernel[1][2];
-            destLine[x] = static_cast<uchar>(qBound(0, sum, 255));
+    // 5. 简单锐化处理 (卷积) - 仅对较小图像执行，防止大图 CPU 暴涨
+    if (processed.width() < 3000 && processed.height() < 3000) {
+        QImage sharpened = processed;
+        int kernel[3][3] = {
+            {0, -1, 0},
+            {-1, 5, -1},
+            {0, -1, 0}
+        };
+        for (int y = 1; y < processed.height() - 1; ++y) {
+            const uchar* prevLine = processed.constScanLine(y - 1);
+            const uchar* currLine = processed.constScanLine(y);
+            const uchar* nextLine = processed.constScanLine(y + 1);
+            uchar* destLine = sharpened.scanLine(y);
+            for (int x = 1; x < processed.width() - 1; ++x) {
+                int sum = currLine[x] * kernel[1][1]
+                        + prevLine[x] * kernel[0][1] + nextLine[x] * kernel[2][1]
+                        + currLine[x-1] * kernel[1][0] + currLine[x+1] * kernel[1][2];
+                destLine[x] = static_cast<uchar>(qBound(0, sum, 255));
+            }
         }
+        processed = sharpened;
     }
-    processed = sharpened;
     
     // 注意：不再手动调用 Otsu 二值化。
     // Tesseract 4.0+ 内部的二值化器（基于 Leptonica）在处理具有抗锯齿边缘的灰度图像时表现更好。

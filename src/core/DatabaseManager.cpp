@@ -40,19 +40,21 @@ bool DatabaseManager::init(const QString& dbPath) {
     QMutexLocker locker(&m_mutex);
     m_dbPath = dbPath;
     
-    // 自动备份
+    // 自动备份：移至后台线程，防止启动黑屏 ANR
     if (QFile::exists(dbPath)) {
-        QString backupDir = QCoreApplication::applicationDirPath() + "/backups";
-        QDir().mkpath(backupDir);
-        QString backupPath = backupDir + "/backup_" + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".db";
-        if (QFile::copy(dbPath, backupPath)) {
-            // 清理旧备份 (保留 20 份)
-            QDir dir(backupDir);
-            QFileInfoList list = dir.entryInfoList(QStringList() << "*.db", QDir::Files, QDir::Time);
-            while (list.size() > 20) {
-                QFile::remove(list.takeLast().absoluteFilePath());
+        (void)QtConcurrent::run([dbPath]() {
+            QString backupDir = QCoreApplication::applicationDirPath() + "/backups";
+            QDir().mkpath(backupDir);
+            QString backupPath = backupDir + "/backup_" + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".db";
+            if (QFile::copy(dbPath, backupPath)) {
+                // 清理旧备份 (保留 20 份)
+                QDir dir(backupDir);
+                QFileInfoList list = dir.entryInfoList(QStringList() << "*.db", QDir::Files, QDir::Time);
+                while (list.size() > 20) {
+                    QFile::remove(list.takeLast().absoluteFilePath());
+                }
             }
-        }
+        });
     }
 
     if (m_db.isOpen()) m_db.close();
@@ -1506,16 +1508,28 @@ void DatabaseManager::applySecurityFilter(QString& whereClause, QVariantList& pa
 }
 
 QString DatabaseManager::stripHtml(const QString& html) {
-    // 首先检查是否真的是 HTML，如果不是则直接返回
-    if (!html.contains("<") && !html.contains("&")) return html;
+    if (html.isEmpty()) return "";
 
-    QString plain = html;
-    // 移除 <style> 和 <script> 块及其内容 (防止样式代码进入索引)
-    plain.remove(QRegularExpression("<style.*?>.*?</style>", QRegularExpression::DotMatchesEverythingOption | QRegularExpression::CaseInsensitiveOption));
-    plain.remove(QRegularExpression("<script.*?>.*?</script>", QRegularExpression::DotMatchesEverythingOption | QRegularExpression::CaseInsensitiveOption));
+    // 长度上限保护：FTS5 索引不需要无限长度的文本
+    QString input = html;
+    if (input.length() > 100000) {
+        input = input.left(100000);
+    }
+
+    // 首先检查是否含有 HTML 关键特征，避免对纯文本进行昂贵的正则匹配
+    if (!input.contains('<') && !input.contains('&')) return input.simplified();
+
+    QString plain = input;
     
-    // 移除所有 HTML 标签
-    plain.remove(QRegularExpression("<[^>]*>"));
+    // 优化后的正则：使用非贪婪匹配，并尽量避免使用 DotMatchesEverything 以减少回溯
+    // 移除 <style> 和 <script> 块
+    static const QRegularExpression reStyle("<style[^>]*>.*?</style>", QRegularExpression::DotMatchesEverythingOption | QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression reScript("<script[^>]*>.*?</script>", QRegularExpression::DotMatchesEverythingOption | QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression reTags("<[^>]+>");
+
+    plain.remove(reStyle);
+    plain.remove(reScript);
+    plain.remove(reTags);
     
     // 处理常见 HTML 实体
     plain.replace("&nbsp;", " ", Qt::CaseInsensitive);

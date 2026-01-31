@@ -10,6 +10,7 @@ class OCRManager : public QObject {
 public:
     static OCRManager& instance();
     void recognizeAsync(const QImage& image, int contextId = -1);
+    void recognizeAsync(const QString& imagePath, int contextId = -1);
     
     // 设置 OCR 识别语言（默认: "chi_sim+eng"）
     // 可用语言见 traineddata 文件，多语言用 + 连接

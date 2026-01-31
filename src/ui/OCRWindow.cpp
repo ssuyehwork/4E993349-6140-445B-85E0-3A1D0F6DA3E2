@@ -120,10 +120,10 @@ void OCRWindow::initUI() {
     resultLabel->setStyleSheet("color: #888; font-size: 11px; font-weight: bold;");
     rightLayout->addWidget(resultLabel);
 
-    m_ocrResult = new QTextEdit();
+    m_ocrResult = new QPlainTextEdit();
     m_ocrResult->setReadOnly(true);
     m_ocrResult->setPlaceholderText("选择左侧项目查看识别结果...");
-    m_ocrResult->setStyleSheet("QTextEdit { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #eee; font-size: 13px; padding: 10px; line-height: 1.4; }");
+    m_ocrResult->setStyleSheet("QPlainTextEdit { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #eee; font-size: 13px; padding: 10px; }");
     rightLayout->addWidget(m_ocrResult);
 
     mainHLayout->addWidget(rightPanel);
@@ -133,49 +133,58 @@ void OCRWindow::onPasteAndRecognize() {
     const QMimeData* mime = QApplication::clipboard()->mimeData();
     if (!mime) return;
 
-    QList<QPair<QImage, QString>> imageData;
+    QList<PendingOCRTask> tasks;
 
     if (mime->hasImage()) {
         QImage img = qvariant_cast<QImage>(mime->imageData());
-        if (!img.isNull()) imageData << qMakePair(img, "来自剪贴板的图片");
+        if (!img.isNull()) {
+            PendingOCRTask t;
+            t.image = img;
+            t.path = "来自剪贴板的图片";
+            t.isPath = false;
+            tasks << t;
+        }
     }
 
     if (mime->hasUrls()) {
         for (const QUrl& url : std::as_const(mime->urls())) {
             QString path = url.toLocalFile();
             if (!path.isEmpty()) {
-                QImage img(path);
-                if (!img.isNull()) imageData << qMakePair(img, QFileInfo(path).fileName());
+                PendingOCRTask t;
+                t.path = path;
+                t.isPath = true;
+                tasks << t;
             }
         }
     }
 
-    if (imageData.size() > MAX_BATCH_SIZE) {
+    if (tasks.size() > MAX_BATCH_SIZE) {
         QMessageBox::warning(this, "提示", QString("单次最多只能处理 %1 张图片").arg(MAX_BATCH_SIZE));
-        imageData = imageData.mid(0, MAX_BATCH_SIZE);
+        tasks = tasks.mid(0, MAX_BATCH_SIZE);
     }
 
-    if (!imageData.isEmpty()) {
-        QList<QImage> imgs;
+    if (!tasks.isEmpty()) {
         {
             QMutexLocker locker(&m_itemsMutex);
-            for (auto& p : std::as_const(imageData)) {
+            for (auto& t : tasks) {
                 OCRItem item;
-                item.image = p.first;
-                item.name = p.second;
+                item.name = t.isPath ? QFileInfo(t.path).fileName() : t.path;
                 item.id = ++m_lastUsedId;
                 m_items.append(item);
-                imgs << p.first;
+
+                t.id = item.id;
+                m_pendingTasks.enqueue(t);
 
                 auto* listItem = new QListWidgetItem(item.name, m_itemList);
                 listItem->setData(Qt::UserRole, item.id);
                 listItem->setIcon(IconHelper::getIcon("image", "#888"));
             }
         }
-        processImages(imgs);
         
-        // 自动选中第一个新加入的项目
-        m_itemList->setCurrentRow(m_itemList->count() - imageData.size());
+        if (!m_processingTimer->isActive()) m_processingTimer->start();
+        if (!m_updateTimer->isActive()) m_updateTimer->start();
+
+        m_itemList->setCurrentRow(m_itemList->count() - tasks.size());
     }
 }
 
@@ -188,30 +197,30 @@ void OCRWindow::onBrowseAndRecognize() {
         files = files.mid(0, MAX_BATCH_SIZE);
     }
 
-    QList<QImage> imgs;
     {
         QMutexLocker locker(&m_itemsMutex);
         for (const QString& file : std::as_const(files)) {
-            QImage img(file);
-            if (!img.isNull()) {
-                OCRItem item;
-                item.image = img;
-                item.name = QFileInfo(file).fileName();
-                item.id = ++m_lastUsedId;
-                m_items.append(item);
-                imgs << img;
+            OCRItem item;
+            item.name = QFileInfo(file).fileName();
+            item.id = ++m_lastUsedId;
+            m_items.append(item);
 
-                auto* listItem = new QListWidgetItem(item.name, m_itemList);
-                listItem->setData(Qt::UserRole, item.id);
-                listItem->setIcon(IconHelper::getIcon("image", "#888"));
-            }
+            PendingOCRTask t;
+            t.path = file;
+            t.id = item.id;
+            t.isPath = true;
+            m_pendingTasks.enqueue(t);
+
+            auto* listItem = new QListWidgetItem(item.name, m_itemList);
+            listItem->setData(Qt::UserRole, item.id);
+            listItem->setIcon(IconHelper::getIcon("image", "#888"));
         }
     }
 
-    if (!imgs.isEmpty()) {
-        processImages(imgs);
-        m_itemList->setCurrentRow(m_itemList->count() - imgs.size());
-    }
+    if (!m_processingTimer->isActive()) m_processingTimer->start();
+    if (!m_updateTimer->isActive()) m_updateTimer->start();
+
+    m_itemList->setCurrentRow(m_itemList->count() - files.size());
 }
 
 void OCRWindow::onClearResults() {
@@ -219,7 +228,7 @@ void OCRWindow::onClearResults() {
     m_itemList->clear();
     m_items.clear();
     m_ocrResult->clear();
-    m_pendingImages.clear();
+    m_pendingTasks.clear();
     m_activeCount = 0;
     if (m_processingTimer) m_processingTimer->stop();
     if (m_updateTimer) m_updateTimer->stop();
@@ -241,18 +250,23 @@ void OCRWindow::dragEnterEvent(QDragEnterEvent* event) {
 
 void OCRWindow::dropEvent(QDropEvent* event) {
     const QMimeData* mime = event->mimeData();
-    QList<QImage> imgsToProcess;
+    int newItemsCount = 0;
     {
         QMutexLocker locker(&m_itemsMutex);
         if (mime->hasImage()) {
             QImage img = qvariant_cast<QImage>(mime->imageData());
             if (!img.isNull()) {
                 OCRItem item;
-                item.image = img;
                 item.name = "拖入的图片";
                 item.id = ++m_lastUsedId;
                 m_items.append(item);
-                imgsToProcess << img;
+
+                PendingOCRTask t;
+                t.image = img;
+                t.id = item.id;
+                t.isPath = false;
+                m_pendingTasks.enqueue(t);
+                newItemsCount++;
 
                 auto* listItem = new QListWidgetItem(item.name, m_itemList);
                 listItem->setData(Qt::UserRole, item.id);
@@ -264,61 +278,51 @@ void OCRWindow::dropEvent(QDropEvent* event) {
             for (const QUrl& url : std::as_const(mime->urls())) {
                 QString path = url.toLocalFile();
                 if (!path.isEmpty()) {
-                    QImage img(path);
-                    if (!img.isNull()) {
-                        OCRItem item;
-                        item.image = img;
-                        item.name = QFileInfo(path).fileName();
-                        item.id = ++m_lastUsedId;
-                        m_items.append(item);
-                        imgsToProcess << img;
+                    OCRItem item;
+                    item.name = QFileInfo(path).fileName();
+                    item.id = ++m_lastUsedId;
+                    m_items.append(item);
 
-                        auto* listItem = new QListWidgetItem(item.name, m_itemList);
-                        listItem->setData(Qt::UserRole, item.id);
-                        listItem->setIcon(IconHelper::getIcon("image", "#888"));
-                    }
+                    PendingOCRTask t;
+                    t.path = path;
+                    t.id = item.id;
+                    t.isPath = true;
+                    m_pendingTasks.enqueue(t);
+                    newItemsCount++;
+
+                    auto* listItem = new QListWidgetItem(item.name, m_itemList);
+                    listItem->setData(Qt::UserRole, item.id);
+                    listItem->setIcon(IconHelper::getIcon("image", "#888"));
                 }
             }
         }
     }
 
-    if (imgsToProcess.size() > MAX_BATCH_SIZE) {
-        QMessageBox::warning(this, "提示", QString("单次最多只能拖入 %1 张图片").arg(MAX_BATCH_SIZE));
-        imgsToProcess = imgsToProcess.mid(0, MAX_BATCH_SIZE);
-    }
-
-    if (!imgsToProcess.isEmpty()) {
-        processImages(imgsToProcess);
-        m_itemList->setCurrentRow(m_itemList->count() - imgsToProcess.size());
+    if (newItemsCount > 0) {
+        if (!m_processingTimer->isActive()) m_processingTimer->start();
+        if (!m_updateTimer->isActive()) m_updateTimer->start();
+        m_itemList->setCurrentRow(m_itemList->count() - newItemsCount);
         event->acceptProposedAction();
     }
 }
 
 void OCRWindow::processImages(const QList<QImage>& images) {
-    QMutexLocker locker(&m_itemsMutex);
-    int startIdx = m_items.size() - images.size();
-    for (int i = 0; i < images.size(); ++i) {
-        m_pendingImages.enqueue(qMakePair(images[i], m_items[startIdx + i].id));
-    }
-
-    if (!m_processingTimer->isActive()) {
-        m_processingTimer->start();
-    }
-
-    if (!m_updateTimer->isActive()) {
-        m_updateTimer->start();
-    }
+    // 此函数在当前重构中不再直接使用，通过 onPaste/onBrowse/drop 直接入队
 }
 
 void OCRWindow::processNextBatch() {
     QMutexLocker locker(&m_itemsMutex);
-    while (m_activeCount < MAX_CONCURRENT_OCR && !m_pendingImages.isEmpty()) {
-        auto imageData = m_pendingImages.dequeue();
+    while (m_activeCount < MAX_CONCURRENT_OCR && !m_pendingTasks.isEmpty()) {
+        auto task = m_pendingTasks.dequeue();
         m_activeCount++;
-        OCRManager::instance().recognizeAsync(imageData.first, imageData.second);
+        if (task.isPath) {
+            OCRManager::instance().recognizeAsync(task.path, task.id);
+        } else {
+            OCRManager::instance().recognizeAsync(task.image, task.id);
+        }
     }
 
-    if (m_pendingImages.isEmpty() && m_activeCount == 0) {
+    if (m_pendingTasks.isEmpty() && m_activeCount == 0) {
         m_processingTimer->stop();
     }
 
@@ -365,11 +369,18 @@ void OCRWindow::updateRightDisplay() {
         // 展示全部
         QStringList parts;
         parts.reserve(m_items.size() * 4);
+        int totalLen = 0;
         for (const auto& item : std::as_const(m_items)) {
             parts << QString("【%1】").arg(item.name);
-            parts << (item.isFinished ? item.result : "正在识别队列中...");
+            QString res = item.isFinished ? item.result : "正在识别队列中...";
+            parts << res;
             parts << "-----------------------------------";
             parts << "";
+            totalLen += res.length();
+            if (totalLen > 100000) { // 限制汇总显示长度，防止 UI 卡死
+                parts << "\n... (内容过多，仅显示部分。请点击左侧单个项目查看完整结果) ...";
+                break;
+            }
         }
         m_ocrResult->setPlainText(parts.join("\n"));
     } else {
@@ -393,7 +404,7 @@ void OCRWindow::updateProgressLabel() {
     if (m_progressLabel) {
         m_progressLabel->setText(QString("进度: %1/%2\n队列: %3\n处理中: %4")
             .arg(finished).arg(total)
-            .arg(m_pendingImages.size())
+            .arg(m_pendingTasks.size())
             .arg(m_activeCount));
     }
 }
