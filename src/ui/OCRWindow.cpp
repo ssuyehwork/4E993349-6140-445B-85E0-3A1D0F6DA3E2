@@ -10,6 +10,7 @@
 #include <QDropEvent>
 #include <QFileInfo>
 #include <QDateTime>
+#include <QTimer>
 
 OCRWindow::OCRWindow(QWidget* parent) : FramelessDialog("文字识别", parent) {
     setFixedSize(800, 500); // 增加宽度以适应三栏
