@@ -10,6 +10,8 @@
 #include <QMap>
 #include <QListWidget>
 #include <QMutex>
+#include <QQueue>
+#include <QTimer>
 
 class OCRWindow : public FramelessDialog {
     Q_OBJECT
@@ -24,6 +26,7 @@ private slots:
     void onRecognitionFinished(const QString& text, int contextId);
     void onCopyResult();
     void onItemSelectionChanged();
+    void processNextBatch();
 
 protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
@@ -33,6 +36,7 @@ private:
     void initUI();
     void processImages(const QList<QImage>& images);
     void updateRightDisplay();
+    void updateProgressLabel();
 
     struct OCRItem {
         QImage image;
@@ -42,11 +46,19 @@ private:
         int id = -1;
     };
 
+    static const int MAX_BATCH_SIZE = 10;
+    static const int MAX_CONCURRENT_OCR = 3;
+
     QListWidget* m_itemList = nullptr;
     QTextEdit* m_ocrResult = nullptr;
+    QLabel* m_progressLabel = nullptr;
     
     QList<OCRItem> m_items;
-    int m_lastUsedId = 0;
+    QQueue<QPair<QImage, int>> m_pendingImages;
+    QTimer* m_processingTimer = nullptr;
+    QTimer* m_updateTimer = nullptr;
+    int m_activeCount = 0;
+    int m_lastUsedId = 1000000;
     mutable QMutex m_itemsMutex;
 };
 

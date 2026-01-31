@@ -588,7 +588,7 @@ void ScreenshotTool::executeOCR() {
     QImage img = generateFinalImage();
     for (QWidget* widget : QApplication::topLevelWidgets()) { if (widget->objectName() == "OCRResultWindow") widget->close(); }
     OCRResultWindow* resWin = new OCRResultWindow(img, nullptr); resWin->setObjectName("OCRResultWindow"); resWin->show();
-    connect(&OCRManager::instance(), &OCRManager::recognitionFinished, resWin, &OCRResultWindow::setRecognizedText);
+    connect(&OCRManager::instance(), &OCRManager::recognitionFinished, resWin, &OCRResultWindow::setRecognizedText, Qt::QueuedConnection);
     OCRManager::instance().recognizeAsync(img, 9999); cancel();
 }
 

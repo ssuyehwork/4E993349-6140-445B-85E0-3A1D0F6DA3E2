@@ -10,15 +10,25 @@
 #include <QDropEvent>
 #include <QFileInfo>
 #include <QDateTime>
+#include <QMessageBox>
 
 OCRWindow::OCRWindow(QWidget* parent) : FramelessDialog("文字识别", parent) {
     setFixedSize(800, 500); // 增加宽度以适应三栏
     setAcceptDrops(true);
 
+    m_processingTimer = new QTimer(this);
+    m_processingTimer->setInterval(100);
+    connect(m_processingTimer, &QTimer::timeout, this, &OCRWindow::processNextBatch);
+
+    m_updateTimer = new QTimer(this);
+    m_updateTimer->setInterval(500);
+    m_updateTimer->setSingleShot(true);
+    connect(m_updateTimer, &QTimer::timeout, this, &OCRWindow::updateRightDisplay);
+
     initUI();
     onClearResults();
 
-    connect(&OCRManager::instance(), &OCRManager::recognitionFinished, this, &OCRWindow::onRecognitionFinished);
+    connect(&OCRManager::instance(), &OCRManager::recognitionFinished, this, &OCRWindow::onRecognitionFinished, Qt::QueuedConnection);
 }
 
 OCRWindow::~OCRWindow() {
@@ -59,6 +69,10 @@ void OCRWindow::initUI() {
     leftLayout->addWidget(btnClear);
 
     leftLayout->addStretch();
+
+    m_progressLabel = new QLabel();
+    m_progressLabel->setStyleSheet("color: #888; font-size: 11px;");
+    leftLayout->addWidget(m_progressLabel);
 
     auto* btnCopy = new QPushButton(" 复制文字");
     btnCopy->setIcon(IconHelper::getIcon("copy", "#ffffff"));
@@ -132,12 +146,15 @@ void OCRWindow::onPasteAndRecognize() {
         }
     }
 
+    if (imageData.size() > MAX_BATCH_SIZE) {
+        QMessageBox::warning(this, "提示", QString("单次最多只能处理 %1 张图片").arg(MAX_BATCH_SIZE));
+        imageData = imageData.mid(0, MAX_BATCH_SIZE);
+    }
+
     if (!imageData.isEmpty()) {
-        int firstNewIdx = 0;
         QList<QImage> imgs;
         {
             QMutexLocker locker(&m_itemsMutex);
-            firstNewIdx = m_items.size();
             for (auto& p : imageData) {
                 OCRItem item;
                 item.image = p.first;
@@ -161,6 +178,11 @@ void OCRWindow::onPasteAndRecognize() {
 void OCRWindow::onBrowseAndRecognize() {
     QStringList files = QFileDialog::getOpenFileNames(this, "选择识别图片", "", "图片文件 (*.png *.jpg *.jpeg *.bmp *.gif)");
     if (files.isEmpty()) return;
+
+    if (files.size() > MAX_BATCH_SIZE) {
+        QMessageBox::warning(this, "提示", QString("单次最多只能选择 %1 张图片").arg(MAX_BATCH_SIZE));
+        files = files.mid(0, MAX_BATCH_SIZE);
+    }
 
     QList<QImage> imgs;
     {
@@ -193,6 +215,12 @@ void OCRWindow::onClearResults() {
     m_itemList->clear();
     m_items.clear();
     m_ocrResult->clear();
+    m_pendingImages.clear();
+    m_activeCount = 0;
+    if (m_processingTimer) m_processingTimer->stop();
+    if (m_updateTimer) m_updateTimer->stop();
+    updateProgressLabel();
+
     // 不重置 m_lastUsedId，防止异步回调 ID 冲突
     
     auto* summaryItem = new QListWidgetItem("--- 全部结果汇总 ---", m_itemList);
@@ -250,6 +278,11 @@ void OCRWindow::dropEvent(QDropEvent* event) {
         }
     }
 
+    if (imgsToProcess.size() > MAX_BATCH_SIZE) {
+        QMessageBox::warning(this, "提示", QString("单次最多只能拖入 %1 张图片").arg(MAX_BATCH_SIZE));
+        imgsToProcess = imgsToProcess.mid(0, MAX_BATCH_SIZE);
+    }
+
     if (!imgsToProcess.isEmpty()) {
         processImages(imgsToProcess);
         m_itemList->setCurrentRow(m_itemList->count() - imgsToProcess.size());
@@ -259,25 +292,53 @@ void OCRWindow::dropEvent(QDropEvent* event) {
 
 void OCRWindow::processImages(const QList<QImage>& images) {
     QMutexLocker locker(&m_itemsMutex);
-    // 基于刚才添加的 item 顺序进行识别
     int startIdx = m_items.size() - images.size();
     for (int i = 0; i < images.size(); ++i) {
-        OCRManager::instance().recognizeAsync(images[i], m_items[startIdx + i].id);
+        m_pendingImages.enqueue(qMakePair(images[i], m_items[startIdx + i].id));
     }
+
+    if (!m_processingTimer->isActive()) {
+        m_processingTimer->start();
+    }
+    updateProgressLabel();
+}
+
+void OCRWindow::processNextBatch() {
+    QMutexLocker locker(&m_itemsMutex);
+    while (m_activeCount < MAX_CONCURRENT_OCR && !m_pendingImages.isEmpty()) {
+        auto imageData = m_pendingImages.dequeue();
+        m_activeCount++;
+        OCRManager::instance().recognizeAsync(imageData.first, imageData.second);
+    }
+
+    if (m_pendingImages.isEmpty() && m_activeCount == 0) {
+        m_processingTimer->stop();
+    }
+    updateProgressLabel();
 }
 
 void OCRWindow::onRecognitionFinished(const QString& text, int contextId) {
     {
         QMutexLocker locker(&m_itemsMutex);
+        bool found = false;
         for (auto& item : m_items) {
             if (item.id == contextId) {
                 item.result = text.trimmed();
                 item.isFinished = true;
+                found = true;
                 break;
             }
         }
+
+        if (!found) return; // 不是本窗口的 ID，直接忽略
+
+        m_activeCount--;
     }
-    updateRightDisplay();
+
+    if (!m_updateTimer->isActive()) {
+        m_updateTimer->start();
+    }
+    updateProgressLabel();
 }
 
 void OCRWindow::onItemSelectionChanged() {
@@ -293,14 +354,15 @@ void OCRWindow::updateRightDisplay() {
     QMutexLocker locker(&m_itemsMutex);
     if (id == 0) {
         // 展示全部
-        QString allText;
+        QStringList parts;
+        parts.reserve(m_items.size() * 4);
         for (const auto& item : m_items) {
-            if (!allText.isEmpty()) allText += "\n\n";
-            allText += QString("【%1】\n").arg(item.name);
-            allText += item.isFinished ? item.result : "正在识别管理中...";
-            allText += "\n-----------------------------------";
+            parts << QString("【%1】").arg(item.name);
+            parts << (item.isFinished ? item.result : "正在识别队列中...");
+            parts << "-----------------------------------";
+            parts << "";
         }
-        m_ocrResult->setPlainText(allText);
+        m_ocrResult->setPlainText(parts.join("\n"));
     } else {
         // 展示单个
         for (const auto& item : m_items) {
@@ -309,6 +371,21 @@ void OCRWindow::updateRightDisplay() {
                 break;
             }
         }
+    }
+}
+
+void OCRWindow::updateProgressLabel() {
+    int total = m_items.size();
+    int finished = 0;
+    for (const auto& item : m_items) {
+        if (item.isFinished) finished++;
+    }
+
+    if (m_progressLabel) {
+        m_progressLabel->setText(QString("进度: %1/%2\n队列: %3\n处理中: %4")
+            .arg(finished).arg(total)
+            .arg(m_pendingImages.size())
+            .arg(m_activeCount));
     }
 }
 
