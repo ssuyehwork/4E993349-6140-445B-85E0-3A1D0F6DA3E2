@@ -586,12 +586,6 @@ void ScreenshotTool::mousePressEvent(QMouseEvent* e) {
     if(m_textInput->isVisible() && !m_textInput->geometry().contains(e->pos())) commitTextInput();
     if(e->button() != Qt::LeftButton) return;
 
-    if (m_currentTool == ScreenshotToolType::Eraser && m_state == ScreenshotState::Editing) {
-        m_isDragging = true;
-        m_startPoint = e->pos(); // 用于橡皮擦移动追踪
-        return;
-    }
-
     if (m_state == ScreenshotState::Selecting) {
         m_dragHandle = -1;
         m_startPoint = e->pos();
@@ -601,20 +595,47 @@ void ScreenshotTool::mousePressEvent(QMouseEvent* e) {
         m_infoBar->hide();
     } else {
         int handle = getHandleAt(e->pos());
-        if (selectionRect().contains(e->pos()) && m_currentTool != ScreenshotToolType::None && handle == -1) {
-            if (m_currentTool == ScreenshotToolType::Text) { showTextInput(e->pos()); return; }
-            m_isDrawing = true; 
-            m_currentAnnotation = {m_currentTool, {e->pos()}, m_currentColor, "", m_currentStrokeWidth, LineStyle::Solid, m_currentArrowStyle};
-            if(m_currentTool == ScreenshotToolType::Marker) {
-                int c = 1; for(auto& a: m_annotations) if(a.type == ScreenshotToolType::Marker) c++;
-                m_currentAnnotation.text = QString::number(c);
+        QRect selRect = selectionRect();
+
+        // 优先级1：如果点击了控制点，进入缩放模式
+        if (handle != -1) {
+            m_dragHandle = handle;
+            m_isDragging = true;
+        }
+        // 优先级2：如果选择了橡皮擦且在选区内，进入擦除模式
+        else if (m_currentTool == ScreenshotToolType::Eraser && selRect.contains(e->pos())) {
+            m_isDragging = true;
+            m_dragHandle = -1; // -1 表示橡皮擦操作或初始选择
+        }
+        // 优先级3：如果点击了选区外部，开始重新选择
+        else if (!selRect.contains(e->pos())) {
+            m_state = ScreenshotState::Selecting;
+            m_startPoint = e->pos();
+            m_endPoint = m_startPoint;
+            m_isDragging = true;
+            m_toolbar->hide();
+        }
+        // 优先级4：点击选区内部，根据当前工具决定是绘制还是移动
+        else if (selRect.contains(e->pos())) {
+            if (m_currentTool != ScreenshotToolType::None) {
+                // 绘制标注
+                if (m_currentTool == ScreenshotToolType::Text) {
+                    showTextInput(e->pos());
+                    return;
+                }
+                m_isDrawing = true;
+                m_currentAnnotation = {m_currentTool, {e->position()}, m_currentColor, "", m_currentStrokeWidth, LineStyle::Solid, m_currentArrowStyle};
+                if(m_currentTool == ScreenshotToolType::Marker) {
+                    int c = 1;
+                    for(auto& a: m_annotations) if(a.type == ScreenshotToolType::Marker) c++;
+                    m_currentAnnotation.text = QString::number(c);
+                }
+            } else {
+                // 移动选区
+                m_dragHandle = 8;
+                m_dragOffset = e->pos() - selRect.topLeft();
+                m_isDragging = true;
             }
-        } else if (handle != -1) {
-            m_dragHandle = handle; m_isDragging = true;
-        } else if (selectionRect().contains(e->pos())) {
-             m_dragHandle = 8; m_startPoint = e->pos() - m_startPoint; m_isDragging = true;
-        } else {
-             m_state = ScreenshotState::Selecting; m_startPoint = e->pos(); m_endPoint = m_startPoint; m_isDragging = true; m_toolbar->hide();
         }
     }
     update();
@@ -646,9 +667,8 @@ void ScreenshotTool::mouseMoveEvent(QMouseEvent* e) {
             bool changed = false;
             for (int i = m_annotations.size() - 1; i >= 0; --i) {
                 bool hit = false;
-                // 遍历标注的所有点，检查是否在擦除半径内
                 for (const auto& pt : m_annotations[i].points) {
-                    if ((pt - p).manhattanLength() < 20) { hit = true; break; }
+                    if ((pt - p.toPointF()).manhattanLength() < 20) { hit = true; break; }
                 }
                 if (hit) { m_redoStack.append(m_annotations.takeAt(i)); changed = true; }
             }
@@ -657,22 +677,29 @@ void ScreenshotTool::mouseMoveEvent(QMouseEvent* e) {
         }
 
         if (e->modifiers() & Qt::ShiftModifier) {
-            if (m_state == ScreenshotState::Selecting || m_dragHandle == -1) {
-                int dx = p.x() - m_startPoint.x();
-                int dy = p.y() - m_startPoint.y();
-                if (std::abs(dx) > std::abs(dy)) p.setY(m_startPoint.y() + (dy > 0 ? std::abs(dx) : -std::abs(dx)));
-                else p.setX(m_startPoint.x() + (dx > 0 ? std::abs(dy) : -std::abs(dy)));
+            // 只有在初始选择或拉伸时才应用 Shift 约束
+            if (m_state == ScreenshotState::Selecting || (m_dragHandle >= 0 && m_dragHandle < 8)) {
+                // 暂时简单处理：如果是拉伸，这里逻辑较复杂，通常 Shift 用于保持比例或等宽高等。
+                // 初始选择阶段：
+                if (m_state == ScreenshotState::Selecting) {
+                    int dx = p.x() - m_startPoint.x();
+                    int dy = p.y() - m_startPoint.y();
+                    if (std::abs(dx) > std::abs(dy)) p.setY(m_startPoint.y() + (dy > 0 ? std::abs(dx) : -std::abs(dx)));
+                    else p.setX(m_startPoint.x() + (dx > 0 ? std::abs(dy) : -std::abs(dy)));
+                }
             }
         }
 
-        if (m_state == ScreenshotState::Selecting || m_dragHandle == -1) m_endPoint = p;
-        else if (m_dragHandle == 8) {
-            QRect r = selectionRect(); r.moveTo(e->pos() - m_startPoint);
-            m_startPoint = r.topLeft(); m_endPoint = r.bottomRight();
-        } else {
-            // 8点拉伸
-            QPoint p = e->pos();
+        if (m_state == ScreenshotState::Selecting) {
+            m_endPoint = p;
+        } else if (m_dragHandle == 8) {
+            // 移动选区：基于 dragOffset 计算新位置，并同步更新端点
             QRect r = selectionRect();
+            r.moveTo(e->pos() - m_dragOffset);
+            m_startPoint = r.topLeft();
+            m_endPoint = r.bottomRight();
+        } else if (m_dragHandle != -1) {
+            // 8点拉伸：根据 dragHandle 更新对应的端点坐标
             if(m_dragHandle==0) { m_startPoint = p; }
             else if(m_dragHandle==1) { m_startPoint.setY(p.y()); }
             else if(m_dragHandle==2) { m_startPoint.setY(p.y()); m_endPoint.setX(p.x()); }
@@ -743,6 +770,13 @@ void ScreenshotTool::mouseReleaseEvent(QMouseEvent* e) {
             if (selectionRect().isValid() && selectionRect().width() > 2 && selectionRect().height() > 2) {
                 m_state = ScreenshotState::Editing;
             }
+        }
+
+        // 释放鼠标时，统一将端点标准化为左上和右下，方便下次逻辑处理
+        if (selectionRect().isValid()) {
+            QRect r = selectionRect();
+            m_startPoint = r.topLeft();
+            m_endPoint = r.bottomRight();
         }
     }
     

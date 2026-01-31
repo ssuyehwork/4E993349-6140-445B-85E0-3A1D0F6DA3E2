@@ -155,6 +155,7 @@ private:
     QRect m_highlightedRect;
 
     QPoint m_startPoint, m_endPoint;
+    QPoint m_dragOffset;
     bool m_isDragging = false;
     int m_dragHandle = -1; 
 
