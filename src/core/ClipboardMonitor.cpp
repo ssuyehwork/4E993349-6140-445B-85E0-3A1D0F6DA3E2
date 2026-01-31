@@ -15,6 +15,7 @@ ClipboardMonitor::ClipboardMonitor(QObject* parent) : QObject(parent) {
 #include <QApplication>
 #include <QImage>
 #include <QBuffer>
+#include <QElapsedTimer>
 #include <QUrl>
 #include <QFileInfo>
 

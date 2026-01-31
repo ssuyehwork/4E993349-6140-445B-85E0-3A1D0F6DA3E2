@@ -1,6 +1,7 @@
 #include "NoteModel.h"
 #include <QDateTime>
 #include <QIcon>
+#include <QElapsedTimer>
 #include "../ui/IconHelper.h"
 #include "../ui/StringUtils.h"
 #include "../core/DatabaseManager.h"

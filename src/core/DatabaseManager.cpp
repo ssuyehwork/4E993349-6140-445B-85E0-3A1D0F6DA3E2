@@ -3,6 +3,7 @@
 #include <QSqlRecord>
 #include <QtConcurrent>
 #include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QDateTime>
 #include <QFile>
 #include <QDir>

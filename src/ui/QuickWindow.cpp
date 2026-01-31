@@ -49,6 +49,7 @@
 #include <QPainter>
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
+#include <QElapsedTimer>
 
 #ifdef Q_OS_WIN
 #include <windows.h>

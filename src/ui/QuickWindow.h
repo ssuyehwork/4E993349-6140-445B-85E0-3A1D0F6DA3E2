@@ -13,6 +13,7 @@
 #include <QKeyEvent>
 #include <QResizeEvent>
 #include <QHideEvent>
+#include <QShowEvent>
 #include "../models/NoteModel.h"
 #include "../models/CategoryModel.h"
 #include "QuickPreview.h"
@@ -65,6 +66,7 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void moveEvent(QMoveEvent* event) override;
+    void showEvent(QShowEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
