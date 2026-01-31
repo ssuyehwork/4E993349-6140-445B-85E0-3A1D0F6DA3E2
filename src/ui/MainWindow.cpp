@@ -64,15 +64,20 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent, Qt::FramelessWindo
     m_searchTimer->setSingleShot(true);
     connect(m_searchTimer, &QTimer::timeout, this, &MainWindow::refreshData);
 
+    m_refreshTimer = new QTimer(this);
+    m_refreshTimer->setSingleShot(true);
+    m_refreshTimer->setInterval(300); // 300ms 节流
+    connect(m_refreshTimer, &QTimer::timeout, this, &MainWindow::refreshData);
+
     refreshData();
 
     // 【关键修改】区分两种信号
     // 1. 增量更新：添加新笔记时不刷新全表
     connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, this, &MainWindow::onNoteAdded);
     
-    // 2. 全量刷新：修改、删除、分类变化（锁定状态）时才刷新全表
-    connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, this, &MainWindow::refreshData);
-    connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, this, &MainWindow::refreshData);
+    // 2. 全量刷新：修改、删除、分类变化（锁定状态）时才刷新全表 (增加节流)
+    connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, m_refreshTimer, QOverload<>::of(&QTimer::start));
+    connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, m_refreshTimer, QOverload<>::of(&QTimer::start));
 
     restoreLayout(); // 恢复布局
 }
@@ -1110,6 +1115,9 @@ void MainWindow::onNoteAdded(const QVariantMap& note) {
 }
 
 void MainWindow::refreshData() {
+    // 性能优化：如果窗口不可见，延迟刷新
+    if (!isVisible()) return;
+
     // 保存当前选中项状态以供恢复
     QString selectedType;
     QVariant selectedValue;
@@ -1263,6 +1271,11 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         return;
     }
     QMainWindow::keyPressEvent(event);
+}
+
+void MainWindow::showEvent(QShowEvent* event) {
+    QMainWindow::showEvent(event);
+    refreshData(); // 确保窗口显示时内容是最新的
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
