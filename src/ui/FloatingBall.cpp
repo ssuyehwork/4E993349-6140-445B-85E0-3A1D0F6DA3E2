@@ -11,6 +11,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QSettings>
+#include <QApplication>
 #include <utility>
 
 FloatingBall::FloatingBall(QWidget* parent) 
@@ -166,16 +167,26 @@ void FloatingBall::drawPen(QPainter* p) {
 
 void FloatingBall::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        m_isDragging = true;
-        m_offset = event->pos();
+        m_pressPos = event->pos();
+        m_isDragging = false; // 初始不进入拖拽，等待 move 判定
         m_penY += 3.0f; // 1:1 复刻 Python 按下弹性反馈
         update();
     }
 }
 
 void FloatingBall::mouseMoveEvent(QMouseEvent* event) {
-    if (m_isDragging) {
-        move(event->globalPosition().toPoint() - m_offset);
+    if (event->buttons() & Qt::LeftButton) {
+        if (!m_isDragging) {
+            // 只有移动距离超过系统设定的拖拽阈值才开始移动
+            if ((event->pos() - m_pressPos).manhattanLength() > QApplication::startDragDistance()) {
+                m_isDragging = true;
+                m_offset = m_pressPos;
+            }
+        }
+        
+        if (m_isDragging) {
+            move(event->globalPosition().toPoint() - m_offset);
+        }
     }
 }
 

@@ -1,0 +1,40 @@
+# 查找文件工具功能与样式全面重构方案
+
+## 1. 基础体验优化 (启动闪烁修复)
+- **目标**：消除 [QuickWindow](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#196-266) 启动时的视觉闪退。
+- **实施**：修正 [toggleStayOnTop](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/FramelessDialog.cpp#119-143)，避免在不可见状态下触发 `SWP_SHOWWINDOW`；优化 [showAuto](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1655-1706) 置顶逻辑。
+
+## 2. 搜索历史逻辑重塑 (单行列表 + 10条限制)
+- **目标**：将历史记录改为更易读的单行列表，并严格限制数量。
+- **组件**：[SearchHistoryPopup](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/SearchLineEdit.cpp#82-224) (QuickWindow) / `PathHistoryPopup` (FileSearchWindow)。
+- **修改点**：
+  - 将布局从 `FlowLayout` 改为 `QVBoxLayout`。
+  - 将 `HistoryChip` / `PathChip` 改为全宽列表项风格（移除圆角背景，仅悬停显示）。
+  - 各类 [addHistoryEntry](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/SearchLineEdit.cpp#251-260) 逻辑调整：条数上限从 20 改为 **10**。
+  - **[新增]** 为 `m_searchInput` 添加历史记录记录功能，条数上限同样为 10。
+
+## 3. 文件列表操作逻辑变更 (右键菜单为主)
+- **目标**：根据用户偏好，移除直接双击定位，改为右键菜单操作。
+- **实施**：
+  - **移除双击定位**：双击文件列表项将不再直接打开文件夹。
+  - **右键菜单功能**：
+    - `定位文件夹`：打开文件所在的父目录。
+    - `定位文件`：在资源管理器中选中该文件 (`explorer /select, path`)。
+    - `复制路径`：将文件完整路径存入剪贴板。
+    - `复制文件`：将文件本身作为 `QMimeData` 复制到剪贴板，支持直接在文件夹中粘贴。
+
+## 4. 侧边栏功能增强
+- **目标**：优化分类管理，提高路径添加效率。
+- **实施**：
+  - **自动排序**：侧边栏收藏夹项始终按名称升序排列 (`sortItems`)。
+  - **新增“快速添加”功能**：在侧边栏底部增加一个“添加”按钮。点击后，直接将当前地址栏中的有效路径加入收藏夹。
+
+## 5. 标签跨笔记复制粘贴功能
+- **目标**：快速复用笔记标签。
+- **机制**：在 [DatabaseManager](file:///g:/C++/Inspirenote/Inspirenote_release/src/core/DatabaseManager.h#15-108) 中使用静态变量 `m_tagClipboard` 存储标签；`Ctrl+Shift+C` 复制，`Ctrl+Shift+V` 粘贴并将标签合并到目标笔记。
+- **实现**：在 [QuickWindow](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#196-266) 和 [MainWindow](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/MainWindow.cpp#55-78) 的按键事件处理器中添加对应逻辑。
+
+## 6. 验证计划
+1. **历史记录验证**：连续搜索 12 次，确认列表仅展示最近 10 条。
+2. **交互验证**：右键点击文件，分别执行“定位文件”和“复制路径”，确认行为符合预期。
+3. **侧边栏验证**：向收藏夹添加多个乱序文件夹，确认其自动按名称重排；点击“添加”按钮确认能捕捉地址栏内容。

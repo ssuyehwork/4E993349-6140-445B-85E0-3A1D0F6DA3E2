@@ -1,0 +1,9 @@
+# 任务列表
+
+- [/] 排查悬浮球双击激活快速笔记窗口失败的问题
+    - [ ] 分析 [FloatingBall.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/FloatingBall.cpp) 的双击事件处理逻辑
+    - [ ] 分析 `QuickWindow` 的激活逻辑
+- [ ] 排查截图工具无法手动拖选区域的问题
+    - [ ] 分析 [ScreenshotTool.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp) 的鼠标事件处理
+    - [ ] 检查选区状态机逻辑
+- [ ] 修复发现的问题并验证

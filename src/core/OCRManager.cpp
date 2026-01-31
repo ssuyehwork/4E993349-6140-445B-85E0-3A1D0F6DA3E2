@@ -18,11 +18,12 @@ OCRManager& OCRManager::instance() {
 OCRManager::OCRManager(QObject* parent) : QObject(parent) {}
 
 void OCRManager::setLanguage(const QString& lang) {
+    QMutexLocker locker(&m_mutex);
     m_language = lang;
-    qDebug() << "OCR language set to:" << m_language;
 }
 
 QString OCRManager::getLanguage() const {
+    QMutexLocker locker(&m_mutex);
     return m_language;
 }
 
@@ -144,6 +145,11 @@ QImage OCRManager::preprocessImage(const QImage& original) {
 
 void OCRManager::recognizeSync(const QImage& image, int contextId) {
     QString result;
+    QString langToUse;
+    {
+        QMutexLocker locker(&m_mutex);
+        langToUse = m_language;
+    }
 
 #ifdef Q_OS_WIN
     // 预处理图像以提高识别准确度
@@ -272,7 +278,7 @@ void OCRManager::recognizeSync(const QImage& image, int contextId) {
             }
         }
 
-        QString currentLang = foundLangs.isEmpty() ? m_language : foundLangs.join('+');
+        QString currentLang = foundLangs.isEmpty() ? langToUse : foundLangs.join('+');
         qDebug() << "OCR: Used tessdata path:" << tessDataPath;
         qDebug() << "OCR: Detected languages:" << foundLangs.size() << ":" << currentLang;
 

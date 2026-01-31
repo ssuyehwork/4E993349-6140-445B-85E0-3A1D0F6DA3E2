@@ -101,6 +101,8 @@ public:
     void showToolboxMenu(const QPoint& pos);
     void handleTagInput();
     void openTagSelector();
+    void doCopyTags();
+    void doPasteTags();
     
     SearchLineEdit* m_searchEdit;
     QListView* m_listView;

@@ -1,0 +1,6 @@
+{
+  "artifactType": "ARTIFACT_TYPE_TASK",
+  "summary": "OCR 功能增强与稳定性加固已全面完成。解决了批量识别时的线程安全冲突带来的闪退问题，并实现了专业的三栏式布局。",
+  "updatedAt": "2026-01-31T05:32:12.554815200Z",
+  "version": "19"
+}

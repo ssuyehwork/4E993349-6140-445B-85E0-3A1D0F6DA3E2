@@ -1,0 +1,24 @@
+# 截图工具最终稳定修复方案 (基于旧版本回滚)
+
+由于重构版本引入了复杂的交互状态冲突，本方案决定以 `ScreenshotTool_旧版本.cpp` 为基准进行功能回滚，并在此基础上精准注入必要的修复代码。
+
+## Proposed Changes
+
+### 1. 逻辑回滚与基准同步 [ScreenshotTool.cpp]
+
+*   **交互逻辑：** 完全恢复旧版本的 [mousePressEvent](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp#113-118)、[mouseMoveEvent](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp#643-747)、[mouseReleaseEvent](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp#360-361) 和 [paintEvent](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp#153-160)。经过分析，旧版本的状态流转虽然传统，但在高分屏和复杂窗口环境下表现更稳定。
+*   **视觉效果：** 恢复旧版本的蓝色选区边框与白色控制句柄绘制方式。
+
+### 2. 核心功能维护与缺陷修复 [ScreenshotTool.cpp]
+
+> [!IMPORTANT]
+> 在保留旧版稳定性的前提下，补充关键的 Bug 修复。
+
+*   **窗口过滤修复 (EnumWindowsProc)：** 在窗口捕捉逻辑中显式过滤掉截图工具自身的 HWND (类名为 `Qt662QWindowIcon`)，解决旧版本中因遮挡导致的“无法手动划区”问题。
+*   **拼写与编译修复：** 补全 `QApplication` 头文件引用。
+*   **用户配置持久化：** 在构造函数中集成 `QSettings` 加载，确保缩放、颜色、工具等偏好设置能被记忆。
+
+### 3. 特色功能平滑迁移
+
+*   **置顶截图 (Pin)：** 将新版本中实用的“截图置顶”逻辑迁移回旧版架构。
+*   **增强识别 (OCR)：** 保持 OCR 窗口调用的独立性，确保其与截图层的销毁逻辑不产生死锁。

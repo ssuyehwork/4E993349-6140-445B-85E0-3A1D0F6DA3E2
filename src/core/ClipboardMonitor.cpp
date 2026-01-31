@@ -72,7 +72,10 @@ void ClipboardMonitor::onClipboardChanged() {
     QString content;
     QByteArray dataBlob;
 
-    if (mimeData->hasImage()) {
+    if (mimeData->hasText() && !mimeData->text().trimmed().isEmpty()) {
+        content = mimeData->text();
+        type = "text";
+    } else if (mimeData->hasImage()) {
         QImage img = qvariant_cast<QImage>(mimeData->imageData());
         if (!img.isNull()) {
             type = "image";
@@ -90,9 +93,6 @@ void ClipboardMonitor::onClipboardChanged() {
             type = "file";
             content = paths.join(";");
         }
-    } else if (mimeData->hasText()) {
-        content = mimeData->text();
-        if (content.trimmed().isEmpty()) return;
     } else {
         return;
     }

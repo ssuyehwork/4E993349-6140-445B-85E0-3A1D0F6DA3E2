@@ -1,0 +1,16 @@
+# 剪贴板与拖放逻辑优化方案
+
+## 1. 剪贴板检测优先级调整
+- **问题**：OneNote 等 Office 应用在复制文本时会同时提供图片格式。当前代码优先检测 `hasImage()`，导致文本被错误保存为图片。
+- **解决方案**：调整检测顺序，优先检测 `hasText()` 且确保非空。
+- **实施位置**：
+  - [g:\C++\Inspirenote\Inspirenote_release\src\core\ClipboardMonitor.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/core/ClipboardMonitor.cpp) -> [onClipboardChanged](file:///g:/C++/Inspirenote/Inspirenote_release/src/core/ClipboardMonitor.cpp#26-110)
+  - [g:\C++\Inspirenote\Inspirenote_release\src\ui\QuickWindow.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp) -> [dropEvent](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/FileSearchWindow.cpp#100-113)
+
+## 2. 放弃构建错误修复
+- **决策**：根据用户明确要求，放弃对 `subcommand failed` 进行后续排查与修复。
+
+## 3. 验证计划
+- **测试用例**：
+  1. 在 OneNote 中选中一段文字并复制，确认应用捕获的是“文本”而非“图片”。
+  2. 复制一段真正的图片（如截图），确认应用捕获的是“图片”。

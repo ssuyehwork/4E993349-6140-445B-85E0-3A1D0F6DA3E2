@@ -27,6 +27,7 @@
 #include <QUrl>
 #include <QBuffer>
 #include <QToolTip>
+#include <QRegularExpression>
 #include <QImage>
 #include <QMap>
 #include <QFileInfo>
@@ -782,6 +783,10 @@ void QuickWindow::setupShortcuts() {
     new QShortcut(QKeySequence("Alt+S"), this, [this](){ if(m_currentPage > 1) { m_currentPage--; refreshData(); } });
     new QShortcut(QKeySequence("Alt+X"), this, [this](){ if(m_currentPage < m_totalPages) { m_currentPage++; refreshData(); } });
     
+    // 标签复制粘贴快捷键
+    new QShortcut(QKeySequence("Ctrl+Shift+C"), this, [this](){ doCopyTags(); });
+    new QShortcut(QKeySequence("Ctrl+Shift+V"), this, [this](){ doPasteTags(); });
+    
     for (int i = 0; i <= 5; ++i) {
         new QShortcut(QKeySequence(QString("Ctrl+%1").arg(i)), this, [this, i](){ doSetRating(i); });
     }
@@ -1213,10 +1218,17 @@ void QuickWindow::toggleStayOnTop(bool checked) {
     m_isStayOnTop = checked;
 #ifdef Q_OS_WIN
     HWND hwnd = (HWND)winId();
-    if (checked) {
-        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+    UINT flags = SWP_NOMOVE | SWP_NOSIZE;
+    if (!isVisible()) {
+        flags |= SWP_HIDEWINDOW; // 如果处于初始化隐藏状态，确保不因 SetWindowPos 弹出
     } else {
-        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        flags |= SWP_SHOWWINDOW;
+    }
+
+    if (checked) {
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags);
+    } else {
+        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags);
     }
 #else
     Qt::WindowFlags flags = windowFlags();
@@ -1652,6 +1664,41 @@ void QuickWindow::openTagSelector() {
     selector->showAtCursor();
 }
 
+void QuickWindow::doCopyTags() {
+    auto selected = m_listView->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+
+    // 获取选中的第一个项的标签
+    int id = selected.first().data(NoteModel::IdRole).toInt();
+    QVariantMap note = DatabaseManager::instance().getNoteById(id);
+    QString tagsStr = note.value("tags").toString();
+    QStringList tags = tagsStr.split(QRegularExpression("[,，]"), Qt::SkipEmptyParts);
+    for (QString& t : tags) t = t.trimmed();
+
+    DatabaseManager::setTagClipboard(tags);
+    QToolTip::showText(QCursor::pos(), QString("✅ 已复制 %1 个标签").arg(tags.size()), this);
+}
+
+void QuickWindow::doPasteTags() {
+    auto selected = m_listView->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+
+    QStringList tagsToPaste = DatabaseManager::getTagClipboard();
+    if (tagsToPaste.isEmpty()) {
+        QToolTip::showText(QCursor::pos(), "❌ 标签剪贴板为空", this);
+        return;
+    }
+
+    // 直接覆盖标签 (符合粘贴语义)
+    for (const auto& index : std::as_const(selected)) {
+        int id = index.data(NoteModel::IdRole).toInt();
+        DatabaseManager::instance().updateNoteState(id, "tags", tagsToPaste.join(", "));
+    }
+
+    refreshData();
+    QToolTip::showText(QCursor::pos(), QString("✅ 已覆盖粘贴标签至 %1 条数据").arg(selected.size()), this);
+}
+
 void QuickWindow::showAuto() {
 #ifdef Q_OS_WIN
     HWND myHwnd = (HWND)winId();
@@ -1679,12 +1726,26 @@ void QuickWindow::showAuto() {
         }
     }
 
-    show();
+    if (isMinimized()) {
+        showNormal();
+    } else {
+        show();
+    }
+    
     raise();
     activateWindow();
     
 #ifdef Q_OS_WIN
-    SetForegroundWindow((HWND)winId());
+    // 强制置顶并激活，即使在其他窗口之后也能强制唤起
+    SetForegroundWindow(myHwnd);
+    // 移除 SWP_SHOWWINDOW，因为前面已经调用了 Qt 的 show()，避免二次刷新导致闪烁
+    SetWindowPos(myHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+    if (!m_isStayOnTop) {
+        // 如果原本没开启“总在最前”，则在唤起后瞬间切换回正常，防止永久置顶
+        QTimer::singleShot(150, [myHwnd]() {
+            SetWindowPos(myHwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        });
+    }
 #endif
 
     m_searchEdit->setFocus();
@@ -1771,7 +1832,11 @@ void QuickWindow::dropEvent(QDropEvent* event) {
     QByteArray dataBlob;
     QStringList tags;
 
-    if (mime->hasUrls()) {
+    if (mime->hasText() && !mime->text().trimmed().isEmpty()) {
+        content = mime->text();
+        title = content.trimmed().left(50).replace("\n", " ");
+        itemType = "text";
+    } else if (mime->hasUrls()) {
         QList<QUrl> urls = mime->urls();
         QStringList paths;
         for (const QUrl& url : std::as_const(urls)) {
@@ -1806,10 +1871,6 @@ void QuickWindow::dropEvent(QDropEvent* event) {
             title = "[拖入图片] " + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
             content = "[Image Data]";
         }
-    } else if (mime->hasText()) {
-        content = mime->text();
-        title = content.trimmed().left(50).replace("\n", " ");
-        itemType = "text";
     }
 
     if (!content.isEmpty() || !dataBlob.isEmpty()) {

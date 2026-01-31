@@ -1,0 +1,26 @@
+# 任务列表
+
+- [x] 排查悬浮球双击激活快速笔记窗口失败的问题
+- [x] 排查截图工具无法手动拖选区域的问题
+- [x] 彻底重写截图工具（回滚稳定版并集成新功能）
+- [x] 同步旧版本箭头样式（支持实心/空心变体）
+- [x] 排查并修复启动时的小框/闪烁问题
+    - [x] 制定修复方案（排除 `SWP_SHOWWINDOW` 干扰）
+    - [x] 实施修复（更新 [QuickWindow.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp)）
+- [x] “查找文件”工具重构
+    - [x] 历史记录体系重构
+        - [x] 样式方案（单行垂直列表）
+        - [x] 数量限制（严格 10 条）
+        - [x] 新增文件名搜索历史
+    - [x] 交互方案改进
+        - [x] 实现文件列表右键菜单（定位文件/文件夹、复制路径）
+        - [x] 新增“复制文件”功能
+        - [x] 调整双击行为（移除默认定位）
+    - [x] 侧边栏管理增强
+        - [x] 侧边栏自动排序
+        - [x] 新增“一键添加当前路径”按钮
+- [ ] 标签跨笔记复制粘贴功能
+    - [/] 方案设计：全局静态缓存 + Ctrl+Shift+C/V
+    - [ ] 实施 [DatabaseManager](file:///g:/C++/Inspirenote/Inspirenote_release/src/core/DatabaseManager.h#93-94) 接口支持
+    - [ ] 实施 [QuickWindow](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#196-266) 快捷键集成
+    - [ ] 实施 [MainWindow](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/MainWindow.h#28-109) 快捷键集成

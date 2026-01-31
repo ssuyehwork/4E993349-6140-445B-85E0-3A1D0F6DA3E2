@@ -20,8 +20,13 @@
 #include <functional>
 
 enum class ScreenshotState { Selecting, Editing };
-enum class ScreenshotToolType { None, Rect, Ellipse, Arrow, Line, Pen, Marker, Text, Mosaic };
-enum class ArrowStyle { Solid, Thin, Outline, Double, DotStart };
+enum class ScreenshotToolType { None, Rect, Ellipse, Arrow, Line, Pen, Marker, Text, Mosaic, MosaicRect, Eraser };
+enum class ArrowStyle { 
+    SolidSingle, OutlineSingle, 
+    SolidDouble, OutlineDouble, 
+    SolidDot, OutlineDot,
+    Thin 
+};
 enum class LineStyle { Solid, Dash, Dot };
 
 struct DrawingAnnotation {
@@ -35,6 +40,22 @@ struct DrawingAnnotation {
 };
 
 class ScreenshotTool;
+class ScreenshotToolbar;
+
+class PinnedScreenshotWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit PinnedScreenshotWidget(const QPixmap& pixmap, const QRect& screenRect, QWidget* parent = nullptr);
+protected:
+    void paintEvent(QPaintEvent*) override;
+    void mousePressEvent(QMouseEvent*) override;
+    void mouseMoveEvent(QMouseEvent*) override;
+    void mouseDoubleClickEvent(QMouseEvent*) override;
+    void contextMenuEvent(QContextMenuEvent*) override;
+private:
+    QPixmap m_pixmap;
+    QPoint m_dragPos;
+};
 
 class ScreenshotToolbar : public QWidget {
     Q_OBJECT
@@ -66,6 +87,7 @@ public:
 
 class SelectionInfoBar : public QWidget {
     Q_OBJECT
+    friend class ScreenshotToolbar;
 public:
     explicit SelectionInfoBar(QWidget* parent = nullptr);
     void updateInfo(const QRect& rect);
@@ -77,6 +99,7 @@ private:
 
 class ScreenshotTool : public QWidget {
     Q_OBJECT
+    friend class ScreenshotToolbar;
 public:
     explicit ScreenshotTool(QWidget* parent = nullptr);
     
@@ -90,6 +113,7 @@ public:
     void copyToClipboard();
     void save();
     void confirm();
+    void pin();
     void cancel(); 
     void executeOCR();
 
@@ -146,7 +170,7 @@ private:
 
     QColor m_currentColor = QColor(255, 50, 50); 
     int m_currentStrokeWidth = 3; 
-    ArrowStyle m_currentArrowStyle = ArrowStyle::Solid;
+    ArrowStyle m_currentArrowStyle = ArrowStyle::SolidSingle;
     LineStyle m_currentLineStyle = LineStyle::Solid;
 };
 

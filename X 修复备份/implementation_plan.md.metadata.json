@@ -1,0 +1,6 @@
+{
+  "artifactType": "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
+  "summary": "增强 OCR 文字识别功能，支持多源输入、批量处理及内容区分。",
+  "updatedAt": "2026-01-31T05:09:39.433823700Z",
+  "version": "11"
+}

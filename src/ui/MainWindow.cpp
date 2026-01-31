@@ -28,6 +28,7 @@
 #include <QTextEdit>
 #include <QToolTip>
 #include <QDateTime>
+#include <QRegularExpression>
 #include <QTimer>
 #include <QGraphicsDropShadowEffect>
 #include <QDesktopServices>
@@ -1303,6 +1304,16 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
             doSetRating(key - Qt::Key_0);
             return true;
         }
+
+        // 标签复制粘贴快捷键
+        if (key == Qt::Key_C && (modifiers == (Qt::ControlModifier | Qt::ShiftModifier))) {
+            doCopyTags();
+            return true;
+        }
+        if (key == Qt::Key_V && (modifiers == (Qt::ControlModifier | Qt::ShiftModifier))) {
+            doPasteTags();
+            return true;
+        }
     }
     return QMainWindow::eventFilter(watched, event);
 }
@@ -1654,4 +1665,40 @@ void MainWindow::toggleSearchBar() {
         m_editorSearchEdit->setFocus();
         m_editorSearchEdit->selectAll();
     }
+}
+
+void MainWindow::doCopyTags() {
+    auto selected = m_noteList->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+
+    // 获取选中的第一个项的标签
+    int id = selected.first().data(NoteModel::IdRole).toInt();
+    QVariantMap note = DatabaseManager::instance().getNoteById(id);
+    QString tagsStr = note.value("tags").toString();
+    QStringList tags = tagsStr.split(QRegularExpression("[,，]"), Qt::SkipEmptyParts);
+    for (QString& t : tags) t = t.trimmed();
+
+    DatabaseManager::setTagClipboard(tags);
+    QToolTip::showText(QCursor::pos(), QString("✅ 已复制 %1 个标签").arg(tags.size()), this);
+}
+
+void MainWindow::doPasteTags() {
+    auto selected = m_noteList->selectionModel()->selectedIndexes();
+    if (selected.isEmpty()) return;
+
+    QStringList tagsToPaste = DatabaseManager::getTagClipboard();
+    if (tagsToPaste.isEmpty()) {
+        QToolTip::showText(QCursor::pos(), "❌ 标签剪贴板为空", this);
+        return;
+    }
+
+    // 直接覆盖标签 (符合粘贴语义)
+    for (const auto& index : std::as_const(selected)) {
+        int id = index.data(NoteModel::IdRole).toInt();
+        DatabaseManager::instance().updateNoteState(id, "tags", tagsToPaste.join(", "));
+    }
+
+    // 刷新数据以显示新标签
+    refreshData();
+    QToolTip::showText(QCursor::pos(), QString("✅ 已覆盖粘贴标签至 %1 条数据").arg(selected.size()), this);
 }

@@ -11,6 +11,7 @@
 #include <QRecursiveMutex>
 #include <QStringList>
 #include <QSet>
+#include <QMutex>
 
 class DatabaseManager : public QObject {
     Q_OBJECT
@@ -104,6 +105,14 @@ private:
     QRecursiveMutex m_mutex;
 
     QSet<int> m_unlockedCategories; // 仅存储当前会话已解锁的分类 ID
+
+    // 标签剪贴板 (全局静态)
+    static QStringList s_tagClipboard;
+    static QMutex s_tagClipboardMutex;
+
+public:
+    static void setTagClipboard(const QStringList& tags);
+    static QStringList getTagClipboard();
 };
 
 #endif // DATABASEMANAGER_H

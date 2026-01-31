@@ -24,12 +24,13 @@ public:
         setObjectName("HistoryChip");
         
         auto* layout = new QHBoxLayout(this);
-        layout->setContentsMargins(10, 4, 4, 4);
-        layout->setSpacing(6);
+        layout->setContentsMargins(10, 6, 10, 6);
+        layout->setSpacing(10);
         
         auto* lbl = new QLabel(text);
-        lbl->setStyleSheet("border: none; background: transparent; color: #DDD; font-size: 12px;");
+        lbl->setStyleSheet("border: none; background: transparent; color: #DDD; font-size: 13px;");
         layout->addWidget(lbl);
+        layout->addStretch();
         
         m_btnDel = new QPushButton();
         m_btnDel->setIcon(IconHelper::getIcon("close", "#666", 16));
@@ -39,7 +40,7 @@ public:
         m_btnDel->setStyleSheet(
             "QPushButton {"
             "  background-color: transparent;"
-            "  border-radius: 8px;"
+            "  border-radius: 4px;"
             "  padding: 0px;"
             "}"
             "QPushButton:hover {"
@@ -52,13 +53,12 @@ public:
 
         setStyleSheet(
             "#HistoryChip {"
-            "  background-color: #3A3A3E;"
-            "  border: 1px solid #555;"
-            "  border-radius: 12px;"
+            "  background-color: transparent;"
+            "  border: none;"
+            "  border-radius: 4px;"
             "}"
             "#HistoryChip:hover {"
-            "  background-color: #454549;"
-            "  border-color: #4a90e2;"
+            "  background-color: #3E3E42;"
             "}"
         );
     }
@@ -142,7 +142,10 @@ public:
 
         m_chipsWidget = new QWidget();
         m_chipsWidget->setStyleSheet("background-color: transparent;");
-        m_flow = new FlowLayout(m_chipsWidget, 0, 8, 8);
+        m_vLayout = new QVBoxLayout(m_chipsWidget);
+        m_vLayout->setContentsMargins(0, 0, 0, 0);
+        m_vLayout->setSpacing(2);
+        m_vLayout->addStretch();
         scroll->setWidget(m_chipsWidget);
         layout->addWidget(scroll);
 
@@ -155,10 +158,11 @@ public:
 
     void refreshUI() {
         QLayoutItem* item;
-        while ((item = m_flow->takeAt(0))) {
+        while ((item = m_vLayout->takeAt(0))) {
             if(item->widget()) item->widget()->deleteLater();
             delete item;
         }
+        m_vLayout->addStretch(); // 底部拉伸
         
         QStringList history = m_edit->getHistory();
         int targetContentWidth = m_edit->width();
@@ -168,11 +172,12 @@ public:
             auto* lbl = new QLabel("暂无历史记录");
             lbl->setAlignment(Qt::AlignCenter);
             lbl->setStyleSheet("color: #555; font-style: italic; margin: 20px; background: transparent; border: none;");
-            m_flow->addWidget(lbl);
+            m_vLayout->insertWidget(0, lbl);
             contentHeight = 100;
         } else {
             for(const QString& text : history) {
                 auto* chip = new HistoryChip(text);
+                chip->setFixedHeight(32);
                 connect(chip, &HistoryChip::clicked, this, [this](const QString& t){ 
                     m_edit->setText(t); 
                     emit m_edit->returnPressed(); 
@@ -182,12 +187,10 @@ public:
                     m_edit->removeHistoryEntry(t); 
                     refreshUI(); 
                 });
-                m_flow->addWidget(chip);
+                m_vLayout->insertWidget(m_vLayout->count() - 1, chip); // 插入到 stretch 之前
             }
             
-            int effectiveWidth = targetContentWidth - 30;
-            int flowHeight = m_flow->heightForWidth(effectiveWidth);
-            contentHeight = qMin(400, qMax(120, flowHeight + 50));
+            contentHeight = qMin(410, (int)history.size() * 34 + 60);
         }
         
         this->resize(targetContentWidth + (m_shadowMargin * 2), contentHeight + (m_shadowMargin * 2));
@@ -214,7 +217,7 @@ private:
     SearchLineEdit* m_edit;
     QFrame* m_container;
     QWidget* m_chipsWidget;
-    FlowLayout* m_flow;
+    QVBoxLayout* m_vLayout;
     QPropertyAnimation* m_opacityAnim;
     int m_shadowMargin = 12;
 };
@@ -251,7 +254,7 @@ void SearchLineEdit::addHistoryEntry(const QString& text) {
     QStringList history = settings.value("list").toStringList();
     history.removeAll(text);
     history.prepend(text);
-    while(history.size() > 20) history.removeLast();
+    while(history.size() > 10) history.removeLast();
     settings.setValue("list", history);
 }
 

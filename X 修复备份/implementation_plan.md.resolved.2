@@ -1,0 +1,58 @@
+# 截图工具功能重构与视觉修复计划
+
+由于前期修复逻辑导致选取与编辑状态绘制冲突（出现多余蓝点句柄），本计划将对 [ScreenshotTool](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.h#103-104) 进行重构，建立清晰的状态机管理逻辑。
+
+## Proposed Changes
+
+### 1. 深度状态机与交互锁重构 [ScreenshotTool.h/cpp]
+
+> [!IMPORTANT]
+> 引入显式的“交互活跃”状态判定，彻底解决蓝点干扰。
+
+*   **状态模型优化：**
+    *   `m_isDragging`: 正在拖动（划区、移动选区、拉伸边框）。
+    *   `m_isDrawing`: 正在绘图（画笔、标注）。
+*   **强制视觉屏蔽：**
+    *   只要 `m_isDragging` 或 `m_isDrawing` 为真，[paintEvent](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp#792-855) 将**严格禁止**调用 [getHandleRects()](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp#890-900) 和绘制任何蓝色/白色控制点。
+    *   划区过程中强制显示虚线框，禁止任何实线与句柄的渲染。
+
+### 2. 交互逻辑层级重构 [ScreenshotTool.cpp]
+
+*   **选取优先级优化：**
+    *   单击选区外：立即重置并开始新选取。
+    *   右键单击：无论在何处，一律重置状态。
+    *   拖拽位移判定：即使在选区内，如果初始点击位置不在句柄上，且位移超过阈值，应判定为“用户想重新划区”而非“移动选区”。
+
+### 2. 渲染流程隔离 [ScreenshotTool.cpp]
+
+*   **重构 [paintEvent](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp#792-855)：**
+    ```mermaid
+    graph TD
+        A[绘制底图] --> B[绘制遮罩层]
+        B --> C{当前状态?}
+        C -- Selecting --> D[绘制虚线选框]
+        C -- Editing --> E[绘制选区内容]
+        E --> F[绘制已有标注]
+        F --> G[绘制当前活动标注]
+        G --> H{是否显示句柄?}
+        H -- 是 --> I[绘制 8 个蓝圈句柄]
+    ```
+
+### 3. 修复马赛克与选区逻辑 [ScreenshotTool.cpp]
+
+*   **自窗口过滤：** 确保 [detectWindows](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp#973-981) 彻底排除掉当前透明捕捉层，防止其干扰底层窗口识别。
+*   **句柄坐标对齐：** 修正高 DPI 下句柄点击位置的微小偏移问题。
+
+---
+
+## Verification Plan
+
+### Automated Tests
+*   由于涉及视觉和原生 Windows 事件，将通过日志记录状态转换过程进行逻辑验证。
+
+### Manual Verification
+1.  **选取阶段：** 拖选鼠标创建区域，确认过程中**不出现**任何白色或蓝色的小圆点句柄。
+2.  **编辑阶段：**
+    *   释放鼠标后，圆点句柄立即出现。
+    *   选择箭头工具并绘制，观察句柄是否暂时消失以方便看清标注内容。
+3.  **重构验证：** 确认撤销/重做、OCR、保存功能依然正常。

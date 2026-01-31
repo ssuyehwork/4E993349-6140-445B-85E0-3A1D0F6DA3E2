@@ -1,0 +1,12 @@
+# 任务列表
+
+- [x] 排查悬浮球双击激活快速笔记窗口失败的问题
+- [x] 排查截图工具无法手动拖选区域的问题
+- [x] 彻底重写截图工具（回滚稳定版并集成新功能）
+- [x] 同步旧版本箭头样式（支撑空心箭头与控制点交互）
+- [x] 查找文件工具功能重构
+- [x] 标签跨笔记复制粘贴功能
+- [x] 剪贴板与拖放逻辑优化
+    - [x] 调整 [ClipboardMonitor](file:///g:/C++/Inspirenote/Inspirenote_release/src/core/ClipboardMonitor.cpp#10-14) 优先级（优先检测文本）
+    - [x] 调整 [QuickWindow](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#196-266) 拖放优先级（优先检测文本）
+- [x] 放弃构建错误修复 (用户要求)

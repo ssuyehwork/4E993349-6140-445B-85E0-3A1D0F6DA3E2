@@ -1,0 +1,6 @@
+{
+  "artifactType": "ARTIFACT_TYPE_WALKTHROUGH",
+  "summary": "已完成标签复制功能（Ctrl+Shift+C/V）和右键菜单图标优化。标签功能支持跨窗口同步与合并；图标优化提升了语义准确性。",
+  "updatedAt": "2026-01-31T04:31:06.171027900Z",
+  "version": "5"
+}

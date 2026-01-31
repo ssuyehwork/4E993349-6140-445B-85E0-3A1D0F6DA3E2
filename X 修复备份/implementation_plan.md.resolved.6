@@ -1,0 +1,38 @@
+# 启动闪烁修复与搜索历史显示优化方案
+
+## 1. 启动闪烁与“小框”问题
+
+### 根本原因
+- [QuickWindow](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#196-266) 恢复“置顶”配置时调用了带有 `SWP_SHOWWINDOW` 的 `SetWindowPos`，导致在 [showAuto()](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1655-1706) 调用前抢跑显示。
+- 窗口在未完成布局和样式渲染前即显示，导致视觉上的闪烁。
+
+### 修复步骤
+- **[QuickWindow.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp)**:
+  - 修改 [toggleStayOnTop](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1212-1239)：仅在窗口已经可见(`isVisible()`)且由用户手动触发时才使用 `SWP_SHOWWINDOW`。
+  - 优化 [showAuto()](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1655-1706)：移除冗余的显示信号，确保激活过程一次性平滑完成。
+
+---
+
+## 2. 搜索历史样式重构 (单行单条)
+
+### 现状分析
+- [SearchHistoryPopup](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/SearchLineEdit.cpp#82-221) ([SearchLineEdit.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/SearchLineEdit.cpp)) 和 `PathHistoryPopup` ([FileSearchWindow.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/FileSearchWindow.cpp)) 均使用 `FlowLayout` 展示胶囊状的 `Chip` 控件。
+- 用户反馈这种样式不利于长路径阅读，要求改为“单行单条”的列表样式。
+
+### 修复步骤
+- **[SearchLineEdit.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/SearchLineEdit.cpp)**:
+  - **`HistoryChip`**:
+    - 将 `#HistoryChip` 样式从 `border-radius: 12px` 改为 `border-radius: 4px`（或无圆角/小圆角）。
+    - 移除背景色，改为仅在悬停时显示深色背景。
+    - 确保宽度能够填满容器。
+  - **[SearchHistoryPopup](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/SearchLineEdit.cpp#82-221)**:
+    - 将 `m_chipsWidget` 的布局从 `FlowLayout` 替换为 `QVBoxLayout`。
+    - 在 [refreshUI](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/FileSearchWindow.cpp#181-213) 中调整高度计算逻辑。
+
+- **[FileSearchWindow.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/FileSearchWindow.cpp)**:
+  - **`PathChip`**: 同样将样式改为列表项风格。
+  - **`PathHistoryPopup`**: 同样将布局改为 `QVBoxLayout`。
+
+## 验证计划
+1. **启动测试**：观察应用冷启动及单实例唤起时是否平滑无闪烁。
+2. **搜索历史测试**：打开“快速笔记”和“查找文件”工具，双击搜索框，验证历史记录是否以整齐的垂直列表显示，且路径显示完整。

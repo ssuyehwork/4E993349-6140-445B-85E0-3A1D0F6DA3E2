@@ -1,0 +1,30 @@
+# 启动闪烁与“小框”问题修复方案
+
+## 根本原因分析
+
+1.  **抢跑显示 (Race Condition Show)**：[QuickWindow](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#196-266) 在构造函数中调用 [initUI](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/TimePasteWindow.cpp#33-71) -> [restoreState](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#726-753) -> [toggleStayOnTop](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1212-1239)。在 Windows 平台上，[toggleStayOnTop](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1212-1239) 直接调用 `SetWindowPos` 并带有 `SWP_SHOWWINDOW` 标志。这导致窗口在 [main.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/main.cpp) 的 [showAuto()](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1655-1706) 显式调用之前就已经被 native 层显示出来。
+2.  **默认尺寸闪现**：由于 [toggleStayOnTop](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1212-1239) 可能在 `restoreGeometry` 或 [resize](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1842-1849) 逻辑完全生效前被触发（或触发了 native handle 的过早创建），导致窗口以非预期尺寸或未应用样式的状态闪现。
+3.  **置顶逻辑冗余**：[showAuto](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1655-1706) 中使用了“先 Topmost 再 NotTopmost”的技巧来夺取焦点，但其内部重复使用了 `SWP_SHOWWINDOW`，加剧了视觉上的闪烁。
+
+## 方案设计
+
+### [Component] QuickWindow
+
+#### [MODIFY] [QuickWindow.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp)
+
+1.  **修复 [toggleStayOnTop](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1212-1239)**：
+    -   判断窗口当前是否可见。如果不可见（如在初始化阶段），则在调用 `SetWindowPos` 时移除 `SWP_SHOWWINDOW` 标志。
+    -   仅在绝对必要时（由用户点击按钮触发时）才主动 [show()](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1655-1706)。
+
+2.  **优化 [showAuto](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1655-1706)**：
+    -   移除 `SetWindowPos` 中多余的 `SWP_SHOWWINDOW`（因为前面已经调用了 Qt 的 [show()](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1655-1706)）。
+    -   在“置顶技巧”中增加 `SWP_NOACTIVATE` 或优化时序，减少视觉撕裂。
+
+3.  **时序调整**：
+    -   确保 `AppLockWidget` 的显示行为严格受控于父窗口的可见性。
+
+## 验证计划
+
+1.  **启动测试**：冷启动应用，观察在悬浮球出现后，[QuickWindow](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#196-266) 是否直接以完整平滑的正态弹出，不再有中间态的闪过。
+2.  **置顶切换测试**：开启/关闭“总在最前”配置并重启，验证配置是否生效且启动流程依然平滑。
+3.  **单实例唤起测试**：运行应用时，再次启动 `.exe`，验证已运行的窗口是否能平稳唤起而无二次闪烁。

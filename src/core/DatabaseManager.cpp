@@ -15,6 +15,19 @@ DatabaseManager& DatabaseManager::instance() {
     return inst;
 }
 
+QStringList DatabaseManager::s_tagClipboard;
+QMutex DatabaseManager::s_tagClipboardMutex;
+
+void DatabaseManager::setTagClipboard(const QStringList& tags) {
+    QMutexLocker locker(&s_tagClipboardMutex);
+    s_tagClipboard = tags;
+}
+
+QStringList DatabaseManager::getTagClipboard() {
+    QMutexLocker locker(&s_tagClipboardMutex);
+    return s_tagClipboard;
+}
+
 DatabaseManager::DatabaseManager(QObject* parent) : QObject(parent) {}
 
 DatabaseManager::~DatabaseManager() {

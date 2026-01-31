@@ -1,0 +1,36 @@
+# 截图工具底层重构方案 (V2 - 彻底隔离版)
+
+由于之前的逻辑在“按下左键”瞬间触发了错误的句柄显示判定，导致用户无法正常划选。本次重构将采用“绝对状态拦截”策略。
+
+## Proposed Changes
+
+### 1. 状态模型简化与严格化 [ScreenshotTool.h/cpp]
+
+> [!IMPORTANT]
+> 移除所有“尝试在选取中显示句柄”的暧昧逻辑。
+
+*   **定义明确的渲染守卫：** 在 [paintEvent](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/FloatingBall.cpp#35-73) 中，只有满足 `m_state == Editing && !m_isDragging && !m_isDrawing` 的极端静止状态下，才允许计算并绘制 8 个控制句柄。
+*   **交互锁：** 只要鼠标按下（`m_isDragging` 为真），显示层立即进入“纯净模式”，仅显示当前的虚线/实线框，屏蔽所有圆点。
+
+### 2. 鼠标事件分流重写 [ScreenshotTool.cpp]
+
+*   **[mousePressEvent](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp#350-356) 彻底解耦：**
+    1.  **左键单击且不在已有选区句柄上**：立即清除旧选区，重置所有标注（可选或隐藏），强制将状态设为 `Selecting`，开始新一轮划选。
+    2.  **左键点击在句柄上**：仅在此唯一条件下，开启 `Move/Resize` 逻辑。
+    3.  **其他点击**：均不应触发句柄预测逻辑。
+
+### 3. 渲染层优化 [ScreenshotTool.cpp]
+
+*   **选用不同的样式表达状态：**
+    *   `Selecting`: 使用 `Qt::DashLine` 蓝色选框，背景暗化。
+    *   `Editing`: 使用 `Qt::SolidLine` 蓝色选框，伴随工具条出现。
+    *   **句柄渲染**：仅在 `Editing` 的非操作间隙，以极细的白底蓝边圆点呈现，绝不在点击瞬间跳出。
+
+---
+
+## Verification Plan
+
+### Manual Verification
+1.  **划选测试：** 在截图工具启动后，按下左键并拖动，确认**全程不会出现任何圆点**，只有随鼠标移动的蓝色虚线框。
+2.  **重选测试：** 划好一个区域后，在区域外再次点击拖动，确认旧区域立即消失，新区域丝滑生成。
+3.  **标注测试：** 使用马赛克、画笔、箭头时，确认控制句柄会暂时消失，绘图完成后回显。

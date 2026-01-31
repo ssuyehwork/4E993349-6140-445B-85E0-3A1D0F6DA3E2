@@ -1,0 +1,12 @@
+# 任务列表
+
+- [x] 排查悬浮球双击激活快速笔记窗口失败的问题
+- [x] 排查截图工具无法手动拖选区域的问题
+- [x] 彻底重写截图工具（回滚稳定版并集成新功能）
+- [x] 同步旧版本箭头样式（支持实心/空心变体）
+- [/] 排查并修复启动时的小框/闪烁问题
+    - [x] 搜索启动流程中的窗口创建时序
+    - [x] 分析 [toggleStayOnTop](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1212-1239) 的副作用
+    - [x] 制定修复方案（排除 `SWP_SHOWWINDOW` 干扰）
+    - [ ] 实施修复（更新 [QuickWindow.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp)）
+    - [ ] 验证修复结果

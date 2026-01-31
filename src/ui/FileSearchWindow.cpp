@@ -1,6 +1,5 @@
 #include "FileSearchWindow.h"
 #include "IconHelper.h"
-#include "FlowLayout.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFileDialog>
@@ -10,6 +9,8 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QProcess>
+#include <QClipboard>
+#include <QApplication>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QDir>
@@ -37,12 +38,13 @@ public:
         setObjectName("PathChip");
         
         auto* layout = new QHBoxLayout(this);
-        layout->setContentsMargins(10, 4, 4, 4);
-        layout->setSpacing(6);
+        layout->setContentsMargins(10, 6, 10, 6);
+        layout->setSpacing(10);
         
         auto* lbl = new QLabel(text);
-        lbl->setStyleSheet("border: none; background: transparent; color: #DDD; font-size: 12px;");
+        lbl->setStyleSheet("border: none; background: transparent; color: #DDD; font-size: 13px;");
         layout->addWidget(lbl);
+        layout->addStretch();
         
         auto* btnDel = new QPushButton();
         btnDel->setIcon(IconHelper::getIcon("close", "#666", 16));
@@ -50,7 +52,7 @@ public:
         btnDel->setFixedSize(16, 16);
         btnDel->setCursor(Qt::PointingHandCursor);
         btnDel->setStyleSheet(
-            "QPushButton { background-color: transparent; border-radius: 8px; padding: 0px; }"
+            "QPushButton { background-color: transparent; border-radius: 4px; padding: 0px; }"
             "QPushButton:hover { background-color: #E74C3C; }"
         );
         
@@ -58,8 +60,8 @@ public:
         layout->addWidget(btnDel);
 
         setStyleSheet(
-            "#PathChip { background-color: #3A3A3E; border: 1px solid #555; border-radius: 12px; }"
-            "#PathChip:hover { background-color: #454549; border-color: #4a90e2; }"
+            "#PathChip { background-color: transparent; border: none; border-radius: 4px; }"
+            "#PathChip:hover { background-color: #3E3E42; }"
         );
     }
     
@@ -110,14 +112,17 @@ protected:
     }
 };
 
-class PathHistoryPopup : public QWidget {
+class FileSearchHistoryPopup : public QWidget {
     Q_OBJECT
 public:
-    explicit PathHistoryPopup(FileSearchWindow* window, QLineEdit* edit) 
+    enum Type { Path, Filename };
+
+    explicit FileSearchHistoryPopup(FileSearchWindow* window, QLineEdit* edit, Type type) 
         : QWidget(window->window(), Qt::Popup | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint) 
     {
         m_window = window;
         m_edit = edit;
+        m_type = type;
         setAttribute(Qt::WA_TranslucentBackground);
         
         auto* rootLayout = new QVBoxLayout(this);
@@ -145,7 +150,7 @@ public:
         icon->setStyleSheet("border: none; background: transparent;");
         top->addWidget(icon);
 
-        auto* title = new QLabel("最近扫描路径");
+        auto* title = new QLabel(m_type == Path ? "最近扫描路径" : "最近搜索文件名");
         title->setStyleSheet("color: #888; font-weight: bold; font-size: 11px; background: transparent; border: none;");
         top->addWidget(title);
         top->addStretch();
@@ -153,7 +158,8 @@ public:
         clearBtn->setCursor(Qt::PointingHandCursor);
         clearBtn->setStyleSheet("QPushButton { background: transparent; color: #666; border: none; font-size: 11px; } QPushButton:hover { color: #E74C3C; }");
         connect(clearBtn, &QPushButton::clicked, [this](){
-            m_window->clearHistory();
+            if (m_type == Path) m_window->clearHistory();
+            else m_window->clearSearchHistory();
             refreshUI();
         });
         top->addWidget(clearBtn);
@@ -170,7 +176,10 @@ public:
 
         m_chipsWidget = new QWidget();
         m_chipsWidget->setStyleSheet("background-color: transparent;");
-        m_flow = new FlowLayout(m_chipsWidget, 0, 8, 8);
+        m_vLayout = new QVBoxLayout(m_chipsWidget);
+        m_vLayout->setContentsMargins(0, 0, 0, 0);
+        m_vLayout->setSpacing(2);
+        m_vLayout->addStretch();
         scroll->setWidget(m_chipsWidget);
         layout->addWidget(scroll);
 
@@ -180,35 +189,39 @@ public:
 
     void refreshUI() {
         QLayoutItem* item;
-        while ((item = m_flow->takeAt(0))) {
+        while ((item = m_vLayout->takeAt(0))) {
             if(item->widget()) item->widget()->deleteLater();
             delete item;
         }
+        m_vLayout->addStretch();
         
-        QStringList history = m_window->getHistory();
+        QStringList history = (m_type == Path) ? m_window->getHistory() : m_window->getSearchHistory();
         if(history.isEmpty()) {
             auto* lbl = new QLabel("暂无历史记录");
             lbl->setAlignment(Qt::AlignCenter);
             lbl->setStyleSheet("color: #555; font-style: italic; margin: 20px; border: none;");
-            m_flow->addWidget(lbl);
+            m_vLayout->insertWidget(0, lbl);
         } else {
-            for(const QString& path : history) {
-                auto* chip = new PathChip(path);
-                connect(chip, &PathChip::clicked, this, [this](const QString& p){ 
-                    m_window->useHistoryPath(p);
+            for(const QString& val : history) {
+                auto* chip = new PathChip(val);
+                chip->setFixedHeight(32);
+                connect(chip, &PathChip::clicked, this, [this](const QString& v){ 
+                    if (m_type == Path) m_window->useHistoryPath(v);
+                    else m_edit->setText(v);
                     close(); 
                 });
-                connect(chip, &PathChip::deleted, this, [this](const QString& p){ 
-                    m_window->removeHistoryEntry(p); 
+                connect(chip, &PathChip::deleted, this, [this](const QString& v){ 
+                    if (m_type == Path) m_window->removeHistoryEntry(v);
+                    else m_window->removeSearchHistoryEntry(v);
                     refreshUI(); 
                 });
-                m_flow->addWidget(chip);
+                m_vLayout->insertWidget(m_vLayout->count() - 1, chip);
             }
         }
         
         int targetWidth = m_edit->width();
-        int flowHeight = m_flow->heightForWidth(targetWidth - 40);
-        resize(targetWidth + 24, qMin(400, qMax(120, flowHeight + 70)));
+        int contentHeight = qMin(410, (int)history.size() * 34 + 60);
+        resize(targetWidth + 24, contentHeight);
     }
 
     void showAnimated() {
@@ -225,8 +238,9 @@ public:
 private:
     FileSearchWindow* m_window;
     QLineEdit* m_edit;
+    Type m_type;
     QWidget* m_chipsWidget;
-    FlowLayout* m_flow;
+    QVBoxLayout* m_vLayout;
     QPropertyAnimation* m_opacityAnim;
 };
 
@@ -434,6 +448,19 @@ void FileSearchWindow::initUI() {
     connect(m_sidebar, &QListWidget::customContextMenuRequested, this, &FileSearchWindow::showSidebarContextMenu);
     sidebarLayout->addWidget(m_sidebar);
 
+    auto* btnAddFav = new QPushButton("一键添加当前路径");
+    btnAddFav->setFixedHeight(32);
+    btnAddFav->setCursor(Qt::PointingHandCursor);
+    btnAddFav->setStyleSheet(
+        "QPushButton { background-color: #2D2D30; border: 1px solid #444; color: #AAA; border-radius: 4px; font-size: 12px; }"
+        "QPushButton:hover { background-color: #3E3E42; color: #FFF; border-color: #666; }"
+    );
+    connect(btnAddFav, &QPushButton::clicked, this, [this](){
+        QString p = m_pathInput->text().trimmed();
+        if (QDir(p).exists()) addFavorite(p);
+    });
+    sidebarLayout->addWidget(btnAddFav);
+
     splitter->addWidget(sidebarWidget);
 
     // --- 右侧主区域 ---
@@ -464,7 +491,11 @@ void FileSearchWindow::initUI() {
     auto* searchLayout = new QHBoxLayout();
     m_searchInput = new QLineEdit();
     m_searchInput->setPlaceholderText("输入文件名过滤...");
+    m_searchInput->installEventFilter(this);
     connect(m_searchInput, &QLineEdit::textChanged, this, &FileSearchWindow::refreshList);
+    connect(m_searchInput, &QLineEdit::returnPressed, this, [this](){
+        addSearchHistoryEntry(m_searchInput->text().trimmed());
+    });
 
     m_extInput = new QLineEdit();
     m_extInput->setPlaceholderText("后缀 (如 py)");
@@ -483,7 +514,8 @@ void FileSearchWindow::initUI() {
     // 文件列表
     m_fileList = new QListWidget();
     m_fileList->setSelectionMode(QAbstractItemView::SingleSelection);
-    connect(m_fileList, &QListWidget::itemDoubleClicked, this, &FileSearchWindow::openFileLocation);
+    m_fileList->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_fileList, &QListWidget::customContextMenuRequested, this, &FileSearchWindow::showFileContextMenu);
     layout->addWidget(m_fileList);
 
     splitter->addWidget(rightWidget);
@@ -568,22 +600,37 @@ void FileSearchWindow::refreshList() {
     }
 }
 
-void FileSearchWindow::openFileLocation(QListWidgetItem* item) {
+void FileSearchWindow::showFileContextMenu(const QPoint& pos) {
+    auto* item = m_fileList->itemAt(pos);
     if (!item) return;
-    QString path = item->data(Qt::UserRole).toString();
-    if (path.isEmpty()) return;
 
+    QString filePath = item->data(Qt::UserRole).toString();
+    if (filePath.isEmpty()) return;
+
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #2D2D30; border: 1px solid #444; color: #EEE; } QMenu::item:selected { background-color: #3E3E42; }");
+    
+    menu.addAction(IconHelper::getIcon("folder", "#F1C40F"), "定位文件夹", [filePath](){
+        QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(filePath).absolutePath()));
+    });
+    menu.addAction(IconHelper::getIcon("search", "#4A90E2"), "定位文件", [filePath](){
 #ifdef Q_OS_WIN
-    QStringList args;
-    args << "/select," << QDir::toNativeSeparators(path);
-    QProcess::startDetached("explorer.exe", args);
-#elif defined(Q_OS_MAC)
-    QStringList args;
-    args << "-R" << path;
-    QProcess::startDetached("open", args);
-#else
-    QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(path).absolutePath()));
+        QStringList args;
+        args << "/select," << QDir::toNativeSeparators(filePath);
+        QProcess::startDetached("explorer.exe", args);
 #endif
+    });
+    menu.addSeparator();
+    menu.addAction(IconHelper::getIcon("copy", "#2ECC71"), "复制完整路径", [filePath](){
+        QApplication::clipboard()->setText(filePath);
+    });
+    menu.addAction(IconHelper::getIcon("file", "#4A90E2"), "复制文件", [filePath](){
+        QMimeData* mimeData = new QMimeData();
+        mimeData->setUrls({QUrl::fromLocalFile(filePath)});
+        QApplication::clipboard()->setMimeData(mimeData);
+    });
+
+    menu.exec(m_fileList->mapToGlobal(pos));
 }
 
 void FileSearchWindow::resizeEvent(QResizeEvent* event) {
@@ -602,7 +649,7 @@ void FileSearchWindow::addHistoryEntry(const QString& path) {
     QStringList history = settings.value("list").toStringList();
     history.removeAll(path);
     history.prepend(path);
-    while (history.size() > 20) history.removeLast();
+    while (history.size() > 10) history.removeLast();
     settings.setValue("list", history);
 }
 
@@ -621,6 +668,33 @@ void FileSearchWindow::removeHistoryEntry(const QString& path) {
     QStringList history = settings.value("list").toStringList();
     history.removeAll(path);
     settings.setValue("list", history);
+}
+
+void FileSearchWindow::addSearchHistoryEntry(const QString& text) {
+    if (text.isEmpty()) return;
+    QSettings settings("RapidNotes", "FileSearchFilenameHistory");
+    QStringList history = settings.value("list").toStringList();
+    history.removeAll(text);
+    history.prepend(text);
+    while (history.size() > 10) history.removeLast();
+    settings.setValue("list", history);
+}
+
+QStringList FileSearchWindow::getSearchHistory() const {
+    QSettings settings("RapidNotes", "FileSearchFilenameHistory");
+    return settings.value("list").toStringList();
+}
+
+void FileSearchWindow::removeSearchHistoryEntry(const QString& text) {
+    QSettings settings("RapidNotes", "FileSearchFilenameHistory");
+    QStringList history = settings.value("list").toStringList();
+    history.removeAll(text);
+    settings.setValue("list", history);
+}
+
+void FileSearchWindow::clearSearchHistory() {
+    QSettings settings("RapidNotes", "FileSearchFilenameHistory");
+    settings.setValue("list", QStringList());
 }
 
 void FileSearchWindow::useHistoryPath(const QString& path) {
@@ -662,6 +736,7 @@ void FileSearchWindow::addFavorite(const QString& path) {
     item->setData(Qt::UserRole, path);
     item->setToolTip(path);
     m_sidebar->addItem(item);
+    m_sidebar->sortItems(Qt::AscendingOrder); // 自动排序
     saveFavorites();
 }
 
@@ -689,10 +764,16 @@ void FileSearchWindow::saveFavorites() {
 }
 
 bool FileSearchWindow::eventFilter(QObject* watched, QEvent* event) {
-    if (watched == m_pathInput && event->type() == QEvent::MouseButtonDblClick) {
-        if (!m_historyPopup) m_historyPopup = new PathHistoryPopup(this, m_pathInput);
-        m_historyPopup->showAnimated();
-        return true;
+    if (event->type() == QEvent::MouseButtonDblClick) {
+        if (watched == m_pathInput) {
+            auto* popup = new FileSearchHistoryPopup(this, m_pathInput, FileSearchHistoryPopup::Path);
+            popup->showAnimated();
+            return true;
+        } else if (watched == m_searchInput) {
+            auto* popup = new FileSearchHistoryPopup(this, m_searchInput, FileSearchHistoryPopup::Filename);
+            popup->showAnimated();
+            return true;
+        }
     }
     return FramelessDialog::eventFilter(watched, event);
 }

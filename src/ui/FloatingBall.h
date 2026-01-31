@@ -44,6 +44,7 @@ private:
     void savePosition();
     void restorePosition();
 
+    QPoint m_pressPos;
     QPoint m_offset;
     bool m_isDragging = false;
     bool m_isHovering = false;

@@ -1,0 +1,44 @@
+# 修复悬浮球双击与截图工具交互问题的方案
+
+本计划旨在解决用户反馈的两个 UI 交互 Bug，涉及悬浮球的点击判定与截图工具的状态流转。
+
+## Proposed Changes
+
+### 1. 悬浮球交互优化 [FloatingBall.cpp]
+
+> [!IMPORTANT]
+> 解决双击被轻微拖拽手势“吞掉”的问题。
+
+*   **引入移动阈值：** 在 [FloatingBall](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/FloatingBall.h#21-22) 类中增加 `m_pressPos` 记录按下位置。在 [mouseMoveEvent](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp#356-360) 中，只有当位移差超过 `QApplication::startDragDistance()`（通常为 5-10 像素）时才设置 `m_isDragging = true`。
+*   **确保双击优先：** 避免在双击过程中的第一击产生窗口位移，从而让 OS 能正确识别后续的点击为双击。
+
+### 2. 窗口激活逻辑增强 [QuickWindow.cpp]
+
+*   **优化 [showAuto()](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1655-1693) 方法：**
+    *   增加 `showNormal()` 调用，确保从最小化状态恢复。
+    *   在 Windows 平台上使用更强力的 `SetWindowPos` 组合，并搭配 `activateWindow()`。
+    *   确保 `InputFocus` 准确回到搜索框。
+
+### 3. 截图工具逻辑修正 [ScreenshotTool.cpp]
+
+> [!CAUTION]
+> 修复手动拖选无法进行的逻辑缺陷。
+
+*   **窗口检测过滤：** 在 [detectWindows()](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp#906-914) 中排除截图工具自身的窗口，防止其被误识别为截图目标遮挡真实点击。
+*   **拖拽强制判定：** 在 [mouseReleaseEvent](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp#728-758) 中，无论是否点中已检测到的窗口，只要位移超过阈值，一律视作“手动选取矩形”，而非“自动吸附”。
+*   **状态同步：** 确保在 `Selecting` 状态下的 [mouseMove](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp#356-360) 能实时反映手动划定的区域。
+
+---
+
+## Verification Plan
+
+### Manual Verification
+1.  **悬浮球验证：**
+    *   快速双击悬浮球，检查“快速笔记”窗口是否能稳定弹出。
+    *   尝试缓慢拖拽悬浮球，确保拖动功能依然灵敏（无明显卡顿）。
+2.  **截图工具验证：**
+    *   按 `Ctrl+Alt+A` 进入截图。
+    *   在屏幕任意空白位置通过鼠标左键划定矩形区域，检查是否能正常生成选区并弹出工具栏。
+    *   检查自动吸附功能是否依然可用（鼠标悬停在某个窗口上时是否仍有高亮块）。
+3.  **功能完整性建议：**
+    *   验证上述修改后，截图保存到剪贴板并触发文字识别（OCR）的功能是否完好。

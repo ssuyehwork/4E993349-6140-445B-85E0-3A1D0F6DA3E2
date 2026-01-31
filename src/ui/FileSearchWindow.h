@@ -10,7 +10,7 @@
 #include <QSplitter>
 #include <atomic>
 
-class PathHistoryPopup;
+class FileSearchHistoryPopup;
 
 /**
  * @brief 扫描线程：实现增量扫描与目录剪枝
@@ -65,6 +65,12 @@ public:
     void removeHistoryEntry(const QString& path);
     void useHistoryPath(const QString& path);
 
+    // 文件名搜索历史相关
+    void addSearchHistoryEntry(const QString& text);
+    QStringList getSearchHistory() const;
+    void removeSearchHistoryEntry(const QString& text);
+    void clearSearchHistory();
+
 private slots:
     void selectFolder();
     void onPathReturnPressed();
@@ -72,7 +78,7 @@ private slots:
     void onFileFound(const QString& name, const QString& path);
     void onScanFinished(int count);
     void refreshList();
-    void openFileLocation(QListWidgetItem* item);
+    void showFileContextMenu(const QPoint& pos);
     
     // 侧边栏相关
     void onSidebarItemClicked(QListWidgetItem* item);
@@ -98,7 +104,7 @@ private:
     
     ResizeHandle* m_resizeHandle;
     ScannerThread* m_scanThread = nullptr;
-    PathHistoryPopup* m_historyPopup = nullptr;
+    FileSearchHistoryPopup* m_historyPopup = nullptr;
     
     struct FileData {
         QString name;

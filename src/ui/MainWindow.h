@@ -67,6 +67,8 @@ private slots:
     void doMoveToCategory(int catId);
     void saveCurrentNote();
     void toggleSearchBar();
+    void doCopyTags();
+    void doPasteTags();
 
 protected:
 #ifdef Q_OS_WIN

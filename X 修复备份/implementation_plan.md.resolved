@@ -1,0 +1,35 @@
+# OCR 文字识别功能增强计划
+
+## 1. 交互升级
+- **多源输入**：
+  - **粘贴**：保留现有能力，并支持批量文件路径粘贴。
+  - **浏览**：新增本地文件选择按钮 (`QFileDialog`)。
+  - **拖拽**：支持将一张或多张图片/文件拖入窗口直接识别。
+- **UI 优化**：
+  - 在顶部增加功能按钮条。
+  - 窗口主体支持作为拖拽目标。
+  - 增加识别状态提示。
+
+## 2. 批量识别逻辑
+- **批次管理**：使用唯一的 `contextId` 序列来区分不同图片的识别结果。
+- **展示优化**：在结果文本中区分每张图片的识别内容，例如：
+  ```text
+  --- 第 1 张图片识别结果 ---
+  识别出的文字内容...
+
+  --- 第 2 张图片识别结果 ---
+  识别出的文字内容...
+  ```
+- **并发控制**：虽然 [OCRManager](file:///g:/C++/Inspirenote/Inspirenote_release/src/core/OCRManager.h#7-30) 支持异步，但为了避免资源排队，将采用有序识别流程（或累加结果展示）。
+
+## 3. 核心修改点
+- [OCRWindow.h](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/OCRWindow.h)：增加拖拽事件处理函数及新的槽函数。
+- [OCRWindow.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/OCRWindow.cpp)：
+  - 重构 UI 布局，增加“浏览”和“清除”按钮。
+  - 实现 [dropEvent](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/FloatingBall.cpp#260-287) 和 [dragEnterEvent](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#1764-1769)。
+  - 编写批量识别分发器逻辑。
+
+## 4. 验证计划
+- **单图测试**：通过点击、拖拽、粘贴分别识别单张图片。
+- **批量测试**：拖入多张图片，确认能正确显示所有图片的识别结果并带有区分标题。
+- **混合测试**：粘贴包含多张图片的剪贴板数据。

@@ -1,0 +1,13 @@
+# 任务列表
+
+- [x] 排查悬浮球双击激活快速笔记窗口失败的问题
+    - [x] 分析 [FloatingBall.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/FloatingBall.cpp) 的双击事件处理逻辑
+    - [x] 分析 [QuickWindow](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/QuickWindow.cpp#196-266) 的激活逻辑
+- [x] 排查截图工具无法手动拖选区域的问题
+    - [x] 分析 [ScreenshotTool.cpp](file:///g:/C++/Inspirenote/Inspirenote_release/src/ui/ScreenshotTool.cpp) 的鼠标事件处理
+    - [x] 检查选区状态机逻辑
+- [/] 重构截图工具 (基于旧版本回滚)
+    - [/] 恢复 ScreenshotTool.cpp 至旧版本基准
+    - [ ] 注入 EnumWindowsProc 窗口过滤修复
+    - [ ] 确保马赛克和标注功能恢复原有稳定性
+- [x] 修复编译错误 (QApplication 缺失, HWND 重定义)
