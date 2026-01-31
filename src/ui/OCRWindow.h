@@ -51,12 +51,13 @@ private:
     QProgressBar* m_progressBar = nullptr;
     
     QList<OCRItem> m_items;
-    int m_lastUsedId = 0;
+    int m_lastUsedId = 1000000;
     int m_sessionVersion = 0;
     
     // 顺序处理队列
     QQueue<int> m_processingQueue;  // 待处理的任务 ID 队列
     QTimer* m_processTimer = nullptr;  // 处理定时器
+    QTimer* m_updateTimer = nullptr;   // 结果展示节流定时器
     bool m_isProcessing = false;  // 是否正在处理
 };
 

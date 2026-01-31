@@ -240,9 +240,9 @@ int main(int argc, char *argv[]) {
         }
     });
 
-    // 监听 OCR 完成信号并更新笔记内容 (排除工具箱特有的 ID 9999)
+    // 监听 OCR 完成信号并更新笔记内容 (排除工具箱特有的 ID 9999 以及 OCRWindow 的 1000000+ ID)
     QObject::connect(&OCRManager::instance(), &OCRManager::recognitionFinished, [](const QString& text, int noteId){
-        if (noteId > 0 && noteId != 9999) {
+        if (noteId > 0 && noteId < 1000000 && noteId != 9999) {
             DatabaseManager::instance().updateNoteState(noteId, "content", text);
         }
     });

@@ -23,6 +23,14 @@ OCRWindow::OCRWindow(QWidget* parent) : FramelessDialog("文字识别", parent) 
     m_processTimer = new QTimer(this);
     m_processTimer->setSingleShot(true);
     connect(m_processTimer, &QTimer::timeout, this, &OCRWindow::processNextImage);
+
+    // 初始化结果展示节流定时器
+    m_updateTimer = new QTimer(this);
+    m_updateTimer->setSingleShot(true);
+    m_updateTimer->setInterval(300);
+    connect(m_updateTimer, &QTimer::timeout, this, [this](){
+        updateRightDisplay();
+    });
     
     qDebug() << "[OCR] OCRWindow 初始化完成，使用顺序处理模式";
     
@@ -173,6 +181,7 @@ void OCRWindow::onPasteAndRecognize() {
             item.image = p.first;
             item.name = p.second;
             item.id = ++m_lastUsedId;
+            item.sessionVersion = m_sessionVersion;
             m_items.append(item);
             imgs << p.first;
             qDebug() << "[OCR] 添加任务 ID:" << item.id << "名称:" << item.name;
@@ -211,6 +220,7 @@ void OCRWindow::onBrowseAndRecognize() {
             item.image = img;
             item.name = QFileInfo(file).fileName();
             item.id = ++m_lastUsedId;
+            item.sessionVersion = m_sessionVersion;
             m_items.append(item);
             imgs << img;
             qDebug() << "[OCR] 添加任务 ID:" << item.id << "文件:" << file;
@@ -230,6 +240,7 @@ void OCRWindow::onBrowseAndRecognize() {
 void OCRWindow::onClearResults() {
     qDebug() << "[OCR] 清空结果";
     
+    m_sessionVersion++;
     m_isProcessing = false;
     m_processingQueue.clear();
     // 移除定时器相关操作，因为我们不再依赖定时器循环
@@ -279,6 +290,7 @@ void OCRWindow::dropEvent(QDropEvent* event) {
             item.image = img;
             item.name = "拖入的图片";
             item.id = ++m_lastUsedId;
+            item.sessionVersion = m_sessionVersion;
             m_items.append(item);
             imgsToProcess << img;
             imageCount++;
@@ -304,6 +316,7 @@ void OCRWindow::dropEvent(QDropEvent* event) {
                     item.image = img;
                     item.name = QFileInfo(path).fileName();
                     item.id = ++m_lastUsedId;
+                    item.sessionVersion = m_sessionVersion;
                     m_items.append(item);
                     imgsToProcess << img;
                     imageCount++;
@@ -436,7 +449,8 @@ void OCRWindow::onRecognitionFinished(const QString& text, int contextId) {
         }
     }
     
-    updateRightDisplay();
+    // 使用定时器节流更新显示
+    if (m_updateTimer) m_updateTimer->start();
     
     // 处理下一个任务
     qDebug() << "[OCR] 当前任务完成，准备处理下一个";
