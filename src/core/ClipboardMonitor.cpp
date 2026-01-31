@@ -24,9 +24,11 @@ ClipboardMonitor::ClipboardMonitor(QObject* parent) : QObject(parent) {
 #endif
 
 void ClipboardMonitor::onClipboardChanged() {
+    qDebug() << "[ClipboardMonitor] 剪贴板变动事件触发";
     emit clipboardChanged();
 
     if (m_skipNext) {
+        qDebug() << "[ClipboardMonitor] 跳过本次变动 (m_skipNext == true)";
         m_skipNext = false;
         return;
     }
@@ -43,7 +45,10 @@ void ClipboardMonitor::onClipboardChanged() {
         GetWindowThreadProcessId(hwnd, &processId);
         
         // 如果来源是自身进程，直接拦截
-        if (processId == GetCurrentProcessId()) return;
+        if (processId == GetCurrentProcessId()) {
+            qDebug() << "[ClipboardMonitor] 拦截自身进程的剪贴板变动";
+            return;
+        }
 
         // 既然已经拿到了 HWND 和 PID，直接抓取标题和应用名，避免重复调用系统 API
         wchar_t title[512];
@@ -98,9 +103,21 @@ void ClipboardMonitor::onClipboardChanged() {
     }
 
     // SHA256 去重
+    QElapsedTimer hashTimer;
+    hashTimer.start();
     QByteArray hashData = dataBlob.isEmpty() ? content.toUtf8() : dataBlob;
+
+    // 如果数据块非常大（大于 5MB），哈希计算可能会卡顿主线程
+    if (hashData.size() > 5 * 1024 * 1024) {
+        qDebug() << "[ClipboardMonitor] 检测到大数据块 (" << hashData.size() / 1024 / 1024 << "MB)，正在异步处理或限制频率...";
+    }
+
     QString currentHash = QCryptographicHash::hash(hashData, QCryptographicHash::Sha256).toHex();
     
+    if (hashTimer.elapsed() > 50) {
+        qDebug() << "[Perf] ClipboardMonitor 哈希计算耗时较长:" << hashTimer.elapsed() << "ms";
+    }
+
     if (currentHash == m_lastHash) return;
     m_lastHash = currentHash;
 

@@ -142,7 +142,7 @@ void MainWindow::initUI() {
     });
     connect(m_header, &HeaderBar::newNoteRequested, this, [this](){
         NoteEditWindow* win = new NoteEditWindow();
-        connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
+        // connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
         win->show();
     });
     connect(m_header, &HeaderBar::toggleSidebar, this, [this](){
@@ -312,7 +312,7 @@ void MainWindow::initUI() {
             menu.addAction(IconHelper::getIcon("add", "#3498db", 18), "新建数据", [this, catId]() {
                 auto* win = new NoteEditWindow();
                 win->setDefaultCategory(catId);
-                connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
+                // connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
                 win->show();
             });
             menu.addSeparator();
@@ -612,7 +612,7 @@ void MainWindow::initUI() {
         }
 
         NoteEditWindow* win = new NoteEditWindow(id);
-        connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
+        // connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
         win->show();
     });
 
@@ -1073,7 +1073,7 @@ void MainWindow::initUI() {
     m_quickPreview = new QuickPreview(this);
     connect(m_quickPreview, &QuickPreview::editRequested, this, [this](int id){
         NoteEditWindow* win = new NoteEditWindow(id);
-        connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
+        // connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
         win->show();
     });
 
@@ -1603,7 +1603,7 @@ void MainWindow::doLockSelected() {
 
 void MainWindow::doNewIdea() {
     NoteEditWindow* win = new NoteEditWindow();
-    connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
+    // connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
     win->show();
 }
 
@@ -1631,7 +1631,7 @@ void MainWindow::doEditSelected() {
     if (!index.isValid()) return;
     int id = index.data(NoteModel::IdRole).toInt();
     NoteEditWindow* win = new NoteEditWindow(id);
-    connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
+    // connect(win, &NoteEditWindow::noteSaved, this, &MainWindow::refreshData);
     win->show();
 }
 

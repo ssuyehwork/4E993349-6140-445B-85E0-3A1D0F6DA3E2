@@ -292,12 +292,15 @@ QMimeData* NoteModel::mimeData(const QModelIndexList& indexes) const {
 }
 
 void NoteModel::setNotes(const QList<QVariantMap>& notes) {
+    QElapsedTimer timer;
+    timer.start();
     updateCategoryMap();
     m_thumbnailCache.clear();
     m_tooltipCache.clear();
     beginResetModel();
     m_notes = notes;
     endResetModel();
+    qDebug() << "[Perf] NoteModel::setNotes 耗时:" << timer.elapsed() << "ms (数量:" << notes.size() << ")";
 }
 
 void NoteModel::updateCategoryMap() {

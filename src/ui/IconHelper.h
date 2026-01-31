@@ -5,18 +5,20 @@
 #include <QSvgRenderer>
 #include <QPainter>
 #include <QPixmap>
+#include <QMap>
+#include <QPair>
 #include "SvgIcons.h"
 
 class IconHelper {
 public:
     static QIcon getIcon(const QString& name, const QString& color = "#cccccc", int size = 64) {
+        QString key = QString("%1_%2_%3").arg(name, color, QString::number(size));
+        if (m_iconCache.contains(key)) return m_iconCache[key];
+
         if (!SvgIcons::icons.contains(name)) return QIcon();
 
         QString svgData = SvgIcons::icons[name];
         svgData.replace("currentColor", color);
-        // 如果 svg 中没有 currentColor，强制替换所有可能的 stroke/fill 颜色（简易实现）
-        // 这里假设 SVG 字符串格式标准，仅替换 stroke="currentColor" 或 fill="currentColor"
-        // 实际上 Python 版是直接全量 replace "currentColor"
 
         QByteArray bytes = svgData.toUtf8();
         QSvgRenderer renderer(bytes);
@@ -33,8 +35,13 @@ public:
         icon.addPixmap(pixmap, QIcon::Active, QIcon::Off);
         icon.addPixmap(pixmap, QIcon::Selected, QIcon::On);
         icon.addPixmap(pixmap, QIcon::Selected, QIcon::Off);
+
+        m_iconCache[key] = icon;
         return icon;
     }
+
+private:
+    static inline QMap<QString, QIcon> m_iconCache;
 };
 
 #endif // ICONHELPER_H

@@ -132,6 +132,7 @@ public:
     QString m_currentCategoryColor = "#4a90e2"; // 默认蓝色
     bool m_autoCategorizeClipboard = false;
     bool m_isStayOnTop = false;
+    bool m_isDirty = false;
 
 #ifdef Q_OS_WIN
     HWND m_lastActiveHwnd = nullptr;

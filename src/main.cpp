@@ -72,10 +72,11 @@ int main(int argc, char *argv[]) {
 
     // 单实例运行保护
     QString serverName = "RapidNotes_SingleInstance_Server";
+    qDebug() << "[Main] 正在检测单实例...";
     QLocalSocket socket;
     socket.connectToServer(serverName);
     if (socket.waitForConnected(500)) {
-        // 如果已经运行，发送 SHOW 信号并退出当前进程
+        qDebug() << "[Main] 检测到已有实例正在运行，发送显示信号并退出";
         socket.write("SHOW");
         socket.waitForBytesWritten(1000);
         return 0;
@@ -103,11 +104,12 @@ int main(int argc, char *argv[]) {
     }
 
     // 2. 初始化主界面
+    qDebug() << "[Main] 初始化 MainWindow...";
     MainWindow* mainWin = new MainWindow();
     // mainWin->show(); // 默认启动不显示主界面
 
-    // 3. 初始化特效层与悬浮球
-    FireworksOverlay::instance(); // 预初始化特效层
+    // 3. 初始化悬浮球
+    qDebug() << "[Main] 初始化 FloatingBall...";
     FloatingBall* ball = new FloatingBall();
     ball->show();
 
@@ -115,7 +117,16 @@ int main(int argc, char *argv[]) {
     a.setWindowIcon(FloatingBall::generateBallIcon());
 
     // 4. 初始化快速记录窗口与工具箱及其功能子窗口
+    qDebug() << "[Main] 初始化 QuickWindow...";
     QuickWindow* quickWin = new QuickWindow();
+
+    // 初始化特效层 (在 QuickWindow 之后，确保屏幕环境稳定)
+    qDebug() << "[Main] 延迟初始化 FireworksOverlay...";
+    QTimer::singleShot(500, [](){
+        FireworksOverlay::instance();
+    });
+
+    qDebug() << "[Main] 调用 QuickWindow::showAuto()...";
     quickWin->showAuto(); // 默认启动显示极速窗口
     
     Toolbox* toolbox = new Toolbox();
@@ -251,13 +262,15 @@ int main(int argc, char *argv[]) {
     // 7. 系统托盘
     QObject::connect(&server, &QLocalServer::newConnection, [&](){
         QLocalSocket* conn = server.nextPendingConnection();
+        if (!conn) return;
+        QObject::connect(conn, &QLocalSocket::disconnected, conn, &QLocalSocket::deleteLater);
         if (conn->waitForReadyRead(500)) {
             QByteArray data = conn->readAll();
             if (data == "SHOW") {
                 quickWin->showAuto();
             }
-            conn->disconnectFromServer();
         }
+        conn->disconnectFromServer();
     });
 
     SystemTray* tray = new SystemTray(&a);
@@ -278,7 +291,7 @@ int main(int argc, char *argv[]) {
     QObject::connect(ball, &FloatingBall::requestQuickWindow, quickWin, &QuickWindow::showAuto);
     QObject::connect(ball, &FloatingBall::requestNewIdea, [=](){
         NoteEditWindow* win = new NoteEditWindow();
-        QObject::connect(win, &NoteEditWindow::noteSaved, quickWin, &QuickWindow::refreshData);
+        // 不再需要显式连接 noteSaved -> refreshData，因为 QuickWindow 已经监听了 DatabaseManager 的信号
         win->show();
     });
 

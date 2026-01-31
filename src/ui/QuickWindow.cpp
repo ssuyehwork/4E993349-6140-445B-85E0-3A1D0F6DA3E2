@@ -215,6 +215,9 @@ QuickWindow::QuickWindow(QWidget* parent)
         if (isVisible()) {
             refreshData();
             refreshSidebar();
+            m_isDirty = false;
+        } else {
+            m_isDirty = true;
         }
     });
 
@@ -244,8 +247,13 @@ QuickWindow::QuickWindow(QWidget* parent)
             }
         }
         
-        refreshData();
-        refreshSidebar();
+        if (isVisible()) {
+            refreshData();
+            refreshSidebar();
+            m_isDirty = false;
+        } else {
+            m_isDirty = true;
+        }
     });
 
 #ifdef Q_OS_WIN
@@ -799,6 +807,8 @@ void QuickWindow::setupShortcuts() {
 }
 
 void QuickWindow::refreshData() {
+    QElapsedTimer timer;
+    timer.start();
     QString keyword = m_searchEdit->text();
     
     int totalCount = DatabaseManager::instance().getNotesCount(keyword, m_currentFilterType, m_currentFilterValue);
@@ -830,6 +840,8 @@ void QuickWindow::refreshData() {
 
     m_model->setNotes(isLocked ? QList<QVariantMap>() : DatabaseManager::instance().searchNotes(keyword, m_currentFilterType, m_currentFilterValue, m_currentPage, pageSize));
     
+    qDebug() << "[Perf] QuickWindow::refreshData 耗时:" << timer.elapsed() << "ms (数据量:" << totalCount << ")";
+
     // 更新工具栏页码 (对齐新版 1:1 布局)
     auto* pageInput = findChild<QLineEdit*>("pageInput");
     if (pageInput) pageInput->setText(QString::number(m_currentPage));
@@ -892,6 +904,7 @@ void QuickWindow::refreshSidebar() {
 void QuickWindow::onNoteAdded(const QVariantMap& note) {
     // 窗口隐藏时仅标记需要刷新，不执行任何重型逻辑
     if (!isVisible()) {
+        m_isDirty = true;
         m_refreshTimer->start();
         return;
     }
@@ -1183,7 +1196,7 @@ void QuickWindow::doLockSelected() {
 
 void QuickWindow::doNewIdea() {
     NoteEditWindow* win = new NoteEditWindow();
-    connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
+    // connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
     win->show();
 }
 
@@ -1215,7 +1228,7 @@ void QuickWindow::doEditSelected() {
 void QuickWindow::doEditNote(int id) {
     if (id <= 0) return;
     NoteEditWindow* win = new NoteEditWindow(id);
-    connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
+    // connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
     win->show();
 }
 
@@ -1441,7 +1454,7 @@ void QuickWindow::showSidebarMenu(const QPoint& pos) {
         menu.addAction(IconHelper::getIcon("add", "#3498db", 18), "新建数据", [this, catId]() {
             auto* win = new NoteEditWindow();
             win->setDefaultCategory(catId);
-            connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
+            // connect(win, &NoteEditWindow::noteSaved, this, &QuickWindow::refreshData);
             win->show();
         });
         menu.addSeparator();
@@ -1741,6 +1754,7 @@ void QuickWindow::doPasteTags() {
 }
 
 void QuickWindow::showAuto() {
+    qDebug() << "[QuickWin] showAuto() 被调用";
 #ifdef Q_OS_WIN
     HWND myHwnd = (HWND)winId();
     HWND current = GetForegroundWindow();
@@ -1768,8 +1782,10 @@ void QuickWindow::showAuto() {
     }
 
     if (isMinimized()) {
+        qDebug() << "[QuickWin] 窗口处于最小化，调用 showNormal()";
         showNormal();
     } else {
+        qDebug() << "[QuickWin] 调用 show()";
         show();
     }
     
@@ -1921,9 +1937,16 @@ void QuickWindow::dropEvent(QDropEvent* event) {
 }
 
 void QuickWindow::hideEvent(QHideEvent* event) {
+    qDebug() << "[QuickWin] hideEvent 触发, spontaneous:" << event->spontaneous() << "hasAppLock:" << (m_appLockWidget != nullptr);
+
     // 只有在明确处于锁定状态且非系统（非自发）隐藏时，隐藏窗口才视同退出
-    // 避免初始化过程中的 toggleStayOnTop 误触发退出
+    // 增加 !isVisible() 校验，确保是在显示状态下被隐藏
+    // 增加对 Windows 消息的识别（如果可能的话）
     if (m_appLockWidget && m_appLockWidget->isVisible() && !event->spontaneous()) {
+        // 进一步判断是否是真的被“关闭”还是仅仅失去焦点或最小化
+        // 在无边框窗口中，点击任务栏或外部可能触发 hide。
+        // 我们只在确实想要退出应用时才调用 quit()
+        qDebug() << "[QuickWin] 检测到应用锁且为非自发隐藏，执行 QApplication::quit()";
         QApplication::quit();
     }
     saveState();
@@ -1941,6 +1964,16 @@ void QuickWindow::resizeEvent(QResizeEvent* event) {
 void QuickWindow::moveEvent(QMoveEvent* event) {
     QWidget::moveEvent(event);
     saveState();
+}
+
+void QuickWindow::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
+    if (m_isDirty) {
+        qDebug() << "[QuickWin] 窗口显示且标记为 dirty，执行延迟刷新";
+        refreshData();
+        refreshSidebar();
+        m_isDirty = false;
+    }
 }
 
 void QuickWindow::keyPressEvent(QKeyEvent* event) {

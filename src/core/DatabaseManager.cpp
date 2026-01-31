@@ -161,6 +161,8 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
                              const QString& color, int categoryId,
                              const QString& itemType, const QByteArray& dataBlob,
                              const QString& sourceApp, const QString& sourceTitle) {
+    QElapsedTimer timer;
+    timer.start();
     QVariantMap newNoteMap;
     bool success = false;
     bool isDuplicate = false;
@@ -269,6 +271,7 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
         emit noteAdded(newNoteMap);
     }
     
+    qDebug() << "[Perf] DatabaseManager::addNote 耗时:" << timer.elapsed() << "ms (Title:" << title.left(20) << ")";
     return success;
 }
 
@@ -446,6 +449,8 @@ bool DatabaseManager::restoreAllFromTrash() {
 
 // 【修复核心】防止死锁的 updateNoteState
 bool DatabaseManager::updateNoteState(int id, const QString& column, const QVariant& value) {
+    QElapsedTimer timer;
+    timer.start();
     bool success = false;
     QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
     {
@@ -517,6 +522,7 @@ bool DatabaseManager::updateNoteState(int id, const QString& column, const QVari
     } 
 
     if (success) emit noteUpdated();
+    qDebug() << "[Perf] DatabaseManager::updateNoteState 耗时:" << timer.elapsed() << "ms (ID:" << id << "Col:" << column << ")";
     return success;
 }
 

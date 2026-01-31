@@ -53,7 +53,7 @@ private:
     QProgressBar* m_progressBar = nullptr;
     
     QList<OCRItem> m_items;
-    int m_lastUsedId = TASK_ID_START;
+    static inline int m_lastUsedId = TASK_ID_START;
     int m_sessionVersion = 0;
     
     // 顺序处理队列
