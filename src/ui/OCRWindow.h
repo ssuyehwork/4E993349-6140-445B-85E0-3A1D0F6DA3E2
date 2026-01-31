@@ -47,6 +47,7 @@ private:
     
     QList<OCRItem> m_items;
     int m_lastUsedId = 0;
+    QTimer* m_updateTimer = nullptr;
     mutable QMutex m_itemsMutex;
 };
 
