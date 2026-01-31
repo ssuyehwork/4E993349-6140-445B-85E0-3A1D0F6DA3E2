@@ -11,6 +11,7 @@
 #include <QFileInfo>
 #include <QDateTime>
 #include <QMessageBox>
+#include <utility>
 
 OCRWindow::OCRWindow(QWidget* parent) : FramelessDialog("文字识别", parent) {
     setFixedSize(800, 500); // 增加宽度以适应三栏
@@ -187,7 +188,7 @@ void OCRWindow::onBrowseAndRecognize() {
     QList<QImage> imgs;
     {
         QMutexLocker locker(&m_itemsMutex);
-        for (const QString& file : files) {
+        for (const QString& file : std::as_const(files)) {
             QImage img(file);
             if (!img.isNull()) {
                 OCRItem item;
@@ -356,7 +357,7 @@ void OCRWindow::updateRightDisplay() {
         // 展示全部
         QStringList parts;
         parts.reserve(m_items.size() * 4);
-        for (const auto& item : m_items) {
+        for (const auto& item : std::as_const(m_items)) {
             parts << QString("【%1】").arg(item.name);
             parts << (item.isFinished ? item.result : "正在识别队列中...");
             parts << "-----------------------------------";
@@ -365,7 +366,7 @@ void OCRWindow::updateRightDisplay() {
         m_ocrResult->setPlainText(parts.join("\n"));
     } else {
         // 展示单个
-        for (const auto& item : m_items) {
+        for (const auto& item : std::as_const(m_items)) {
             if (item.id == id) {
                 m_ocrResult->setPlainText(item.isFinished ? item.result : "正在识别中，请稍候...");
                 break;
@@ -377,7 +378,7 @@ void OCRWindow::updateRightDisplay() {
 void OCRWindow::updateProgressLabel() {
     int total = m_items.size();
     int finished = 0;
-    for (const auto& item : m_items) {
+    for (const auto& item : std::as_const(m_items)) {
         if (item.isFinished) finished++;
     }
 
