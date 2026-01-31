@@ -208,19 +208,22 @@ QuickWindow::QuickWindow(QWidget* parent)
     
     initUI();
 
-    connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, [this](const QVariantMap&){
+    m_refreshTimer = new QTimer(this);
+    m_refreshTimer->setSingleShot(true);
+    m_refreshTimer->setInterval(200);
+    connect(m_refreshTimer, &QTimer::timeout, this, [this](){
         refreshData();
         refreshSidebar();
     });
 
+    connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, this, &QuickWindow::onNoteAdded);
+
     connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, [this](){
-        refreshData();
-        refreshSidebar();
+        m_refreshTimer->start();
     });
 
     connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, [this](){
-        refreshData();
-        refreshSidebar();
+        m_refreshTimer->start();
     });
 
     connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, [this](){
@@ -882,6 +885,43 @@ void QuickWindow::refreshSidebar() {
             findAndSelect(QModelIndex());
         }
     }
+}
+
+void QuickWindow::onNoteAdded(const QVariantMap& note) {
+    // 基础过滤检查
+    bool matches = true;
+    QString keyword = m_searchEdit->text().trimmed();
+    if (!keyword.isEmpty()) {
+        QString title = note.value("title").toString();
+        QString content = note.value("content").toString();
+        QString tags = note.value("tags").toString();
+        if (!title.contains(keyword, Qt::CaseInsensitive) &&
+            !content.contains(keyword, Qt::CaseInsensitive) &&
+            !tags.contains(keyword, Qt::CaseInsensitive)) {
+            matches = false;
+        }
+    }
+
+    if (matches && m_currentFilterType == "category") {
+        int catId = note.value("category_id").toInt();
+        if (catId != m_currentFilterValue.toInt()) matches = false;
+    } else if (matches && m_currentFilterType == "bookmark") {
+        if (!note.value("is_favorite").toBool()) matches = false;
+    } else if (matches && m_currentFilterType == "today") {
+        // 简单日期检查
+        matches = true; // 新添加的肯定是今天的
+    }
+
+    if (matches && m_currentPage == 1) {
+        m_model->prependNote(note);
+        m_listView->scrollToTop();
+    } else {
+        // 如果不符合增量更新条件（比如在非首页或不匹配当前过滤），则触发节流刷新
+        m_refreshTimer->start();
+    }
+
+    // 侧边栏计数通常需要刷新
+    refreshSidebar();
 }
 
 void QuickWindow::applyListTheme(const QString& colorHex) {

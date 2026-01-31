@@ -75,6 +75,7 @@ private:
     void updatePartitionStatus(const QString& name);
     void refreshSidebar();
     void applyListTheme(const QString& colorHex);
+    void onNoteAdded(const QVariantMap& note);
 public:
     QString currentCategoryColor() const { return m_currentCategoryColor; }
     bool isAutoCategorizeEnabled() const { return m_autoCategorizeClipboard; }
@@ -117,6 +118,7 @@ public:
     CategoryModel* m_partitionModel;
     
     QTimer* m_searchTimer;
+    QTimer* m_refreshTimer;
     QTimer* m_monitorTimer;
     QSplitter* m_splitter;
     QuickToolbar* m_toolbar;

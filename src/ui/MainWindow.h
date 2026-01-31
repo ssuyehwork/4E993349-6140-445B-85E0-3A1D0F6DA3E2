@@ -107,6 +107,7 @@ private:
     int m_pageSize = 50;
     bool m_autoCategorizeClipboard = false;
     QTimer* m_searchTimer;
+    QTimer* m_refreshTimer;
 };
 
 #endif // MAINWINDOW_H
