@@ -405,14 +405,12 @@ void OCRWindow::onRecognitionFinished(const QString& text, int contextId) {
 
     qDebug() << "[OCR] 收到回调 ID:" << contextId << "线程:" << QThread::currentThread();
     
-    bool validTask = false;
     for (auto& item : m_items) {
         if (item.id == contextId) {
             // 严格校验会话版本，防止串号或过期数据写入
             if (item.sessionVersion == m_sessionVersion) {
                 item.result = text.trimmed();
                 item.isFinished = true;
-                validTask = true;
                 qDebug() << "[OCR] 任务已更新:" << item.name;
             }
             break;
