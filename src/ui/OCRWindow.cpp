@@ -147,7 +147,7 @@ void OCRWindow::onPasteAndRecognize() {
     }
 
     if (mime->hasUrls()) {
-        for (const QUrl& url : std::as_const(mime->urls())) {
+        for (const QUrl& url : mime->urls()) {
             QString path = url.toLocalFile();
             if (!path.isEmpty()) {
                 PendingOCRTask t;
@@ -275,7 +275,7 @@ void OCRWindow::dropEvent(QDropEvent* event) {
         }
 
         if (mime->hasUrls()) {
-            for (const QUrl& url : std::as_const(mime->urls())) {
+            for (const QUrl& url : mime->urls()) {
                 QString path = url.toLocalFile();
                 if (!path.isEmpty()) {
                     OCRItem item;
