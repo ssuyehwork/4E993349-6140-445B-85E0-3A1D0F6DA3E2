@@ -16,6 +16,12 @@ OCRWindow::OCRWindow(QWidget* parent) : FramelessDialog("文字识别", parent) 
     setAcceptDrops(true);
 
     initUI();
+
+    m_updateTimer = new QTimer(this);
+    m_updateTimer->setSingleShot(true);
+    m_updateTimer->setInterval(300); // 300ms 刷新节流
+    connect(m_updateTimer, &QTimer::timeout, this, &OCRWindow::updateRightDisplay);
+
     onClearResults();
 
     connect(&OCRManager::instance(), &OCRManager::recognitionFinished, this, &OCRWindow::onRecognitionFinished);
@@ -193,7 +199,8 @@ void OCRWindow::onClearResults() {
     m_itemList->clear();
     m_items.clear();
     m_ocrResult->clear();
-    // 不重置 m_lastUsedId，防止异步回调 ID 冲突
+    // 使用较大的起始 ID 避免与数据库笔记 ID (通常较小) 冲突
+    m_lastUsedId = 1000000;
     
     auto* summaryItem = new QListWidgetItem("--- 全部结果汇总 ---", m_itemList);
     summaryItem->setData(Qt::UserRole, 0); // 0 代表汇总
@@ -277,7 +284,8 @@ void OCRWindow::onRecognitionFinished(const QString& text, int contextId) {
             }
         }
     }
-    updateRightDisplay();
+    // 异步完成时使用节流刷新，防止批量完成时 UI 线程被 setPlainText 淹没
+    m_updateTimer->start();
 }
 
 void OCRWindow::onItemSelectionChanged() {

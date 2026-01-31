@@ -208,19 +208,24 @@ QuickWindow::QuickWindow(QWidget* parent)
     
     initUI();
 
-    connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, [this](const QVariantMap&){
+    m_refreshTimer = new QTimer(this);
+    m_refreshTimer->setSingleShot(true);
+    m_refreshTimer->setInterval(200); // 200ms 节流
+    connect(m_refreshTimer, &QTimer::timeout, this, [this](){
         refreshData();
         refreshSidebar();
+    });
+
+    connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, [this](const QVariantMap&){
+        m_refreshTimer->start();
     });
 
     connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, [this](){
-        refreshData();
-        refreshSidebar();
+        m_refreshTimer->start();
     });
 
     connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, [this](){
-        refreshData();
-        refreshSidebar();
+        m_refreshTimer->start();
     });
 
     connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, [this](){

@@ -117,6 +117,7 @@ public:
     CategoryModel* m_partitionModel;
     
     QTimer* m_searchTimer;
+    QTimer* m_refreshTimer;
     QTimer* m_monitorTimer;
     QSplitter* m_splitter;
     QuickToolbar* m_toolbar;
