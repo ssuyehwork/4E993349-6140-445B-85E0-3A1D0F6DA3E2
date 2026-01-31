@@ -338,65 +338,58 @@ void OCRWindow::dropEvent(QDropEvent* event) {
 }
 
 void OCRWindow::processImages(const QList<QImage>& images) {
-    qDebug() << "[OCR] processImages: 添加" << images.size() << "张图片到队列";
+    if (images.isEmpty()) return;
     
-    // 将所有图片添加到队列
+    qDebug() << "[OCR] processImages: 添加" << images.size() << "张图片到任务列表";
+
+    // 将图片 ID 加入处理队列
     int startIdx = m_items.size() - images.size();
     for (int i = 0; i < images.size(); ++i) {
-        int taskId = m_items[startIdx + i].id;
-        m_processingQueue.enqueue(taskId);
-        qDebug() << "[OCR] 添加到队列 ID:" << taskId;
+        m_processingQueue.enqueue(m_items[startIdx + i].id);
     }
     
-    // 显示并初始化进度条
-    if (m_progressBar && !images.isEmpty()) {
+    // 初始化并显示进度条
+    if (m_progressBar) {
         m_progressBar->setMaximum(m_items.size());
         m_progressBar->setValue(0);
         m_progressBar->show();
     }
     
-    // 如果当前没有在处理，立即开始处理
+    // 如果当前没在处理，则启动串行处理流程
     if (!m_isProcessing) {
-        qDebug() << "[OCR] 开始顺序处理";
+        m_isProcessing = true;
         processNextImage();
     }
 }
 
 void OCRWindow::processNextImage() {
-    // 检查队列是否为空
+    // 队列为空，结束处理
     if (m_processingQueue.isEmpty()) {
-        qDebug() << "[OCR] 所有任务处理完成";
+        qDebug() << "[OCR] 所有图片处理完毕";
         m_isProcessing = false;
-        updateRightDisplay();
+        if (m_updateTimer) m_updateTimer->start();
         return;
     }
-    
-    m_isProcessing = true;
+
     int taskId = m_processingQueue.dequeue();
     
-    qDebug() << "[OCR] 开始处理 ID:" << taskId << "剩余:" << m_processingQueue.size();
-    
-    // 找到对应的图片
-    OCRItem* item = nullptr;
-    for (auto& it : m_items) {
-        if (it.id == taskId) {
-            item = &it;
+    // 查找任务项并验证会话版本
+    OCRItem* targetItem = nullptr;
+    for (auto& item : m_items) {
+        if (item.id == taskId && item.sessionVersion == m_sessionVersion) {
+            targetItem = &item;
             break;
         }
     }
-    
-    if (!item) {
-        qDebug() << "[OCR] 错误: 未找到任务 ID:" << taskId;
-        // 继续处理下一个
+
+    if (!targetItem) {
+        // 如果任务失效（比如已被清空），直接跳到下一个
         QTimer::singleShot(0, this, &OCRWindow::processNextImage);
         return;
     }
-    
-    // 启动异步识别
-    // 注意：这里我们使用 recognizeAsync，它会在后台线程运行
-    // 识别完成后会发射 recognitionFinished 信号，我们在槽函数中触发下一个任务
-    qDebug() << "[OCR] 调用 recognizeAsync ID:" << taskId;
-    OCRManager::instance().recognizeAsync(item->image, taskId);
+
+    qDebug() << "[OCR] 启动异步任务 ID:" << taskId;
+    OCRManager::instance().recognizeAsync(targetItem->image, taskId);
 }
 
 
@@ -405,57 +398,53 @@ void OCRWindow::onItemSelectionChanged() {
 }
 
 void OCRWindow::onRecognitionFinished(const QString& text, int contextId) {
-    qDebug() << "[OCR] onRecognitionFinished: 收到识别结果 ID:" << contextId 
-             << "线程:" << QThread::currentThread() << "文本长度:" << text.length();
+    // 异步回调核心防护：如果当前已退出处理状态或 ID 无效，立即返回
+    // 同时过滤掉属于数据库笔记的任务 ID
+    if (contextId < TASK_ID_START) return;
+    if (!m_isProcessing && m_processingQueue.isEmpty()) return;
+
+    qDebug() << "[OCR] 收到回调 ID:" << contextId << "线程:" << QThread::currentThread();
     
-    bool found = false;
+    bool validTask = false;
     for (auto& item : m_items) {
         if (item.id == contextId) {
-            // 检查会话版本号
-            if (item.sessionVersion != m_sessionVersion) {
-                qDebug() << "[OCR] 忽略过期回调 ID:" << contextId 
-                         << "任务会话:" << item.sessionVersion 
-                         << "当前会话:" << m_sessionVersion;
-                // 注意：旧任务的回调不应该触发下一个新任务的处理
-                // 因为新任务的处理循环是由新的 processImages 启动的
-                return; 
+            // 严格校验会话版本，防止串号或过期数据写入
+            if (item.sessionVersion == m_sessionVersion) {
+                item.result = text.trimmed();
+                item.isFinished = true;
+                validTask = true;
+                qDebug() << "[OCR] 任务已更新:" << item.name;
             }
-            
-            item.result = text.trimmed();
-            item.isFinished = true;
-            found = true;
-            qDebug() << "[OCR] 更新任务状态 ID:" << contextId << "名称:" << item.name;
             break;
         }
     }
     
-    if (!found) {
-        // 如果未找到任务（可能已被清空），也不要触发下一个
-        qDebug() << "[OCR] 警告: 未找到对应的任务 ID:" << contextId;
-        return;
-    }
-    
-    // 统计完成进度
-    int finished = 0;
-    for (const auto& item : std::as_const(m_items)) {
-        if (item.isFinished) finished++;
-    }
-    qDebug() << "[OCR] 识别进度:" << finished << "/" << m_items.size();
-    
-    // 更新进度条
-    if (m_progressBar) {
-        m_progressBar->setValue(finished);
-        if (finished >= m_items.size()) {
-            QTimer::singleShot(1000, m_progressBar, &QProgressBar::hide); // 完成1秒后隐藏
+    // 无论当前任务是否有效（可能在等待期间被清空），只要处于处理流程中，就必须驱动队列继续
+    if (m_isProcessing) {
+        // 统计总体完成进度 (仅针对当前 session)
+        int finished = 0;
+        int currentSessionTotal = 0;
+        for (const auto& item : std::as_const(m_items)) {
+            if (item.sessionVersion == m_sessionVersion) {
+                currentSessionTotal++;
+                if (item.isFinished) finished++;
+            }
         }
+
+        if (m_progressBar) {
+            m_progressBar->setMaximum(currentSessionTotal);
+            m_progressBar->setValue(finished);
+            if (finished >= currentSessionTotal && currentSessionTotal > 0) {
+                QTimer::singleShot(1500, m_progressBar, &QProgressBar::hide);
+            }
+        }
+
+        // 触发 UI 节流刷新
+        if (m_updateTimer) m_updateTimer->start();
+
+        // 驱动下一个任务 (延迟 10ms 释放当前 CPU 轮转)
+        QTimer::singleShot(10, this, &OCRWindow::processNextImage);
     }
-    
-    // 使用定时器节流更新显示
-    if (m_updateTimer) m_updateTimer->start();
-    
-    // 处理下一个任务
-    qDebug() << "[OCR] 当前任务完成，准备处理下一个";
-    QTimer::singleShot(0, this, &OCRWindow::processNextImage);
 }
 
 void OCRWindow::updateRightDisplay() {

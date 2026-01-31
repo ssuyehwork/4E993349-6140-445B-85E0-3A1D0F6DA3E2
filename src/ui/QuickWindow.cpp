@@ -923,13 +923,10 @@ void QuickWindow::onNoteAdded(const QVariantMap& note) {
     if (matches && m_currentPage == 1) {
         m_model->prependNote(note);
         m_listView->scrollToTop();
-    } else {
-        // 如果不符合增量更新条件（比如在非首页或不匹配当前过滤），则触发节流刷新
-        m_refreshTimer->start();
     }
 
-    // 侧边栏计数通常需要刷新
-    refreshSidebar();
+    // 统一使用节流定时器刷新侧边栏和确保排序准确，避免同步调用导致高频卡顿
+    m_refreshTimer->start();
 }
 
 void QuickWindow::applyListTheme(const QString& colorHex) {
@@ -1265,13 +1262,9 @@ void QuickWindow::doPreview() {
 void QuickWindow::toggleStayOnTop(bool checked) {
     m_isStayOnTop = checked;
 #ifdef Q_OS_WIN
+    if (!isVisible()) return; // 关键：初始化阶段不执行物理切换，防止触发错误的 hideEvent 导致闪退
     HWND hwnd = (HWND)winId();
-    UINT flags = SWP_NOMOVE | SWP_NOSIZE;
-    if (!isVisible()) {
-        flags |= SWP_HIDEWINDOW; // 如果处于初始化隐藏状态，确保不因 SetWindowPos 弹出
-    } else {
-        flags |= SWP_SHOWWINDOW;
-    }
+    UINT flags = SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW;
 
     if (checked) {
         SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags);
@@ -1928,7 +1921,9 @@ void QuickWindow::dropEvent(QDropEvent* event) {
 }
 
 void QuickWindow::hideEvent(QHideEvent* event) {
-    if (m_appLockWidget) {
+    // 只有在明确处于锁定状态且非系统（非自发）隐藏时，隐藏窗口才视同退出
+    // 避免初始化过程中的 toggleStayOnTop 误触发退出
+    if (m_appLockWidget && m_appLockWidget->isVisible() && !event->spontaneous()) {
         QApplication::quit();
     }
     saveState();

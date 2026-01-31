@@ -149,3 +149,4 @@ int FlowLayout::smartSpacing(QStyle::PixelMetric pm) const
     }
 }
 
+#include "FlowLayout.moc"

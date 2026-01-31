@@ -505,9 +505,13 @@ bool DatabaseManager::updateNoteState(int id, const QString& column, const QVari
             if (fetch.exec() && fetch.next()) {
                 QString t = fetch.value(0).toString();
                 QString c = fetch.value(1).toString();
-                // 释放锁后再处理 FTS，避免长耗时正则阻塞数据库
+                // 1. 释放锁以执行耗时的 HTML 剥离操作
                 locker.unlock();
-                syncFts(id, t, stripHtml(c));
+                QString plain = stripHtml(c);
+
+                // 2. 重新加锁执行 FTS 同步
+                QMutexLocker ftsLocker(&m_mutex);
+                syncFts(id, t, plain);
             }
         }
     } 
@@ -1112,7 +1116,7 @@ bool DatabaseManager::setCategoryColor(int id, const QString& color) {
             SELECT id FROM category_tree
         )");
         treeQuery.bindValue(":id", id);
-        
+
         QList<int> allIds;
         if (treeQuery.exec()) {
             while (treeQuery.next()) allIds << treeQuery.value(0).toInt();
@@ -1514,8 +1518,7 @@ bool DatabaseManager::deleteTagGlobally(const QString& tagName) {
 }
 
 void DatabaseManager::syncFts(int id, const QString& title, const QString& plainContent) {
-    // FTS 操作需要独立的锁保护，但不应包含耗时的 HTML 处理
-    QMutexLocker locker(&m_mutex);
+    // 内部方法，假定调用者已持有 m_mutex 锁
     if (!m_db.isOpen()) return;
 
     QSqlQuery query(m_db);

@@ -26,6 +26,7 @@ NoteEditWindow::NoteEditWindow(int noteId, QWidget* parent)
 {
     setWindowTitle(m_noteId > 0 ? "编辑笔记" : "记录灵感");
     setAttribute(Qt::WA_TranslucentBackground); 
+    setAttribute(Qt::WA_DeleteOnClose);
     // 增加窗口物理尺寸以容纳外围阴影，防止 UpdateLayeredWindowIndirect 参数错误
     resize(980, 680); 
     initUI();

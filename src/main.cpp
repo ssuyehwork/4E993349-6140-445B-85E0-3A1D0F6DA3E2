@@ -241,8 +241,9 @@ int main(int argc, char *argv[]) {
     });
 
     // 监听 OCR 完成信号并更新笔记内容 (排除工具箱特有的 ID 9999 以及 OCRWindow 的 1000000+ ID)
-    QObject::connect(&OCRManager::instance(), &OCRManager::recognitionFinished, [](const QString& text, int noteId){
-        if (noteId > 0 && noteId < 1000000 && noteId != 9999) {
+    // 关键：增加 &DatabaseManager::instance() 作为上下文对象，确保 updateNoteState 在 GUI 线程运行
+    QObject::connect(&OCRManager::instance(), &OCRManager::recognitionFinished, &DatabaseManager::instance(), [](const QString& text, int noteId){
+        if (noteId > 0 && noteId < OCRWindow::TASK_ID_START && noteId != 9999) {
             DatabaseManager::instance().updateNoteState(noteId, "content", text);
         }
     });
