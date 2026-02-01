@@ -18,7 +18,7 @@
 #include <QDesktopServices>
 #include <QFileDialog>
 
-PathAcquisitionWindow::PathAcquisitionWindow(QWidget* parent) : FramelessDialog("路径提取", parent) {
+PathAcquisitionWindow::PathAcquisitionWindow(QWidget* parent) : FramelessWindow("路径提取", parent) {
     setAcceptDrops(true);
     resize(700, 500); // 增加尺寸以适应左右布局
 
@@ -110,7 +110,7 @@ void PathAcquisitionWindow::initUI() {
     connect(m_pathList, &QListWidget::customContextMenuRequested, this, &PathAcquisitionWindow::onShowContextMenu);
     connect(m_pathList, &QListWidget::itemDoubleClicked, this, [](QListWidgetItem* item) {
         QString path = item->text();
-        QProcess::startDetached("explorer.exe", { "/select,", QDir::toNativeSeparators(path) });
+        QProcess::startDetached("explorer.exe", { "/select," + QDir::toNativeSeparators(path) });
     });
     rightLayout->addWidget(m_pathList);
 
@@ -158,7 +158,7 @@ void PathAcquisitionWindow::dropEvent(QDropEvent* event) {
 void PathAcquisitionWindow::hideEvent(QHideEvent* event) {
     m_currentUrls.clear();
     m_pathList->clear();
-    FramelessDialog::hideEvent(event);
+    QWidget::hideEvent(event);
 }
 
 void PathAcquisitionWindow::processStoredUrls() {
@@ -221,7 +221,7 @@ void PathAcquisitionWindow::onShowContextMenu(const QPoint& pos) {
 
     // 定位文件 (Locate File)
     menu.addAction(IconHelper::getIcon("search", "#e67e22", 18), "定位文件", [path]() {
-        QProcess::startDetached("explorer.exe", { "/select,", QDir::toNativeSeparators(path) });
+        QProcess::startDetached("explorer.exe", { "/select," + QDir::toNativeSeparators(path) });
     });
 
     // 定位文件夹 (Locate Folder)

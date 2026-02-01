@@ -13,7 +13,7 @@ class QDropEvent;
 class QMouseEvent;
 class QPushButton;
 
-class FileStorageWindow : public FramelessDialog {
+class FileStorageWindow : public FramelessWindow {
     Q_OBJECT
 public:
     explicit FileStorageWindow(QWidget* parent = nullptr);

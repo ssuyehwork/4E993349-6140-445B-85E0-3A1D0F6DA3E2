@@ -219,7 +219,7 @@ private:
     QPropertyAnimation* m_opacityAnim;
 };
 
-KeywordSearchWindow::KeywordSearchWindow(QWidget* parent) : FramelessDialog("查找关键字", parent) {
+KeywordSearchWindow::KeywordSearchWindow(QWidget* parent) : FramelessWindow("查找关键字", parent) {
     resize(900, 700);
     m_ignoreDirs = {".git", ".svn", ".idea", ".vscode", "__pycache__", "node_modules", "dist", "build", "venv"};
     initUI();
@@ -636,7 +636,7 @@ void KeywordSearchWindow::onClearLog() {
 }
 
 void KeywordSearchWindow::hideEvent(QHideEvent* event) {
-    FramelessDialog::hideEvent(event);
+    QWidget::hideEvent(event);
 }
 
 void KeywordSearchWindow::onResultDoubleClicked(const QModelIndex& index) {

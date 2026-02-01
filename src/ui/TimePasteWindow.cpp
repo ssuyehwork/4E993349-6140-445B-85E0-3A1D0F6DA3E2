@@ -13,7 +13,7 @@
 #include <windows.h>
 #endif
 
-TimePasteWindow::TimePasteWindow(QWidget* parent) : FramelessDialog("时间输出工具", parent) {
+TimePasteWindow::TimePasteWindow(QWidget* parent) : FramelessWindow("时间输出工具", parent) {
     setFixedSize(380, 330); 
 
     initUI();
@@ -128,7 +128,7 @@ void TimePasteWindow::onDigitPressed(int digit) {
 }
 
 void TimePasteWindow::showEvent(QShowEvent* event) {
-    FramelessDialog::showEvent(event);
+    QWidget::showEvent(event);
     KeyboardHook::instance().setDigitInterceptEnabled(true);
 
 #ifdef Q_OS_WIN
@@ -142,5 +142,5 @@ void TimePasteWindow::showEvent(QShowEvent* event) {
 
 void TimePasteWindow::hideEvent(QHideEvent* event) {
     KeyboardHook::instance().setDigitInterceptEnabled(false);
-    FramelessDialog::hideEvent(event);
+    QWidget::hideEvent(event);
 }

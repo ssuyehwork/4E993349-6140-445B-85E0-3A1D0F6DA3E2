@@ -5,7 +5,7 @@
 #include <QPushButton>
 #include <QPoint>
 
-class Toolbox : public FramelessDialog {
+class Toolbox : public FramelessWindow {
     Q_OBJECT
 public:
     explicit Toolbox(QWidget* parent = nullptr);

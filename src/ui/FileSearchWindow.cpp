@@ -323,7 +323,7 @@ void ResizeHandle::mouseMoveEvent(QMouseEvent* event) {
 // FileSearchWindow 实现
 // ----------------------------------------------------------------------------
 FileSearchWindow::FileSearchWindow(QWidget* parent) 
-    : FramelessDialog("查找文件", parent) 
+    : FramelessWindow("查找文件", parent)
 {
     resize(1000, 680);
     setupStyles();
@@ -619,9 +619,7 @@ void FileSearchWindow::showFileContextMenu(const QPoint& pos) {
     });
     menu.addAction(IconHelper::getIcon("search", "#4A90E2"), "定位文件", [filePath](){
 #ifdef Q_OS_WIN
-        QStringList args;
-        args << "/select," << QDir::toNativeSeparators(filePath);
-        QProcess::startDetached("explorer.exe", args);
+        QProcess::startDetached("explorer.exe", { "/select," + QDir::toNativeSeparators(filePath) });
 #endif
     });
     menu.addSeparator();
@@ -638,7 +636,7 @@ void FileSearchWindow::showFileContextMenu(const QPoint& pos) {
 }
 
 void FileSearchWindow::resizeEvent(QResizeEvent* event) {
-    FramelessDialog::resizeEvent(event);
+    QWidget::resizeEvent(event);
     if (m_resizeHandle) {
         m_resizeHandle->move(width() - 20, height() - 20);
     }
@@ -779,7 +777,7 @@ bool FileSearchWindow::eventFilter(QObject* watched, QEvent* event) {
             return true;
         }
     }
-    return FramelessDialog::eventFilter(watched, event);
+    return QWidget::eventFilter(watched, event);
 }
 
 #include "FileSearchWindow.moc"

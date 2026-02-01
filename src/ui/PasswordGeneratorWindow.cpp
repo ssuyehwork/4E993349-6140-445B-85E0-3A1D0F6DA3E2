@@ -8,7 +8,7 @@
 #include <QToolTip>
 #include <QGraphicsDropShadowEffect>
 
-PasswordGeneratorWindow::PasswordGeneratorWindow(QWidget* parent) : FramelessDialog("密码生成器", parent) {
+PasswordGeneratorWindow::PasswordGeneratorWindow(QWidget* parent) : FramelessWindow("密码生成器", parent) {
     setFixedSize(570, 400);
 
     initUI();

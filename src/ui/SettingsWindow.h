@@ -7,7 +7,7 @@
 
 class QLineEdit;
 
-class SettingsWindow : public FramelessDialog {
+class SettingsWindow : public FramelessWindow {
     Q_OBJECT
 public:
     explicit SettingsWindow(QWidget* parent = nullptr);

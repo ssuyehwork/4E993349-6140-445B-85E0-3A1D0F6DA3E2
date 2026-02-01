@@ -63,7 +63,7 @@ private:
     uint m_vk = 0;
 };
 
-SettingsWindow::SettingsWindow(QWidget* parent) : FramelessDialog("系统设置", parent) {
+SettingsWindow::SettingsWindow(QWidget* parent) : FramelessWindow("系统设置", parent) {
     setFixedSize(450, 500);
     initSettingsUI();
 }
@@ -153,7 +153,7 @@ void SettingsWindow::initSettingsUI() {
     btnClose->setFixedSize(80, 32);
     btnClose->setAutoDefault(false);
     btnClose->setStyleSheet("QPushButton { background-color: #444; color: white; border: none; border-radius: 4px; } QPushButton:hover { background-color: #555; }");
-    connect(btnClose, &QPushButton::clicked, this, &QDialog::accept);
+    connect(btnClose, &QPushButton::clicked, this, &QWidget::close);
     bottomLayout->addWidget(btnClose);
 
     layout->addLayout(bottomLayout);
@@ -184,7 +184,7 @@ void SettingsWindow::handleSetPassword() {
             s.setValue("appPassword", dlg->password());
             s.setValue("appPasswordHint", dlg->passwordHint());
             QMessageBox::information(this, "成功", "启动密码已设置，下次启动时生效。");
-            accept(); // 关闭设置窗口以刷新状态（简单处理）
+            close(); // 关闭设置窗口以刷新状态（简单处理）
         } else {
             QMessageBox::warning(this, "错误", "两次输入的密码不一致。");
         }
@@ -205,7 +205,7 @@ void SettingsWindow::handleModifyPassword() {
                     s.setValue("appPassword", dlg->password());
                     s.setValue("appPasswordHint", dlg->passwordHint());
                     QMessageBox::information(this, "成功", "启动密码已更新。");
-                    accept();
+                    close();
                 } else {
                     QMessageBox::warning(this, "错误", "两次输入的密码不一致。");
                 }
@@ -227,7 +227,7 @@ void SettingsWindow::handleRemovePassword() {
             s.remove("appPassword");
             s.remove("appPasswordHint");
             QMessageBox::information(this, "成功", "启动密码已移除。");
-            accept();
+            close();
         } else {
             QMessageBox::warning(this, "错误", "密码错误，操作取消。");
         }
@@ -235,6 +235,4 @@ void SettingsWindow::handleRemovePassword() {
     verifyDlg->deleteLater();
 }
 
-void SettingsWindow::saveHotkeys() {
-    // 预留以后实现
-}
+#include "SettingsWindow.moc"

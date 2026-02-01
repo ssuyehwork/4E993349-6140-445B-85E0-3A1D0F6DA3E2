@@ -16,7 +16,7 @@
 /**
  * @brief 专业颜色管理器 Pro
  */
-class ColorPickerWindow : public FramelessDialog {
+class ColorPickerWindow : public FramelessWindow {
     Q_OBJECT
 public:
     explicit ColorPickerWindow(QWidget* parent = nullptr);

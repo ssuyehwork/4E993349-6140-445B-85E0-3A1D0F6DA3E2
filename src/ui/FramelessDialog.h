@@ -10,7 +10,35 @@
 #include <QFrame>
 
 /**
- * @brief 无边框对话框基类，自带标题栏、关闭按钮、阴影、置顶
+ * @brief 无边框窗口基类，自带标题栏、关闭按钮、阴影、置顶
+ */
+class FramelessWindow : public QWidget {
+    Q_OBJECT
+public:
+    explicit FramelessWindow(const QString& title, QWidget* parent = nullptr);
+    virtual ~FramelessWindow() = default;
+
+    void setStayOnTop(bool stay);
+
+private slots:
+    void toggleStayOnTop(bool checked);
+
+protected:
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void paintEvent(QPaintEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
+
+    QWidget* m_contentArea;
+    QVBoxLayout* m_mainLayout;
+    QLabel* m_titleLabel;
+
+private:
+    QPoint m_dragPos;
+};
+
+/**
+ * @brief 无边框对话框基类 (用于 exec() 阻塞模式)
  */
 class FramelessDialog : public QDialog {
     Q_OBJECT

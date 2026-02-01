@@ -11,7 +11,7 @@
 #include <QLabel>
 #include <QListWidget>
 
-class KeywordSearchWindow : public FramelessDialog {
+class KeywordSearchWindow : public FramelessWindow {
     Q_OBJECT
 public:
     explicit KeywordSearchWindow(QWidget* parent = nullptr);

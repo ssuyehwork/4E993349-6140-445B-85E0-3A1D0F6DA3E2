@@ -8,7 +8,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 
-class OCRResultWindow : public FramelessDialog {
+class OCRResultWindow : public FramelessWindow {
     Q_OBJECT
 public:
     explicit OCRResultWindow(const QImage& image, QWidget* parent = nullptr);

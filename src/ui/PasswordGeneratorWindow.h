@@ -11,7 +11,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 
-class PasswordGeneratorWindow : public FramelessDialog {
+class PasswordGeneratorWindow : public FramelessWindow {
     Q_OBJECT
 public:
     explicit PasswordGeneratorWindow(QWidget* parent = nullptr);

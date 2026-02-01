@@ -52,7 +52,7 @@ private:
 /**
  * @brief 文件查找窗口：新增侧边栏收藏与路径历史记录
  */
-class FileSearchWindow : public FramelessDialog {
+class FileSearchWindow : public FramelessWindow {
     Q_OBJECT
 public:
     explicit FileSearchWindow(QWidget* parent = nullptr);

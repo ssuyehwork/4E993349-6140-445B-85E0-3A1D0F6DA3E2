@@ -13,7 +13,7 @@
 #include <QQueue>
 #include <QProgressBar>
 
-class OCRWindow : public FramelessDialog {
+class OCRWindow : public FramelessWindow {
     Q_OBJECT
 public:
     explicit OCRWindow(QWidget* parent = nullptr);

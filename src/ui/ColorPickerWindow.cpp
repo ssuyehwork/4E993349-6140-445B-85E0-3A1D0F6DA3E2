@@ -535,7 +535,7 @@ private:
 // ----------------------------------------------------------------------------
 
 ColorPickerWindow::ColorPickerWindow(QWidget* parent)
-    : FramelessDialog("吸取颜色", parent)
+    : FramelessWindow("吸取颜色", parent)
 {
     setWindowTitle("吸取颜色");
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Window);
@@ -1290,7 +1290,7 @@ void ColorPickerWindow::dropEvent(QDropEvent* event) {
 
 void ColorPickerWindow::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_V && (event->modifiers() & Qt::ControlModifier)) pasteImage();
-    else FramelessDialog::keyPressEvent(event);
+    else QWidget::keyPressEvent(event);
 }
 
 void ColorPickerWindow::hideEvent(QHideEvent* event) {
@@ -1300,7 +1300,7 @@ void ColorPickerWindow::hideEvent(QHideEvent* event) {
             w->close();
         }
     }
-    FramelessDialog::hideEvent(event);
+    QWidget::hideEvent(event);
 }
 
 bool ColorPickerWindow::eventFilter(QObject* watched, QEvent* event) {
@@ -1322,7 +1322,7 @@ bool ColorPickerWindow::eventFilter(QObject* watched, QEvent* event) {
             return true;
         }
     }
-    return FramelessDialog::eventFilter(watched, event);
+    return QWidget::eventFilter(watched, event);
 }
 
 void ColorPickerWindow::showColorContextMenu(const QString& colorHex, const QPoint& globalPos) {
@@ -1365,7 +1365,7 @@ void ColorPickerWindow::showColorContextMenu(const QString& colorHex, const QPoi
         });
 
         menu.addAction(IconHelper::getIcon("search", "#e67e22", 18), "定位图片文件", [path]() {
-            QProcess::startDetached("explorer.exe", { "/select,", QDir::toNativeSeparators(path) });
+            QProcess::startDetached("explorer.exe", { "/select," + QDir::toNativeSeparators(path) });
         });
 
         menu.addAction(IconHelper::getIcon("folder", "#f39c12", 18), "定位文件夹", [path]() {

@@ -12,7 +12,7 @@
 #include <QDateTime>
 #include <QThread>
 
-OCRWindow::OCRWindow(QWidget* parent) : FramelessDialog("文字识别", parent) {
+OCRWindow::OCRWindow(QWidget* parent) : FramelessWindow("文字识别", parent) {
     setFixedSize(800, 500);
     setAcceptDrops(true);
 

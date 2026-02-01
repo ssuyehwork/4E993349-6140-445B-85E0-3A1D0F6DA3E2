@@ -8,7 +8,7 @@
 #include <QRegularExpression>
 
 OCRResultWindow::OCRResultWindow(const QImage& image, QWidget* parent)
-    : FramelessDialog("识别文本", parent), m_image(image)
+    : FramelessWindow("识别文本", parent), m_image(image)
 {
     setAttribute(Qt::WA_DeleteOnClose);
     setFixedSize(600, 450);

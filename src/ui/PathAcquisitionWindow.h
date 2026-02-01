@@ -11,7 +11,7 @@
 #include <QCheckBox>
 #include <QToolButton>
 
-class PathAcquisitionWindow : public FramelessDialog {
+class PathAcquisitionWindow : public FramelessWindow {
     Q_OBJECT
 public:
     explicit PathAcquisitionWindow(QWidget* parent = nullptr);

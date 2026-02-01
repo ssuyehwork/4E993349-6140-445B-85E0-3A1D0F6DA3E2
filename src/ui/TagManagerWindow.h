@@ -9,7 +9,7 @@
 #include <QLabel>
 #include <QPoint>
 
-class TagManagerWindow : public FramelessDialog {
+class TagManagerWindow : public FramelessWindow {
     Q_OBJECT
 public:
     explicit TagManagerWindow(QWidget* parent = nullptr);

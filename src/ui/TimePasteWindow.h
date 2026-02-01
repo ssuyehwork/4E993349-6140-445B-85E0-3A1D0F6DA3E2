@@ -7,7 +7,7 @@
 #include <QButtonGroup>
 #include <QTimer>
 
-class TimePasteWindow : public FramelessDialog {
+class TimePasteWindow : public FramelessWindow {
     Q_OBJECT
 public:
     explicit TimePasteWindow(QWidget* parent = nullptr);
