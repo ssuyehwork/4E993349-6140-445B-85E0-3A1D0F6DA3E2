@@ -5,7 +5,7 @@
 #include <QLabel>
 #include <QPushButton>
 
-Toolbox::Toolbox(QWidget* parent) : FramelessDialog("工具箱 (功能已更新)", parent) {
+Toolbox::Toolbox(QWidget* parent) : FramelessDialog("工具箱", parent) {
     setObjectName("ToolboxLauncher");
     setFixedSize(300, 540); // 增加高度以容纳新按钮
 

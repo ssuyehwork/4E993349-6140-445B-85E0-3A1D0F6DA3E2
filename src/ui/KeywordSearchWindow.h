@@ -5,7 +5,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QCheckBox>
-#include <QTextEdit>
+#include <QTextBrowser>
 #include <QProgressBar>
 #include <QLabel>
 #include <QListWidget>
@@ -18,7 +18,6 @@ public:
 
 protected:
     void hideEvent(QHideEvent* event) override;
-    bool eventFilter(QObject* obj, QEvent* event) override;
 
 private slots:
     void onBrowseFolder();
@@ -39,7 +38,7 @@ private:
     QLineEdit* m_searchEdit;
     QLineEdit* m_replaceEdit;
     QCheckBox* m_caseCheck;
-    QTextEdit* m_logDisplay;
+    QTextBrowser* m_logDisplay;
     QProgressBar* m_progressBar;
     QLabel* m_statusLabel;
 

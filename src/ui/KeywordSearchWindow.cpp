@@ -9,6 +9,7 @@
 #include <QDateTime>
 #include <QProcess>
 #include <QDesktopServices>
+#include <QUrl>
 #include <QtConcurrent>
 #include <QScrollBar>
 #include <QMessageBox>
@@ -113,12 +114,21 @@ void KeywordSearchWindow::initUI() {
     mainLayout->addLayout(btnLayout);
 
     // --- 日志展示区域 ---
-    m_logDisplay = new QTextEdit();
+    m_logDisplay = new QTextBrowser();
     m_logDisplay->setReadOnly(true);
     m_logDisplay->setUndoRedoEnabled(false);
+    m_logDisplay->setOpenLinks(false);
+    m_logDisplay->setOpenExternalLinks(false);
     m_logDisplay->setStyleSheet(
-        "QTextEdit { background: #1E1E1E; border: 1px solid #333; border-radius: 4px; color: #D4D4D4; font-family: 'Consolas', monospace; font-size: 12px; }"
+        "QTextBrowser { background: #1E1E1E; border: 1px solid #333; border-radius: 4px; color: #D4D4D4; font-family: 'Consolas', monospace; font-size: 12px; }"
     );
+    connect(m_logDisplay, &QTextBrowser::anchorClicked, this, [](const QUrl& url) {
+        if (url.scheme() == "file") {
+            QString path = url.toLocalFile();
+            QString nativePath = QDir::toNativeSeparators(path);
+            QProcess::startDetached("explorer.exe", { "/select," + nativePath });
+        }
+    });
     mainLayout->addWidget(m_logDisplay, 1);
 
     // --- 状态栏 ---
@@ -136,10 +146,6 @@ void KeywordSearchWindow::initUI() {
     statusLayout->addWidget(m_statusLabel);
     mainLayout->addLayout(statusLayout);
 
-    // 设置 TextEdit 双击处理（通过拦截事件或子类化，这里简便处理，双击由于是只读，需要特殊逻辑）
-    // 为了简单，我们使用锚点跳转或类似逻辑。
-    // 在 Qt 中，我们可以监听文本框的点击。
-    m_logDisplay->viewport()->installEventFilter(this);
 }
 
 void KeywordSearchWindow::onBrowseFolder() {
@@ -172,7 +178,8 @@ void KeywordSearchWindow::log(const QString& msg, const QString& type) {
     QString html = QString("<span style='color:%1;'>%2</span>").arg(color, msg.toHtmlEscaped());
     // 如果是文件，添加自定义属性以便识别
     if (type == "file") {
-        html = QString("<a href=\"file://%1\" style=\"color:%2; text-decoration: underline;\">📄 文件: %1</a>").arg(msg, color);
+        html = QString("<a href=\"%1\" style=\"color:%2; text-decoration: underline;\">📄 文件: %3</a>")
+                .arg(QUrl::fromLocalFile(msg).toString(), color, msg.toHtmlEscaped());
     }
 
     m_logDisplay->append(html);
@@ -410,20 +417,4 @@ void KeywordSearchWindow::hideEvent(QHideEvent* event) {
 }
 
 void KeywordSearchWindow::onResultDoubleClicked(const QModelIndex& index) {
-    // 暂未用到，因为使用了 QTextEdit + anchorClicked
-}
-
-// 事件过滤器处理双击和点击
-#include <QMouseEvent>
-bool KeywordSearchWindow::eventFilter(QObject* obj, QEvent* event) {
-    if (obj == m_logDisplay->viewport() && event->type() == QEvent::MouseButtonDblClick) {
-        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
-        QString anchor = m_logDisplay->anchorAt(mouseEvent->pos());
-        if (anchor.startsWith("file://")) {
-            QString filePath = anchor.mid(7);
-            QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
-            return true;
-        }
-    }
-    return FramelessDialog::eventFilter(obj, event);
 }
