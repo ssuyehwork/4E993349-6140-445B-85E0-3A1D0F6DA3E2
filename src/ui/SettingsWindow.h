@@ -38,6 +38,7 @@ private slots:
     void handleModifyPassword();
     void handleRemovePassword();
     void saveHotkeys();
+    void handleRestoreDefaults();
 
 private:
     void initSettingsUI();

@@ -54,8 +54,9 @@ void HotkeyEdit::keyPressEvent(QKeyEvent* event) {
 
     m_mods = mods;
     m_vk = event->nativeVirtualKey();
+    if (m_vk == 0 && key == Qt::Key_Space) m_vk = 0x20;
 
-    QString keyName = QKeySequence(key).toString();
+    QString keyName = (key == Qt::Key_Space) ? "Space" : QKeySequence(key).toString();
     modStrings << keyName;
     setText(modStrings.join(" + "));
 }
@@ -138,6 +139,13 @@ void SettingsWindow::initSettingsUI() {
     // 底部按钮
     auto* bottomLayout = new QHBoxLayout();
     bottomLayout->addStretch();
+
+    auto* btnRestore = new QPushButton("恢复默认");
+    btnRestore->setFixedSize(100, 32);
+    btnRestore->setAutoDefault(false);
+    btnRestore->setStyleSheet("QPushButton { background-color: #444; color: #eee; border: none; border-radius: 4px; } QPushButton:hover { background-color: #555; }");
+    connect(btnRestore, &QPushButton::clicked, this, &SettingsWindow::handleRestoreDefaults);
+    bottomLayout->addWidget(btnRestore);
 
     auto* btnSave = new QPushButton("保存设置");
     btnSave->setFixedSize(100, 32);
@@ -232,3 +240,8 @@ void SettingsWindow::handleRemovePassword() {
     verifyDlg->deleteLater();
 }
 
+void SettingsWindow::handleRestoreDefaults() {
+    m_hkQuickWin->setHotkey(0x0001, 0x20, "Alt + Space");
+    m_hkFavorite->setHotkey(0x0002 | 0x0004, 0x45, "Ctrl + Shift + E");
+    m_hkScreenshot->setHotkey(0x0002 | 0x0001, 0x41, "Ctrl + Alt + A");
+}
