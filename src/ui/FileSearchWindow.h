@@ -79,6 +79,8 @@ private slots:
     void onScanFinished(int count);
     void refreshList();
     void showFileContextMenu(const QPoint& pos);
+    void onCutFile();
+    void onDeleteFile();
     
     // 侧边栏相关
     void onSidebarItemClicked(QListWidgetItem* item);

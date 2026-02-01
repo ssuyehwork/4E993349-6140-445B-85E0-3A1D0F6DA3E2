@@ -634,7 +634,65 @@ void FileSearchWindow::showFileContextMenu(const QPoint& pos) {
         QApplication::clipboard()->setMimeData(mimeData);
     });
 
+    menu.addSeparator();
+    menu.addAction(IconHelper::getIcon("cut", "#E67E22"), "剪切", this, &FileSearchWindow::onCutFile);
+    menu.addAction(IconHelper::getIcon("trash", "#E74C3C"), "删除", this, &FileSearchWindow::onDeleteFile);
+
     menu.exec(m_fileList->mapToGlobal(pos));
+}
+
+void FileSearchWindow::onCutFile() {
+    auto* item = m_fileList->currentItem();
+    if (!item) return;
+
+    QString filePath = item->data(Qt::UserRole).toString();
+    if (filePath.isEmpty()) return;
+
+    QMimeData* mimeData = new QMimeData();
+    mimeData->setUrls({QUrl::fromLocalFile(filePath)});
+
+#ifdef Q_OS_WIN
+    // 设置 Preferred DropEffect 为 2 (DROPEFFECT_MOVE)，通知资源管理器这是“剪切”操作
+    QByteArray data;
+    data.resize(4);
+    data[0] = 2; // DROPEFFECT_MOVE
+    data[1] = 0;
+    data[2] = 0;
+    data[3] = 0;
+    mimeData->setData("Preferred DropEffect", data);
+#endif
+
+    QApplication::clipboard()->setMimeData(mimeData);
+}
+
+void FileSearchWindow::onDeleteFile() {
+    auto* item = m_fileList->currentItem();
+    if (!item) return;
+
+    QString filePath = item->data(Qt::UserRole).toString();
+    if (filePath.isEmpty()) return;
+
+    if (QMessageBox::question(this, "确认删除",
+        QString("确定要将此文件移至回收站吗？\n\n%1").arg(QFileInfo(filePath).fileName()),
+        QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes)
+    {
+        if (QFile::moveToTrash(filePath)) {
+            // 从界面移除
+            int row = m_fileList->row(item);
+            delete m_fileList->takeItem(row);
+
+            // 同步从内存数据中移除 (可选，但为了 refreshList 一致性建议移除)
+            for (int i = 0; i < m_filesData.size(); ++i) {
+                if (m_filesData[i].path == filePath) {
+                    m_filesData.removeAt(i);
+                    break;
+                }
+            }
+            m_infoLabel->setText("文件已成功移至回收站");
+        } else {
+            QMessageBox::warning(this, "错误", "无法删除文件，请检查是否被占用。");
+        }
+    }
 }
 
 void FileSearchWindow::resizeEvent(QResizeEvent* event) {
