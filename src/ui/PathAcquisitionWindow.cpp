@@ -47,7 +47,6 @@ void PathAcquisitionWindow::initUI() {
     auto* dropLayout = new QVBoxLayout(m_dropHint);
     dropLayout->setContentsMargins(20, 20, 20, 20);
     dropLayout->setSpacing(15);
-    dropLayout->setAlignment(Qt::AlignCenter);
 
     m_dropIconLabel = new QLabel();
     m_dropIconLabel->setAlignment(Qt::AlignCenter);
@@ -58,8 +57,10 @@ void PathAcquisitionWindow::initUI() {
     m_dropTextLabel->setAlignment(Qt::AlignCenter);
     m_dropTextLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-    dropLayout->addWidget(m_dropIconLabel);
-    dropLayout->addWidget(m_dropTextLabel);
+    dropLayout->addStretch();
+    dropLayout->addWidget(m_dropIconLabel, 0, Qt::AlignCenter);
+    dropLayout->addWidget(m_dropTextLabel, 0, Qt::AlignCenter);
+    dropLayout->addStretch();
 
     updateDropHintStyle(false); // 初始化样式
 
