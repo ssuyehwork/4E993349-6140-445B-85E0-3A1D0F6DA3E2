@@ -14,63 +14,51 @@
 #include "../core/HotkeyManager.h"
 
 // --- HotkeyEdit 辅助类 ---
-class HotkeyEdit : public QLineEdit {
-    Q_OBJECT
-public:
-    HotkeyEdit(QWidget* parent = nullptr) : QLineEdit(parent) {
-        setReadOnly(true);
-        setAlignment(Qt::AlignCenter);
-        setPlaceholderText("按下快捷键组合...");
-        setStyleSheet("background-color: #1e1e1e; border: 1px solid #333; color: #3b8ed0; font-weight: bold; padding: 4px; border-radius: 4px;");
+HotkeyEdit::HotkeyEdit(QWidget* parent) : QLineEdit(parent) {
+    setReadOnly(true);
+    setAlignment(Qt::AlignCenter);
+    setPlaceholderText("按下快捷键组合...");
+    setStyleSheet("background-color: #1e1e1e; border: 1px solid #333; color: #3b8ed0; font-weight: bold; padding: 4px; border-radius: 4px;");
+}
+
+void HotkeyEdit::setHotkey(uint mods, uint vk, const QString& display) {
+    m_mods = mods;
+    m_vk = vk;
+    setText(display);
+}
+
+bool HotkeyEdit::event(QEvent* e) {
+    // 允许捕获系统级快捷键（如 Alt+Space）
+    if (e->type() == QEvent::ShortcutOverride) {
+        e->accept();
+        return true;
+    }
+    return QLineEdit::event(e);
+}
+
+void HotkeyEdit::keyPressEvent(QKeyEvent* event) {
+    int key = event->key();
+    if (key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Alt || key == Qt::Key_Meta || key == Qt::Key_CapsLock) {
+        return;
     }
 
-    void setHotkey(uint mods, uint vk, const QString& display) {
-        m_mods = mods;
-        m_vk = vk;
-        setText(display);
-    }
+    uint mods = 0;
+    QStringList modStrings;
+    if (event->modifiers() & Qt::ControlModifier) { mods |= 0x0002; modStrings << "Ctrl"; }
+    if (event->modifiers() & Qt::AltModifier) { mods |= 0x0001; modStrings << "Alt"; }
+    if (event->modifiers() & Qt::ShiftModifier) { mods |= 0x0004; modStrings << "Shift"; }
+    if (event->modifiers() & Qt::MetaModifier) { mods |= 0x0008; modStrings << "Win"; }
 
-    uint getMods() const { return m_mods; }
-    uint getVk() const { return m_vk; }
+    // 至少需要一个修饰符，或者 F1-F12
+    if (mods == 0 && (key < Qt::Key_F1 || key > Qt::Key_F12)) return;
 
-protected:
-    bool event(QEvent* e) override {
-        // 允许捕获系统级快捷键（如 Alt+Space）
-        if (e->type() == QEvent::ShortcutOverride) {
-            e->accept();
-            return true;
-        }
-        return QLineEdit::event(e);
-    }
+    m_mods = mods;
+    m_vk = event->nativeVirtualKey();
 
-    void keyPressEvent(QKeyEvent* event) override {
-        int key = event->key();
-        if (key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Alt || key == Qt::Key_Meta || key == Qt::Key_CapsLock) {
-            return;
-        }
-
-        uint mods = 0;
-        QStringList modStrings;
-        if (event->modifiers() & Qt::ControlModifier) { mods |= 0x0002; modStrings << "Ctrl"; }
-        if (event->modifiers() & Qt::AltModifier) { mods |= 0x0001; modStrings << "Alt"; }
-        if (event->modifiers() & Qt::ShiftModifier) { mods |= 0x0004; modStrings << "Shift"; }
-        if (event->modifiers() & Qt::MetaModifier) { mods |= 0x0008; modStrings << "Win"; }
-
-        // 至少需要一个修饰符，或者 F1-F12
-        if (mods == 0 && (key < Qt::Key_F1 || key > Qt::Key_F12)) return;
-
-        m_mods = mods;
-        m_vk = event->nativeVirtualKey();
-        
-        QString keyName = QKeySequence(key).toString();
-        modStrings << keyName;
-        setText(modStrings.join(" + "));
-    }
-
-private:
-    uint m_mods = 0;
-    uint m_vk = 0;
-};
+    QString keyName = QKeySequence(key).toString();
+    modStrings << keyName;
+    setText(modStrings.join(" + "));
+}
 
 SettingsWindow::SettingsWindow(QWidget* parent) : FramelessDialog("系统设置", parent) {
     setFixedSize(450, 500);
@@ -244,4 +232,3 @@ void SettingsWindow::handleRemovePassword() {
     verifyDlg->deleteLater();
 }
 
-#include "SettingsWindow.moc"
