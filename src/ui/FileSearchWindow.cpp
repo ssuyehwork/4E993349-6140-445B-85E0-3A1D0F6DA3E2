@@ -171,7 +171,7 @@ public:
             "QScrollArea { background-color: transparent; border: none; }"
             "QScrollArea > QWidget > QWidget { background-color: transparent; }"
         );
-        scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
         m_chipsWidget = new QWidget();
@@ -440,6 +440,8 @@ void FileSearchWindow::initUI() {
 
     auto* sidebar = new FileSidebarListWidget();
     m_sidebar = sidebar;
+    m_sidebar->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_sidebar->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_sidebar->setMinimumWidth(200);
     m_sidebar->setDragEnabled(false);
     m_sidebar->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -513,6 +515,8 @@ void FileSearchWindow::initUI() {
 
     // 文件列表
     m_fileList = new QListWidget();
+    m_fileList->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_fileList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_fileList->setSelectionMode(QAbstractItemView::SingleSelection);
     m_fileList->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_fileList, &QListWidget::customContextMenuRequested, this, &FileSearchWindow::showFileContextMenu);
