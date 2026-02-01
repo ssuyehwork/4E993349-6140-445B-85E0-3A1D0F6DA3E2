@@ -208,22 +208,21 @@ QuickWindow::QuickWindow(QWidget* parent)
     
     initUI();
 
-    connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, [this](const QVariantMap&){
-        refreshData();
-        refreshSidebar();
+    m_refreshTimer = new QTimer(this);
+    m_refreshTimer->setSingleShot(true);
+    m_refreshTimer->setInterval(200);
+    connect(m_refreshTimer, &QTimer::timeout, this, [this](){
+        if (this->isVisible()) {
+            refreshData();
+            refreshSidebar();
+        }
     });
 
-    connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, [this](){
-        refreshData();
-        refreshSidebar();
-    });
+    connect(&DatabaseManager::instance(), &DatabaseManager::noteAdded, this, &QuickWindow::onNoteAdded);
+    connect(&DatabaseManager::instance(), &DatabaseManager::noteUpdated, this, &QuickWindow::scheduleRefresh);
+    connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, this, &QuickWindow::scheduleRefresh);
 
-    connect(&ClipboardMonitor::instance(), &ClipboardMonitor::newContentDetected, [this](){
-        refreshData();
-        refreshSidebar();
-    });
-
-    connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, [this](){
+    connect(&DatabaseManager::instance(), &DatabaseManager::categoriesChanged, this, [this](){
         m_model->updateCategoryMap();
         
         // 如果当前正在查看某个分类，同步更新其高亮色
@@ -425,8 +424,8 @@ void QuickWindow::initUI() {
         m_currentPage = 1;
         refreshData();
     };
-    connect(m_systemTree, &QTreeView::clicked, [this, onSelectionChanged](const QModelIndex& idx){ onSelectionChanged(m_systemTree, idx); });
-    connect(m_partitionTree, &QTreeView::clicked, [this, onSelectionChanged](const QModelIndex& idx){ onSelectionChanged(m_partitionTree, idx); });
+    connect(m_systemTree, &QTreeView::clicked, this, [this, onSelectionChanged](const QModelIndex& idx){ onSelectionChanged(m_systemTree, idx); });
+    connect(m_partitionTree, &QTreeView::clicked, this, [this, onSelectionChanged](const QModelIndex& idx){ onSelectionChanged(m_partitionTree, idx); });
 
     // 拖拽逻辑...
     auto onNotesDropped = [this](const QList<int>& ids, const QModelIndex& targetIndex) {
@@ -444,11 +443,11 @@ void QuickWindow::initUI() {
                 else if (type == "trash") DatabaseManager::instance().updateNoteState(id, "is_deleted", 1);
             }
         }
-        refreshData();
-        refreshSidebar();
+        // refreshData 和 refreshSidebar 将通过 DatabaseManager 信号触发的 scheduleRefresh 异步执行，
+        // 从而避免在 dropEvent 堆栈中立即 reset model 导致的潜在闪退。
     };
-    connect(m_systemTree, &DropTreeView::notesDropped, [this, onNotesDropped](const QList<int>& ids, const QModelIndex& idx){ onNotesDropped(ids, idx); });
-    connect(m_partitionTree, &DropTreeView::notesDropped, [this, onNotesDropped](const QList<int>& ids, const QModelIndex& idx){ onNotesDropped(ids, idx); });
+    connect(m_systemTree, &DropTreeView::notesDropped, this, onNotesDropped);
+    connect(m_partitionTree, &DropTreeView::notesDropped, this, onNotesDropped);
 
     // 右键菜单...
     // (此处省略部分右键菜单代码以保持简洁，逻辑与原版保持一致)
@@ -793,7 +792,31 @@ void QuickWindow::setupShortcuts() {
     
 }
 
+void QuickWindow::scheduleRefresh() {
+    m_refreshTimer->start();
+}
+
+void QuickWindow::onNoteAdded(const QVariantMap& note) {
+    // 检查是否符合当前过滤条件
+    bool matches = false;
+    if (m_currentFilterType == "all") matches = true;
+    else if (m_currentFilterType == "today") matches = true;
+    else if (m_currentFilterType == "category") {
+        matches = (note.value("category_id").toInt() == m_currentFilterValue.toInt());
+    } else if (m_currentFilterType == "untagged") {
+        matches = note.value("tags").toString().isEmpty();
+    }
+    
+    if (matches && m_currentPage == 1) {
+        m_model->prependNote(note);
+    }
+    
+    // 依然需要触发侧边栏计数刷新 (节流执行)
+    scheduleRefresh();
+}
+
 void QuickWindow::refreshData() {
+    if (!isVisible()) return;
     QString keyword = m_searchEdit->text();
     
     int totalCount = DatabaseManager::instance().getNotesCount(keyword, m_currentFilterType, m_currentFilterValue);
@@ -839,6 +862,7 @@ void QuickWindow::updatePartitionStatus(const QString& name) {
 }
 
 void QuickWindow::refreshSidebar() {
+    if (!isVisible()) return;
     // 保存选中状态
     QString selectedType;
     QVariant selectedValue;
@@ -1880,7 +1904,10 @@ void QuickWindow::dropEvent(QDropEvent* event) {
 }
 
 void QuickWindow::hideEvent(QHideEvent* event) {
-    if (m_appLockWidget) {
+    // 保护：仅在非系统自发（spontaneous）且窗口确实不可见时才可能退出
+    // 防止初始化或某些 Windows 系统消息导致的误退
+    if (m_appLockWidget && !event->spontaneous() && !isVisible()) {
+        qDebug() << "[QuickWin] 退出程序，因为应用锁处于活动状态且窗口被隐藏";
         QApplication::quit();
     }
     saveState();

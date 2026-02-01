@@ -45,6 +45,8 @@ public:
 
 public slots:
     void refreshData();
+    void scheduleRefresh();
+    void onNoteAdded(const QVariantMap& note);
 
 signals:
     void toggleMainWindowRequested();
@@ -118,6 +120,7 @@ public:
     
     QTimer* m_searchTimer;
     QTimer* m_monitorTimer;
+    QTimer* m_refreshTimer;
     QSplitter* m_splitter;
     QuickToolbar* m_toolbar;
     QLabel* m_statusLabel;
