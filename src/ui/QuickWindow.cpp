@@ -637,9 +637,6 @@ void QuickWindow::initUI() {
 
     containerLayout->addWidget(customToolbar);
     
-    // m_toolbar = new QuickToolbar(this); // 移除旧代码
-    // containerLayout->addWidget(m_toolbar); // 移除旧代码
-    
     mainLayout->addWidget(container);
     
     // 初始大小和最小大小
@@ -694,10 +691,13 @@ void QuickWindow::initUI() {
     setupShortcuts();
     restoreState();
     refreshData();
-    setupAppLock();
+    // 延迟初始化锁界面，确保父窗口状态稳定后再覆盖显示，防止启动闪烁
+    QTimer::singleShot(0, this, &QuickWindow::setupAppLock);
 }
 
 void QuickWindow::setupAppLock() {
+    if (m_appLockWidget) return;
+
     QSettings settings("RapidNotes", "QuickWindow");
     QString appPwd = settings.value("appPassword").toString();
     if (!appPwd.isEmpty()) {
@@ -1736,16 +1736,14 @@ void QuickWindow::showAuto() {
     activateWindow();
     
 #ifdef Q_OS_WIN
-    // 强制置顶并激活，即使在其他窗口之后也能强制唤起
-    SetForegroundWindow(myHwnd);
-    // 移除 SWP_SHOWWINDOW，因为前面已经调用了 Qt 的 show()，避免二次刷新导致闪烁
-    SetWindowPos(myHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+    // 强制置顶并激活。为了夺取焦点，我们采用瞬间置顶再还原的策略，移除延迟以消除视觉闪烁。
     if (!m_isStayOnTop) {
-        // 如果原本没开启“总在最前”，则在唤起后瞬间切换回正常，防止永久置顶
-        QTimer::singleShot(150, [myHwnd]() {
-            SetWindowPos(myHwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        });
+        SetWindowPos(myHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        SetWindowPos(myHwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    } else {
+        SetWindowPos(myHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
+    SetForegroundWindow(myHwnd);
 #endif
 
     m_searchEdit->setFocus();

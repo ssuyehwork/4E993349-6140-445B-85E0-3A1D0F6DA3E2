@@ -16,7 +16,6 @@
 #include "../models/NoteModel.h"
 #include "../models/CategoryModel.h"
 #include "QuickPreview.h"
-#include "QuickToolbar.h"
 #include "DropTreeView.h"
 #include "CategoryLockWidget.h"
 #include "ClickableLineEdit.h"
@@ -119,7 +118,6 @@ public:
     QTimer* m_searchTimer;
     QTimer* m_monitorTimer;
     QSplitter* m_splitter;
-    QuickToolbar* m_toolbar;
     QLabel* m_statusLabel;
     ClickableLineEdit* m_tagEdit;
 
