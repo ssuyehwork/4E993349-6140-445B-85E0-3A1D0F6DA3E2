@@ -47,7 +47,7 @@
 #endif
 
 // ----------------------------------------------------------------------------
-// ScreenColorPickerOverlay: 屏幕取色器 (完全重构版)
+// ScreenColorPickerOverlay: 屏幕取色器 (PowerToys 风格，零闪烁稳定版)
 // ----------------------------------------------------------------------------
 class ScreenColorPickerOverlay : public QWidget {
     Q_OBJECT
@@ -55,20 +55,30 @@ public:
     explicit ScreenColorPickerOverlay(std::function<void(QString)> callback, QWidget* parent = nullptr) 
         : QWidget(nullptr), m_callback(callback) 
     {
-        setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool | Qt::WindowDoesNotAcceptFocus);
-        setAttribute(Qt::WA_TranslucentBackground);
-        setAttribute(Qt::WA_NoSystemBackground);
+        setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
         setAttribute(Qt::WA_DeleteOnClose);
+        setAttribute(Qt::WA_NoSystemBackground);
         
+        // 1. 立即捕捉所有屏幕
         QRect totalRect;
         const auto screens = QGuiApplication::screens();
         for (QScreen* screen : screens) {
             totalRect = totalRect.united(screen->geometry());
         }
         setGeometry(totalRect);
+
+        // 创建大尺寸画布并捕捉
+        m_fullCapture = QPixmap(totalRect.size());
+        QPainter p(&m_fullCapture);
+        for (QScreen* screen : screens) {
+            p.drawPixmap(screen->geometry().topLeft() - totalRect.topLeft(), screen->grabWindow(0));
+        }
+        p.end();
+
         setCursor(Qt::BlankCursor);
         setMouseTracking(true);
         
+        // 16ms 刷新率，仅用于同步鼠标位置绘制
         QTimer* timer = new QTimer(this);
         connect(timer, &QTimer::timeout, this, QOverload<>::of(&ScreenColorPickerOverlay::update));
         timer->start(16);
@@ -84,9 +94,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
             if (m_callback) m_callback(m_currentColorHex);
-            // 增加视觉反馈：闪烁一下
-            m_flashTimer = 5; 
-            update();
+            cancelPicker(); // 选中后立即关闭，符合 PowerToys 体验
         } else if (event->button() == Qt::RightButton) {
             cancelPicker();
         }
@@ -100,48 +108,42 @@ protected:
 
     void paintEvent(QPaintEvent*) override {
         QPainter p(this);
-        // 关键修复：填充一个近乎透明的背景以拦截鼠标事件，防止穿透到下层窗口
-        p.fillRect(rect(), QColor(0, 0, 0, 1));
-        p.setRenderHint(QPainter::Antialiasing);
-
-        if (m_flashTimer > 0) {
-            p.fillRect(rect(), QColor(255, 255, 255, 40));
-            m_flashTimer--;
-            QTimer::singleShot(30, this, QOverload<>::of(&ScreenColorPickerOverlay::update));
-        }
-        p.setRenderHint(QPainter::TextAntialiasing);
+        // 2. 绘制静态背景，彻底消除实时截屏导致的闪烁和延迟
+        p.drawPixmap(0, 0, m_fullCapture);
 
         QPoint globalPos = QCursor::pos();
-        QScreen *screen = QGuiApplication::screenAt(globalPos);
-        if (!screen) return;
+        QPoint localPos = mapFromGlobal(globalPos);
 
-        int grabRadius = 8;
-        int grabSize = grabRadius * 2 + 1;
+        // 获取相对于捕捉图像的坐标 (考虑多显示器偏移)
+        QPoint capturePos = globalPos - geometry().topLeft();
 
-        int screenX = globalPos.x() - screen->geometry().x();
-        int screenY = globalPos.y() - screen->geometry().y();
-
-        QPixmap capture = screen->grabWindow(0, screenX - grabRadius, screenY - grabRadius, grabSize, grabSize);
-        QImage img = capture.toImage();
+        // 获取中心颜色 (使用缓存的 QImage 提高性能)
+        if (m_cachedImage.isNull()) m_cachedImage = m_fullCapture.toImage();
 
         QColor centerColor = Qt::black;
-        if (img.width() > 0 && img.height() > 0) {
-            int cx = qMin(grabRadius, img.width()/2);
-            int cy = qMin(grabRadius, img.height()/2);
-            centerColor = img.pixelColor(cx, cy);
+        if (capturePos.x() >= 0 && capturePos.x() < m_cachedImage.width() &&
+            capturePos.y() >= 0 && capturePos.y() < m_cachedImage.height()) {
+            centerColor = m_cachedImage.pixelColor(capturePos.x(), capturePos.y());
         }
         m_currentColorHex = centerColor.name().toUpper();
 
+        // 绘制放大镜
+        int grabRadius = 8;
+        int grabSize = grabRadius * 2 + 1;
         int lensSize = 160; 
-        QPoint localPos = mapFromGlobal(globalPos);
         
         int lensX = localPos.x() + 25;
         int lensY = localPos.y() + 25;
-        
         if (lensX + lensSize > width()) lensX = localPos.x() - lensSize - 25;
         if (lensY + lensSize > height()) lensY = localPos.y() - lensSize - 25;
 
         QRect lensRect(lensX, lensY, lensSize, lensSize);
+        p.setRenderHint(QPainter::Antialiasing);
+
+        // 镜头背景阴影
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(0, 0, 0, 150));
+        p.drawRoundedRect(lensRect.adjusted(3, 3, 3, 3), 10, 10);
 
         QPainterPath path;
         path.addRoundedRect(lensRect, 10, 10);
@@ -149,33 +151,41 @@ protected:
         p.setPen(QPen(QColor(100, 100, 100), 2));
         p.drawPath(path);
 
+        // 绘制像素网格
         p.save();
         p.setClipRect(lensRect.adjusted(2, 2, -2, -50)); 
         
         int blockSize = lensSize / grabSize; 
-        int drawStartX = lensX + (lensSize - img.width() * blockSize) / 2;
-        int drawStartY = lensY + (lensSize - img.height() * blockSize) / 2;
+        int drawStartX = lensX + (lensSize - grabSize * blockSize) / 2;
+        int drawStartY = lensY + (lensSize - grabSize * blockSize) / 2;
 
-        for(int y=0; y<img.height(); ++y) {
-            for(int x=0; x<img.width(); ++x) {
-                p.fillRect(drawStartX + x * blockSize, drawStartY + y * blockSize, blockSize, blockSize, img.pixelColor(x,y));
-                p.setPen(QPen(QColor(0,0,0, 40), 1));
-                p.drawRect(drawStartX + x * blockSize, drawStartY + y * blockSize, blockSize, blockSize);
+        for(int y = -grabRadius; y <= grabRadius; ++y) {
+            for(int x = -grabRadius; x <= grabRadius; ++x) {
+                int px = capturePos.x() + x;
+                int py = capturePos.y() + y;
+                QColor c = Qt::black;
+                if (px >= 0 && px < m_cachedImage.width() && py >= 0 && py < m_cachedImage.height()) {
+                    c = m_cachedImage.pixelColor(px, py);
+                }
+
+                int targetX = drawStartX + (x + grabRadius) * blockSize;
+                int targetY = drawStartY + (y + grabRadius) * blockSize;
+                p.fillRect(targetX, targetY, blockSize, blockSize, c);
+                p.setPen(QPen(QColor(255, 255, 255, 20), 1));
+                p.drawRect(targetX, targetY, blockSize, blockSize);
             }
         }
         
-        int centerX = drawStartX + (img.width()/2) * blockSize;
-        int centerY = drawStartY + (img.height()/2) * blockSize;
+        // 中心红框指示
+        int centerX = drawStartX + grabRadius * blockSize;
+        int centerY = drawStartY + grabRadius * blockSize;
         p.setPen(QPen(Qt::red, 2));
-        p.setBrush(Qt::NoBrush);
         p.drawRect(centerX, centerY, blockSize, blockSize);
-        p.setPen(QPen(Qt::white, 1)); 
-        p.drawRect(centerX-1, centerY-1, blockSize+2, blockSize+2);
         p.restore();
 
+        // 信息栏
         QRect infoRect = lensRect;
         infoRect.setTop(lensRect.bottom() - 50);
-        
         p.setPen(QPen(QColor(60, 60, 60), 1));
         p.drawLine(infoRect.left(), infoRect.top(), infoRect.right(), infoRect.top());
 
@@ -200,6 +210,7 @@ protected:
         p.setPen(Qt::gray);
         p.drawText(infoRect.right() - 85, infoRect.top() + 38, QString("(%1, %2)").arg(globalPos.x()).arg(globalPos.y()));
 
+        // 绘制准星
         p.setPen(QPen(Qt::black, 3));
         int cl = 15; 
         p.drawLine(localPos.x() - cl, localPos.y(), localPos.x() - 4, localPos.y());
@@ -215,7 +226,6 @@ protected:
     }
 
 private:
-    int m_flashTimer = 0;
     void cancelPicker() {
         releaseMouse();
         releaseKeyboard();
@@ -224,6 +234,8 @@ private:
 
     std::function<void(QString)> m_callback;
     QString m_currentColorHex = "#FFFFFF";
+    QPixmap m_fullCapture;
+    QImage m_cachedImage;
 };
 
 // ----------------------------------------------------------------------------
