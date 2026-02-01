@@ -34,6 +34,15 @@ public:
     uint getVk() const { return m_vk; }
 
 protected:
+    bool event(QEvent* e) override {
+        // 允许捕获系统级快捷键（如 Alt+Space）
+        if (e->type() == QEvent::ShortcutOverride) {
+            e->accept();
+            return true;
+        }
+        return QLineEdit::event(e);
+    }
+
     void keyPressEvent(QKeyEvent* event) override {
         int key = event->key();
         if (key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Alt || key == Qt::Key_Meta || key == Qt::Key_CapsLock) {
