@@ -9,6 +9,8 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QBuffer>
+#include <QMutex>
+#include <QMutexLocker>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include "core/DatabaseManager.h"
@@ -35,7 +37,9 @@
 
 // 日志文件输出
 static QFile* logFile = nullptr;
+static QMutex logMutex;
 static void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& msg) {
+    QMutexLocker locker(&logMutex);
     QString formattedMsg = QString("[%1] %2\n")
         .arg(QDateTime::currentDateTime().toString("HH:mm:ss.zzz"))
         .arg(msg);
@@ -241,7 +245,8 @@ int main(int argc, char *argv[]) {
     });
 
     // 监听 OCR 完成信号并更新笔记内容 (排除工具箱特有的 ID 9999)
-    QObject::connect(&OCRManager::instance(), &OCRManager::recognitionFinished, [](const QString& text, int noteId){
+    // 必须指定 context 对象 (&DatabaseManager::instance()) 确保回调在正确的线程执行
+    QObject::connect(&OCRManager::instance(), &OCRManager::recognitionFinished, &DatabaseManager::instance(), [](const QString& text, int noteId){
         if (noteId > 0 && noteId != 9999) {
             DatabaseManager::instance().updateNoteState(noteId, "content", text);
         }
