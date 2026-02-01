@@ -39,19 +39,32 @@ void PathAcquisitionWindow::initUI() {
     leftLayout->setContentsMargins(0, 0, 0, 0);
     leftLayout->setSpacing(15);
 
-    // 拖拽提示区
+    // 拖拽提示区 (使用内部布局和自定义 Label 确保在任意高度下都能完美居中)
     m_dropHint = new QToolButton();
-    m_dropHint->setText("投喂文件/文件夹\n(或点击进行浏览)");
-    m_dropHint->setIcon(IconHelper::getIcon("folder", "#888888", 32));
-    m_dropHint->setIconSize(QSize(32, 32));
-    m_dropHint->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-    m_dropHint->setStyleSheet(
-        "QToolButton { color: #888; font-size: 13px; border: 2px dashed #444; border-radius: 8px; background: #181818; padding: 10px; }"
-        "QToolButton:hover { border-color: #555; background: #202020; color: #ccc; }"
-    );
+    m_dropHint->setObjectName("DropZone");
     m_dropHint->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+    auto* dropLayout = new QVBoxLayout(m_dropHint);
+    dropLayout->setContentsMargins(20, 20, 20, 20);
+    dropLayout->setSpacing(15);
+    dropLayout->setAlignment(Qt::AlignCenter);
+
+    m_dropIconLabel = new QLabel();
+    m_dropIconLabel->setAlignment(Qt::AlignCenter);
+    m_dropIconLabel->setFixedSize(48, 48);
+    m_dropIconLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+
+    m_dropTextLabel = new QLabel("投喂文件/文件夹\n(或点击进行浏览)");
+    m_dropTextLabel->setAlignment(Qt::AlignCenter);
+    m_dropTextLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+
+    dropLayout->addWidget(m_dropIconLabel);
+    dropLayout->addWidget(m_dropTextLabel);
+
+    updateDropHintStyle(false); // 初始化样式
+
     connect(m_dropHint, &QToolButton::clicked, this, &PathAcquisitionWindow::onBrowse);
-    leftLayout->addWidget(m_dropHint, 1); // 占据更多空间
+    leftLayout->addWidget(m_dropHint, 1);
 
     // 选项
     m_recursiveCheck = new QCheckBox("递归遍历文件夹\n(包含所有子目录)");
@@ -96,25 +109,42 @@ void PathAcquisitionWindow::initUI() {
     mainLayout->addWidget(rightPanel);
 }
 
+void PathAcquisitionWindow::updateDropHintStyle(bool dragging) {
+    if (dragging) {
+        m_dropHint->setStyleSheet(
+            "QToolButton#DropZone { border: 2px dashed #3a90ff; border-radius: 8px; background-color: rgba(58, 144, 255, 0.05); }"
+        );
+        m_dropIconLabel->setPixmap(IconHelper::getIcon("folder", "#3a90ff", 48).pixmap(48, 48));
+        m_dropTextLabel->setStyleSheet("color: #3a90ff; font-size: 13px; background: transparent; border: none; font-weight: bold;");
+    } else {
+        m_dropHint->setStyleSheet(
+            "QToolButton#DropZone { border: 2px dashed #444; border-radius: 8px; background: #181818; }"
+            "QToolButton#DropZone:hover { border-color: #555; background: #202020; }"
+        );
+        m_dropIconLabel->setPixmap(IconHelper::getIcon("folder", "#888888", 48).pixmap(48, 48));
+        m_dropTextLabel->setStyleSheet("color: #888; font-size: 13px; background: transparent; border: none;");
+    }
+}
+
 void PathAcquisitionWindow::dragEnterEvent(QDragEnterEvent* event) {
     if (event->mimeData()->hasUrls()) {
         event->acceptProposedAction();
-        m_dropHint->setStyleSheet(
-            "QToolButton { color: #3a90ff; font-size: 13px; border: 2px dashed #3a90ff; border-radius: 8px; padding: 10px; background-color: rgba(58, 144, 255, 0.05); }"
-        );
+        updateDropHintStyle(true);
     }
+}
+
+void PathAcquisitionWindow::dragLeaveEvent(QDragLeaveEvent* event) {
+    Q_UNUSED(event);
+    updateDropHintStyle(false);
 }
 
 void PathAcquisitionWindow::dropEvent(QDropEvent* event) {
     const QMimeData* mimeData = event->mimeData();
     if (mimeData->hasUrls()) {
-        m_currentUrls = mimeData->urls(); // 缓存 URL
-        processStoredUrls(); // 处理并生成结果
+        m_currentUrls = mimeData->urls();
+        processStoredUrls();
     }
-    m_dropHint->setStyleSheet(
-        "QToolButton { color: #888; font-size: 13px; border: 2px dashed #444; border-radius: 8px; background: #181818; padding: 10px; }"
-        "QToolButton:hover { border-color: #555; background: #202020; color: #ccc; }"
-    );
+    updateDropHintStyle(false);
 }
 
 void PathAcquisitionWindow::hideEvent(QHideEvent* event) {
