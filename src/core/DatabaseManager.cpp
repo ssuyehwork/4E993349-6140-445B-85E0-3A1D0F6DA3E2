@@ -190,7 +190,11 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
             updateQuery.bindValue(":id", existingId);
             
             if (updateQuery.exec()) {
-                // 触发更新信号而非添加信号，通知 UI 刷新列表顺序
+                success = true; // 复用外部 success 变量
+            }
+
+            if (success) {
+                locker.unlock(); // 提前释放锁
                 emit noteUpdated();
                 return true;
             }
@@ -239,7 +243,6 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
         if (query.exec()) {
             success = true;
             QVariant lastId = query.lastInsertId();
-            syncFts(lastId.toInt(), title, content);
             QSqlQuery fetch(m_db);
             fetch.prepare("SELECT * FROM notes WHERE id = :id");
             fetch.bindValue(":id", lastId);
@@ -255,6 +258,7 @@ bool DatabaseManager::addNote(const QString& title, const QString& content, cons
     }
 
     if (success && !newNoteMap.isEmpty()) {
+        syncFts(newNoteMap["id"].toInt(), title, content);
         emit noteAdded(newNoteMap);
     }
     
@@ -306,25 +310,30 @@ bool DatabaseManager::updateNote(int id, const QString& title, const QString& co
         query.bindValue(":id", id);
         
         success = query.exec();
-        if (success) syncFts(id, title, content);
     }
 
-    if (success) emit noteUpdated();
+    if (success) {
+        syncFts(id, title, content);
+        emit noteUpdated();
+    }
     return success;
 }
 
 bool DatabaseManager::setCategoryPassword(int id, const QString& password, const QString& hint) {
-    QMutexLocker locker(&m_mutex);
-    if (!m_db.isOpen()) return false;
-    
-    QString hashedPassword = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
+    bool success = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
+        
+        QString hashedPassword = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
 
-    QSqlQuery query(m_db);
-    query.prepare("UPDATE categories SET password=:password, password_hint=:hint WHERE id=:id");
-    query.bindValue(":password", hashedPassword);
-    query.bindValue(":hint", hint);
-    query.bindValue(":id", id);
-    bool success = query.exec();
+        QSqlQuery query(m_db);
+        query.prepare("UPDATE categories SET password=:password, password_hint=:hint WHERE id=:id");
+        query.bindValue(":password", hashedPassword);
+        query.bindValue(":hint", hint);
+        query.bindValue(":id", id);
+        success = query.exec();
+    }
     if (success) {
         emit categoriesChanged();
     }
@@ -332,36 +341,46 @@ bool DatabaseManager::setCategoryPassword(int id, const QString& password, const
 }
 
 bool DatabaseManager::removeCategoryPassword(int id) {
-    QMutexLocker locker(&m_mutex);
-    if (!m_db.isOpen()) return false;
-    QSqlQuery query(m_db);
-    query.prepare("UPDATE categories SET password=NULL, password_hint=NULL WHERE id=:id");
-    query.bindValue(":id", id);
-    bool success = query.exec();
+    bool success = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
+        QSqlQuery query(m_db);
+        query.prepare("UPDATE categories SET password=NULL, password_hint=NULL WHERE id=:id");
+        query.bindValue(":id", id);
+        success = query.exec();
+        if (success) {
+            m_unlockedCategories.remove(id);
+        }
+    }
     if (success) {
-        m_unlockedCategories.remove(id);
         emit categoriesChanged();
     }
     return success;
 }
 
 bool DatabaseManager::verifyCategoryPassword(int id, const QString& password) {
-    QMutexLocker locker(&m_mutex);
-    if (!m_db.isOpen()) return false;
+    bool correct = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
 
-    QString hashedPassword = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
+        QString hashedPassword = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
 
-    QSqlQuery query(m_db);
-    query.prepare("SELECT password FROM categories WHERE id=:id");
-    query.bindValue(":id", id);
-    if (query.exec() && query.next()) {
-        QString actualPwd = query.value(0).toString();
-        if (actualPwd == hashedPassword) {
-            unlockCategory(id); // 使用统一解锁方法，确保发出 categoriesChanged 信号
-            return true;
+        QSqlQuery query(m_db);
+        query.prepare("SELECT password FROM categories WHERE id=:id");
+        query.bindValue(":id", id);
+        if (query.exec() && query.next()) {
+            QString actualPwd = query.value(0).toString();
+            if (actualPwd == hashedPassword) {
+                correct = true;
+            }
         }
     }
-    return false;
+    if (correct) {
+        unlockCategory(id); // 使用统一解锁方法，确保发出 categoriesChanged 信号
+    }
+    return correct;
 }
 
 bool DatabaseManager::isCategoryLocked(int id) {
@@ -382,14 +401,18 @@ bool DatabaseManager::isCategoryLocked(int id) {
 }
 
 void DatabaseManager::lockCategory(int id) {
-    QMutexLocker locker(&m_mutex);
-    m_unlockedCategories.remove(id);
+    {
+        QMutexLocker locker(&m_mutex);
+        m_unlockedCategories.remove(id);
+    }
     emit categoriesChanged();
 }
 
 void DatabaseManager::unlockCategory(int id) {
-    QMutexLocker locker(&m_mutex);
-    m_unlockedCategories.insert(id);
+    {
+        QMutexLocker locker(&m_mutex);
+        m_unlockedCategories.insert(id);
+    }
     emit categoriesChanged();
 }
 
@@ -413,6 +436,8 @@ bool DatabaseManager::restoreAllFromTrash() {
 // 【修复核心】防止死锁的 updateNoteState
 bool DatabaseManager::updateNoteState(int id, const QString& column, const QVariant& value) {
     bool success = false;
+    QString title, content;
+    bool needsFts = false;
     QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
     {
         QMutexLocker locker(&m_mutex);
@@ -465,16 +490,21 @@ bool DatabaseManager::updateNoteState(int id, const QString& column, const QVari
         success = query.exec();
         
         if (success && (column == "content" || column == "title")) {
+            needsFts = true;
             QSqlQuery fetch(m_db);
             fetch.prepare("SELECT title, content FROM notes WHERE id = ?");
             fetch.addBindValue(id);
             if (fetch.exec() && fetch.next()) {
-                syncFts(id, fetch.value(0).toString(), fetch.value(1).toString());
+                title = fetch.value(0).toString();
+                content = fetch.value(1).toString();
             }
         }
     } 
 
-    if (success) emit noteUpdated();
+    if (success) {
+        if (needsFts) syncFts(id, title, content);
+        emit noteUpdated();
+    }
     return success;
 }
 
@@ -547,60 +577,63 @@ bool DatabaseManager::moveNoteToCategory(int noteId, int catId) {
 
 bool DatabaseManager::moveNotesToCategory(const QList<int>& noteIds, int catId) {
     if (noteIds.isEmpty()) return true;
-    QMutexLocker locker(&m_mutex);
-    if (!m_db.isOpen()) return false;
+    bool success = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
 
-    m_db.transaction();
-    QString catColor = "#0A362F"; 
-    QString presetTags;
-    if (catId != -1) {
-        QSqlQuery catQuery(m_db);
-        catQuery.prepare("SELECT color, preset_tags FROM categories WHERE id = :id");
-        catQuery.bindValue(":id", catId);
-        if (catQuery.exec() && catQuery.next()) {
-            catColor = catQuery.value(0).toString();
-            presetTags = catQuery.value(1).toString();
+        m_db.transaction();
+        QString catColor = "#0A362F"; 
+        QString presetTags;
+        if (catId != -1) {
+            QSqlQuery catQuery(m_db);
+            catQuery.prepare("SELECT color, preset_tags FROM categories WHERE id = :id");
+            catQuery.bindValue(":id", catId);
+            if (catQuery.exec() && catQuery.next()) {
+                catColor = catQuery.value(0).toString();
+                presetTags = catQuery.value(1).toString();
+            }
         }
-    }
 
-    QSqlQuery query(m_db);
-    query.prepare("UPDATE notes SET category_id = :cat_id, color = :color, is_deleted = 0, updated_at = :now WHERE id = :id");
-    QString now = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
-    
-    for (int id : noteIds) {
-        query.bindValue(":cat_id", catId == -1 ? QVariant() : catId);
-        query.bindValue(":color", catColor);
-        query.bindValue(":now", now);
-        query.bindValue(":id", id);
-        query.exec();
+        QSqlQuery query(m_db);
+        query.prepare("UPDATE notes SET category_id = :cat_id, color = :color, is_deleted = 0, updated_at = :now WHERE id = :id");
+        QString now = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
         
-        if (!presetTags.isEmpty()) {
-            // Apply preset tags (internal without lock)
-            QSqlQuery fetchTags(m_db);
-            fetchTags.prepare("SELECT tags FROM notes WHERE id = :id");
-            fetchTags.bindValue(":id", id);
-            if (fetchTags.exec() && fetchTags.next()) {
-                QString existing = fetchTags.value(0).toString();
-                QStringList tagList = existing.split(",", Qt::SkipEmptyParts);
-                QStringList newTags = presetTags.split(",", Qt::SkipEmptyParts);
-                bool changed = false;
-                for (const QString& t : newTags) {
-                    if (!tagList.contains(t.trimmed())) {
-                        tagList.append(t.trimmed());
-                        changed = true;
+        for (int id : noteIds) {
+            query.bindValue(":cat_id", catId == -1 ? QVariant() : catId);
+            query.bindValue(":color", catColor);
+            query.bindValue(":now", now);
+            query.bindValue(":id", id);
+            query.exec();
+            
+            if (!presetTags.isEmpty()) {
+                // Apply preset tags (internal without lock)
+                QSqlQuery fetchTags(m_db);
+                fetchTags.prepare("SELECT tags FROM notes WHERE id = :id");
+                fetchTags.bindValue(":id", id);
+                if (fetchTags.exec() && fetchTags.next()) {
+                    QString existing = fetchTags.value(0).toString();
+                    QStringList tagList = existing.split(",", Qt::SkipEmptyParts);
+                    QStringList newTags = presetTags.split(",", Qt::SkipEmptyParts);
+                    bool changed = false;
+                    for (const QString& t : newTags) {
+                        if (!tagList.contains(t.trimmed())) {
+                            tagList.append(t.trimmed());
+                            changed = true;
+                        }
                     }
-                }
-                if (changed) {
-                    QSqlQuery updateTags(m_db);
-                    updateTags.prepare("UPDATE notes SET tags = :tags WHERE id = :id");
-                    updateTags.bindValue(":tags", tagList.join(","));
-                    updateTags.bindValue(":id", id);
-                    updateTags.exec();
+                    if (changed) {
+                        QSqlQuery updateTags(m_db);
+                        updateTags.prepare("UPDATE notes SET tags = :tags WHERE id = :id");
+                        updateTags.bindValue(":tags", tagList.join(","));
+                        updateTags.bindValue(":id", id);
+                        updateTags.exec();
+                    }
                 }
             }
         }
+        success = m_db.commit();
     }
-    bool success = m_db.commit();
     if (success) emit noteUpdated();
     return success;
 }
@@ -1007,84 +1040,95 @@ QList<QVariantMap> DatabaseManager::getRecentTagsWithCounts(int limit) {
     return results;
 }
 int DatabaseManager::addCategory(const QString& name, int parentId, const QString& color) {
-    QMutexLocker locker(&m_mutex);
-    if (!m_db.isOpen()) return -1;
+    int lastId = -1;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return -1;
 
-    QString chosenColor = color;
-    if (chosenColor.isEmpty()) {
-        // 使用 Python 版的调色盘
-        static const QStringList palette = {
-            "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD",
-            "#D4A5A5", "#9B59B6", "#3498DB", "#E67E22", "#2ECC71",
-            "#E74C3C", "#F1C40F", "#1ABC9C", "#34495E", "#95A5A6"
-        };
-        chosenColor = palette.at(QRandomGenerator::global()->bounded(palette.size()));
+        QString chosenColor = color;
+        if (chosenColor.isEmpty()) {
+            // 使用 Python 版的调色盘
+            static const QStringList palette = {
+                "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD",
+                "#D4A5A5", "#9B59B6", "#3498DB", "#E67E22", "#2ECC71",
+                "#E74C3C", "#F1C40F", "#1ABC9C", "#34495E", "#95A5A6"
+            };
+            chosenColor = palette.at(QRandomGenerator::global()->bounded(palette.size()));
+        }
+
+        QSqlQuery query(m_db);
+        query.prepare("INSERT INTO categories (name, parent_id, color) VALUES (:name, :parent_id, :color)");
+        query.bindValue(":name", name);
+        query.bindValue(":parent_id", parentId == -1 ? QVariant(QMetaType::fromType<int>()) : parentId);
+        query.bindValue(":color", chosenColor);
+
+        if (query.exec()) {
+            lastId = query.lastInsertId().toInt();
+        }
     }
-
-    QSqlQuery query(m_db);
-    query.prepare("INSERT INTO categories (name, parent_id, color) VALUES (:name, :parent_id, :color)");
-    query.bindValue(":name", name);
-    query.bindValue(":parent_id", parentId == -1 ? QVariant(QMetaType::fromType<int>()) : parentId);
-    query.bindValue(":color", chosenColor);
-
-    if (query.exec()) {
+    if (lastId != -1) {
         emit categoriesChanged();
-        return query.lastInsertId().toInt();
     }
-    return -1;
+    return lastId;
 }
 
 bool DatabaseManager::renameCategory(int id, const QString& name) {
-    QMutexLocker locker(&m_mutex);
-    if (!m_db.isOpen()) return false;
-    QSqlQuery query(m_db);
-    query.prepare("UPDATE categories SET name=:name WHERE id=:id");
-    query.bindValue(":name", name);
-    query.bindValue(":id", id);
-    bool success = query.exec();
+    bool success = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
+        QSqlQuery query(m_db);
+        query.prepare("UPDATE categories SET name=:name WHERE id=:id");
+        query.bindValue(":name", name);
+        query.bindValue(":id", id);
+        success = query.exec();
+    }
     if (success) emit categoriesChanged();
     return success;
 }
 
 bool DatabaseManager::setCategoryColor(int id, const QString& color) {
-    QMutexLocker locker(&m_mutex);
-    if (!m_db.isOpen()) return false;
-    
-    m_db.transaction();
-    QSqlQuery treeQuery(m_db);
-    treeQuery.prepare(R"(
-        WITH RECURSIVE category_tree(id) AS (
-            SELECT :id
-            UNION ALL
-            SELECT c.id FROM categories c JOIN category_tree ct ON c.parent_id = ct.id
-        )
-        SELECT id FROM category_tree
-    )");
-    treeQuery.bindValue(":id", id);
-    
-    QList<int> allIds;
-    if (treeQuery.exec()) {
-        while (treeQuery.next()) allIds << treeQuery.value(0).toInt();
-    }
-    
-    if (!allIds.isEmpty()) {
-        QString placeholders;
-        for(int i=0; i<allIds.size(); ++i) placeholders += (i==0 ? "?" : ",?");
+    bool success = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
         
-        QSqlQuery updateNotes(m_db);
-        updateNotes.prepare(QString("UPDATE notes SET color = ? WHERE category_id IN (%1)").arg(placeholders));
-        updateNotes.addBindValue(color);
-        for(int cid : allIds) updateNotes.addBindValue(cid);
-        updateNotes.exec();
+        m_db.transaction();
+        QSqlQuery treeQuery(m_db);
+        treeQuery.prepare(R"(
+            WITH RECURSIVE category_tree(id) AS (
+                SELECT :id
+                UNION ALL
+                SELECT c.id FROM categories c JOIN category_tree ct ON c.parent_id = ct.id
+            )
+            SELECT id FROM category_tree
+        )");
+        treeQuery.bindValue(":id", id);
         
-        QSqlQuery updateCats(m_db);
-        updateCats.prepare(QString("UPDATE categories SET color = ? WHERE id IN (%1)").arg(placeholders));
-        updateCats.addBindValue(color);
-        for(int cid : allIds) updateCats.addBindValue(cid);
-        updateCats.exec();
+        QList<int> allIds;
+        if (treeQuery.exec()) {
+            while (treeQuery.next()) allIds << treeQuery.value(0).toInt();
+        }
+        
+        if (!allIds.isEmpty()) {
+            QString placeholders;
+            for(int i=0; i<allIds.size(); ++i) placeholders += (i==0 ? "?" : ",?");
+            
+            QSqlQuery updateNotes(m_db);
+            updateNotes.prepare(QString("UPDATE notes SET color = ? WHERE category_id IN (%1)").arg(placeholders));
+            updateNotes.addBindValue(color);
+            for(int cid : allIds) updateNotes.addBindValue(cid);
+            updateNotes.exec();
+            
+            QSqlQuery updateCats(m_db);
+            updateCats.prepare(QString("UPDATE categories SET color = ? WHERE id IN (%1)").arg(placeholders));
+            updateCats.addBindValue(color);
+            for(int cid : allIds) updateCats.addBindValue(cid);
+            updateCats.exec();
+        }
+        
+        success = m_db.commit();
     }
-    
-    bool success = m_db.commit();
     if (success) {
         emit categoriesChanged();
         emit noteUpdated();
@@ -1093,20 +1137,25 @@ bool DatabaseManager::setCategoryColor(int id, const QString& color) {
 }
 
 bool DatabaseManager::deleteCategory(int id) {
-    QMutexLocker locker(&m_mutex);
-    if (!m_db.isOpen()) return false;
-    QSqlQuery query(m_db);
-    query.prepare("DELETE FROM categories WHERE id=:id");
-    query.bindValue(":id", id);
-    if (query.exec()) {
-        QSqlQuery updateNotes(m_db);
-        updateNotes.prepare("UPDATE notes SET category_id = NULL WHERE category_id = :id");
-        updateNotes.bindValue(":id", id);
-        updateNotes.exec();
-        emit categoriesChanged();
-        return true;
+    bool success = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
+        QSqlQuery query(m_db);
+        query.prepare("DELETE FROM categories WHERE id=:id");
+        query.bindValue(":id", id);
+        if (query.exec()) {
+            QSqlQuery updateNotes(m_db);
+            updateNotes.prepare("UPDATE notes SET category_id = NULL WHERE category_id = :id");
+            updateNotes.bindValue(":id", id);
+            updateNotes.exec();
+            success = true;
+        }
     }
-    return false;
+    if (success) {
+        emit categoriesChanged();
+    }
+    return success;
 }
 
 QList<QVariantMap> DatabaseManager::getAllCategories() {
@@ -1140,56 +1189,59 @@ bool DatabaseManager::emptyTrash() {
 }
 
 bool DatabaseManager::setCategoryPresetTags(int catId, const QString& tags) {
-    QMutexLocker locker(&m_mutex);
-    if (!m_db.isOpen()) return false;
-    
-    m_db.transaction();
-    
-    QSqlQuery query(m_db);
-    query.prepare("UPDATE categories SET preset_tags=:tags WHERE id=:id");
-    query.bindValue(":tags", tags);
-    query.bindValue(":id", catId);
-    
-    if (!query.exec()) {
-        m_db.rollback();
-        return false;
-    }
+    bool ok = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
+        
+        m_db.transaction();
+        
+        QSqlQuery query(m_db);
+        query.prepare("UPDATE categories SET preset_tags=:tags WHERE id=:id");
+        query.bindValue(":tags", tags);
+        query.bindValue(":id", catId);
+        
+        if (!query.exec()) {
+            m_db.rollback();
+            return false;
+        }
 
-    // 只要设定了预设标签，旧数据也必须绑定
-    if (!tags.isEmpty()) {
-        QStringList newTagsList = tags.split(",", Qt::SkipEmptyParts);
-        
-        QSqlQuery fetchNotes(m_db);
-        fetchNotes.prepare("SELECT id, tags FROM notes WHERE category_id = :catId AND is_deleted = 0");
-        fetchNotes.bindValue(":catId", catId);
-        
-        if (fetchNotes.exec()) {
-            while (fetchNotes.next()) {
-                int noteId = fetchNotes.value(0).toInt();
-                QString existingTagsStr = fetchNotes.value(1).toString();
-                QStringList existingTags = existingTagsStr.split(",", Qt::SkipEmptyParts);
-                
-                bool changed = false;
-                for (const QString& t : newTagsList) {
-                    QString trimmed = t.trimmed();
-                    if (!trimmed.isEmpty() && !existingTags.contains(trimmed)) {
-                        existingTags.append(trimmed);
-                        changed = true;
+        // 只要设定了预设标签，旧数据也必须绑定
+        if (!tags.isEmpty()) {
+            QStringList newTagsList = tags.split(",", Qt::SkipEmptyParts);
+            
+            QSqlQuery fetchNotes(m_db);
+            fetchNotes.prepare("SELECT id, tags FROM notes WHERE category_id = :catId AND is_deleted = 0");
+            fetchNotes.bindValue(":catId", catId);
+            
+            if (fetchNotes.exec()) {
+                while (fetchNotes.next()) {
+                    int noteId = fetchNotes.value(0).toInt();
+                    QString existingTagsStr = fetchNotes.value(1).toString();
+                    QStringList existingTags = existingTagsStr.split(",", Qt::SkipEmptyParts);
+                    
+                    bool changed = false;
+                    for (const QString& t : newTagsList) {
+                        QString trimmed = t.trimmed();
+                        if (!trimmed.isEmpty() && !existingTags.contains(trimmed)) {
+                            existingTags.append(trimmed);
+                            changed = true;
+                        }
                     }
-                }
-                
-                if (changed) {
-                    QSqlQuery updateNote(m_db);
-                    updateNote.prepare("UPDATE notes SET tags = :tags WHERE id = :id");
-                    updateNote.bindValue(":tags", existingTags.join(","));
-                    updateNote.bindValue(":id", noteId);
-                    updateNote.exec();
+                    
+                    if (changed) {
+                        QSqlQuery updateNote(m_db);
+                        updateNote.prepare("UPDATE notes SET tags = :tags WHERE id = :id");
+                        updateNote.bindValue(":tags", existingTags.join(","));
+                        updateNote.bindValue(":id", noteId);
+                        updateNote.exec();
+                    }
                 }
             }
         }
+        
+        ok = m_db.commit();
     }
-    
-    bool ok = m_db.commit();
     if (ok) {
         emit categoriesChanged();
         emit noteUpdated();
@@ -1385,70 +1437,81 @@ bool DatabaseManager::removeTagFromNote(int noteId, const QString& tag) {
 
 bool DatabaseManager::renameTagGlobally(const QString& oldName, const QString& newName) {
     if (oldName.trimmed().isEmpty() || oldName == newName) return true;
-    QMutexLocker locker(&m_mutex);
-    if (!m_db.isOpen()) return false;
+    bool ok = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
 
-    m_db.transaction();
-    QSqlQuery query(m_db);
-    // 查找包含该标签的所有笔记 (不包括已删除的，或者如果需要也可以包括)
-    query.prepare("SELECT id, tags FROM notes WHERE (',' || tags || ',') LIKE ? AND is_deleted = 0");
-    query.addBindValue("%," + oldName.trimmed() + ",%");
+        m_db.transaction();
+        QSqlQuery query(m_db);
+        // 查找包含该标签的所有笔记 (不包括已删除的，或者如果需要也可以包括)
+        query.prepare("SELECT id, tags FROM notes WHERE (',' || tags || ',') LIKE ? AND is_deleted = 0");
+        query.addBindValue("%," + oldName.trimmed() + ",%");
 
-    if (query.exec()) {
-        while (query.next()) {
-            int noteId = query.value(0).toInt();
-            QString tagsStr = query.value(1).toString();
-            QStringList tagList = tagsStr.split(",", Qt::SkipEmptyParts);
-            for (int i = 0; i < tagList.size(); ++i) {
-                if (tagList[i].trimmed() == oldName.trimmed()) {
-                    tagList[i] = newName.trimmed();
+        if (query.exec()) {
+            while (query.next()) {
+                int noteId = query.value(0).toInt();
+                QString tagsStr = query.value(1).toString();
+                QStringList tagList = tagsStr.split(",", Qt::SkipEmptyParts);
+                for (int i = 0; i < tagList.size(); ++i) {
+                    if (tagList[i].trimmed() == oldName.trimmed()) {
+                        tagList[i] = newName.trimmed();
+                    }
                 }
-            }
-            tagList.removeDuplicates();
+                tagList.removeDuplicates();
 
-            QSqlQuery updateQuery(m_db);
-            updateQuery.prepare("UPDATE notes SET tags = ? WHERE id = ?");
-            updateQuery.addBindValue(tagList.join(","));
-            updateQuery.addBindValue(noteId);
-            updateQuery.exec();
+                QSqlQuery updateQuery(m_db);
+                updateQuery.prepare("UPDATE notes SET tags = ? WHERE id = ?");
+                updateQuery.addBindValue(tagList.join(","));
+                updateQuery.addBindValue(noteId);
+                updateQuery.exec();
+            }
         }
+        ok = m_db.commit();
     }
-    bool ok = m_db.commit();
     if (ok) emit noteUpdated();
     return ok;
 }
 
 bool DatabaseManager::deleteTagGlobally(const QString& tagName) {
     if (tagName.trimmed().isEmpty()) return true;
-    QMutexLocker locker(&m_mutex);
-    if (!m_db.isOpen()) return false;
+    bool ok = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_db.isOpen()) return false;
 
-    m_db.transaction();
-    QSqlQuery query(m_db);
-    query.prepare("SELECT id, tags FROM notes WHERE (',' || tags || ',') LIKE ? AND is_deleted = 0");
-    query.addBindValue("%," + tagName.trimmed() + ",%");
+        m_db.transaction();
+        QSqlQuery query(m_db);
+        query.prepare("SELECT id, tags FROM notes WHERE (',' || tags || ',') LIKE ? AND is_deleted = 0");
+        query.addBindValue("%," + tagName.trimmed() + ",%");
 
-    if (query.exec()) {
-        while (query.next()) {
-            int noteId = query.value(0).toInt();
-            QString tagsStr = query.value(1).toString();
-            QStringList tagList = tagsStr.split(",", Qt::SkipEmptyParts);
-            tagList.removeAll(tagName.trimmed());
+        if (query.exec()) {
+            while (query.next()) {
+                int noteId = query.value(0).toInt();
+                QString tagsStr = query.value(1).toString();
+                QStringList tagList = tagsStr.split(",", Qt::SkipEmptyParts);
+                tagList.removeAll(tagName.trimmed());
 
-            QSqlQuery updateQuery(m_db);
-            updateQuery.prepare("UPDATE notes SET tags = ? WHERE id = ?");
-            updateQuery.addBindValue(tagList.join(","));
-            updateQuery.addBindValue(noteId);
-            updateQuery.exec();
+                QSqlQuery updateQuery(m_db);
+                updateQuery.prepare("UPDATE notes SET tags = ? WHERE id = ?");
+                updateQuery.addBindValue(tagList.join(","));
+                updateQuery.addBindValue(noteId);
+                updateQuery.exec();
+            }
         }
+        ok = m_db.commit();
     }
-    bool ok = m_db.commit();
     if (ok) emit noteUpdated();
     return ok;
 }
 
 void DatabaseManager::syncFts(int id, const QString& title, const QString& content) {
-    // 假设已在锁的作用域内
+    // 1. 在锁外执行高耗时的正则清洗
+    QString plainTitle = title;
+    QString plainContent = stripHtml(content);
+
+    // 2. 重新加锁同步到数据库
+    QMutexLocker locker(&m_mutex);
     QSqlQuery query(m_db);
     query.prepare("DELETE FROM notes_fts WHERE rowid = ?");
     query.addBindValue(id);
@@ -1456,8 +1519,8 @@ void DatabaseManager::syncFts(int id, const QString& title, const QString& conte
 
     query.prepare("INSERT INTO notes_fts(rowid, title, content) VALUES (?, ?, ?)");
     query.addBindValue(id);
-    query.addBindValue(title);
-    query.addBindValue(stripHtml(content));
+    query.addBindValue(plainTitle);
+    query.addBindValue(plainContent);
     query.exec();
 }
 
