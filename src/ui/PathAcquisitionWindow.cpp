@@ -107,8 +107,7 @@ void PathAcquisitionWindow::initUI() {
     connect(m_pathList, &QListWidget::customContextMenuRequested, this, &PathAcquisitionWindow::onShowContextMenu);
     connect(m_pathList, &QListWidget::itemDoubleClicked, this, [](QListWidgetItem* item) {
         QString path = item->text();
-        QString nativePath = QDir::toNativeSeparators(path);
-        QProcess::startDetached("explorer.exe", { "/select," + nativePath });
+        QProcess::startDetached("explorer.exe", { "/select,", QDir::toNativeSeparators(path) });
     });
     rightLayout->addWidget(m_pathList);
 
@@ -188,13 +187,6 @@ void PathAcquisitionWindow::processStoredUrls() {
         }
     }
     
-    if (!paths.isEmpty()) {
-        QToolTip::showText(QCursor::pos(), "已提取 " + QString::number(paths.size()) + " 条路径\n右键可复制或定位", this);
-    } else if (!m_currentUrls.isEmpty()) {
-        // 如果处理了 URL 但没有产出（例如空文件夹），也提示一下
-         QToolTip::showText(QCursor::pos(), "没有找到文件", this);
-    }
-    
     m_pathList->scrollToBottom();
 }
 
@@ -208,26 +200,28 @@ void PathAcquisitionWindow::onShowContextMenu(const QPoint& pos) {
                        "QMenu::item { padding: 6px 10px 6px 10px; border-radius: 3px; } "
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
+    // 复制路径 (Copy Path)
     menu.addAction(IconHelper::getIcon("copy", "#1abc9c", 18), "复制路径", [path]() {
         QApplication::clipboard()->setText(path);
     });
 
+    // 复制文件 (Copy File)
     menu.addAction(IconHelper::getIcon("file", "#3498db", 18), "复制文件", [path]() {
-        QMimeData* mimeData = new QMimeData;
+        QMimeData* data = new QMimeData;
         QList<QUrl> urls;
         urls << QUrl::fromLocalFile(path);
-        mimeData->setUrls(urls);
-        QApplication::clipboard()->setMimeData(mimeData);
+        data->setUrls(urls);
+        QApplication::clipboard()->setMimeData(data);
     });
 
     menu.addSeparator();
 
+    // 定位文件 (Locate File)
     menu.addAction(IconHelper::getIcon("search", "#e67e22", 18), "定位文件", [path]() {
-        QString nativePath = QDir::toNativeSeparators(path);
-        // explorer.exe /select,"path"
-        QProcess::startDetached("explorer.exe", { "/select," + nativePath });
+        QProcess::startDetached("explorer.exe", { "/select,", QDir::toNativeSeparators(path) });
     });
 
+    // 定位文件夹 (Locate Folder)
     menu.addAction(IconHelper::getIcon("folder", "#f1c40f", 18), "定位文件夹", [path]() {
         QFileInfo fi(path);
         QString dirPath = fi.isDir() ? path : fi.absolutePath();
