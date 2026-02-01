@@ -5,9 +5,9 @@
 #include <QLabel>
 #include <QPushButton>
 
-Toolbox::Toolbox(QWidget* parent) : FramelessDialog("工具箱", parent) {
+Toolbox::Toolbox(QWidget* parent) : FramelessDialog("工具箱 (功能已更新)", parent) {
     setObjectName("ToolboxLauncher");
-    setFixedSize(300, 530);
+    setFixedSize(300, 540); // 增加高度以容纳新按钮
 
     initUI();
 }
@@ -48,7 +48,8 @@ void Toolbox::initUI() {
     connect(btnSearchFile, &QPushButton::clicked, this, &Toolbox::showFileSearchRequested);
     contentLayout->addWidget(btnSearchFile);
 
-    auto* btnSearchKeyword = createToolButton("查找关键字", "typesetting", "#3498db");
+    // 关键字搜索工具
+    auto* btnSearchKeyword = createToolButton("查找关键字", "edit", "#3498db");
     connect(btnSearchKeyword, &QPushButton::clicked, this, &Toolbox::showKeywordSearchRequested);
     contentLayout->addWidget(btnSearchKeyword);
 
