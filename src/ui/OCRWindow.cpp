@@ -19,18 +19,16 @@ OCRWindow::OCRWindow(QWidget* parent) : FramelessDialog("文字识别", parent) 
     initUI();
     onClearResults();
     
-    // 初始化处理定时器
-    m_processTimer = new QTimer(this);
-    m_processTimer->setSingleShot(true);
-    connect(m_processTimer, &QTimer::timeout, this, &OCRWindow::processNextImage);
-    
     qDebug() << "[OCR] OCRWindow 初始化完成，使用顺序处理模式";
     
     connect(&OCRManager::instance(), &OCRManager::recognitionFinished, 
-            this, &OCRWindow::onRecognitionFinished, Qt::QueuedConnection);
+            this, &OCRWindow::onRecognitionFinished,
+            static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::UniqueConnection));
 }
 
 OCRWindow::~OCRWindow() {
+    m_processingQueue.clear();
+    m_isProcessing = false;
 }
 
 void OCRWindow::initUI() {
@@ -173,6 +171,7 @@ void OCRWindow::onPasteAndRecognize() {
             item.image = p.first;
             item.name = p.second;
             item.id = ++m_lastUsedId;
+            item.sessionVersion = m_sessionVersion;
             m_items.append(item);
             imgs << p.first;
             qDebug() << "[OCR] 添加任务 ID:" << item.id << "名称:" << item.name;
@@ -211,6 +210,7 @@ void OCRWindow::onBrowseAndRecognize() {
             item.image = img;
             item.name = QFileInfo(file).fileName();
             item.id = ++m_lastUsedId;
+            item.sessionVersion = m_sessionVersion;
             m_items.append(item);
             imgs << img;
             qDebug() << "[OCR] 添加任务 ID:" << item.id << "文件:" << file;
@@ -232,8 +232,7 @@ void OCRWindow::onClearResults() {
     
     m_isProcessing = false;
     m_processingQueue.clear();
-    // 移除定时器相关操作，因为我们不再依赖定时器循环
-    // if (m_processTimer) { m_processTimer->stop(); }
+    m_sessionVersion++; // 递增版本号，使旧的回调失效
     
     m_itemList->clear();
     m_items.clear();
@@ -279,6 +278,7 @@ void OCRWindow::dropEvent(QDropEvent* event) {
             item.image = img;
             item.name = "拖入的图片";
             item.id = ++m_lastUsedId;
+            item.sessionVersion = m_sessionVersion;
             m_items.append(item);
             imgsToProcess << img;
             imageCount++;
@@ -304,6 +304,7 @@ void OCRWindow::dropEvent(QDropEvent* event) {
                     item.image = img;
                     item.name = QFileInfo(path).fileName();
                     item.id = ++m_lastUsedId;
+                    item.sessionVersion = m_sessionVersion;
                     m_items.append(item);
                     imgsToProcess << img;
                     imageCount++;
@@ -326,6 +327,8 @@ void OCRWindow::dropEvent(QDropEvent* event) {
 void OCRWindow::processImages(const QList<QImage>& images) {
     qDebug() << "[OCR] processImages: 添加" << images.size() << "张图片到队列";
     
+    m_processingQueue.clear(); // 清空旧队列
+
     // 将所有图片添加到队列
     int startIdx = m_items.size() - images.size();
     for (int i = 0; i < images.size(); ++i) {
@@ -336,7 +339,7 @@ void OCRWindow::processImages(const QList<QImage>& images) {
     
     // 显示并初始化进度条
     if (m_progressBar && !images.isEmpty()) {
-        m_progressBar->setMaximum(m_items.size());
+        m_progressBar->setMaximum(images.size()); // 仅当前批次
         m_progressBar->setValue(0);
         m_progressBar->show();
     }
@@ -374,7 +377,7 @@ void OCRWindow::processNextImage() {
     if (!item) {
         qDebug() << "[OCR] 错误: 未找到任务 ID:" << taskId;
         // 继续处理下一个
-        QTimer::singleShot(0, this, &OCRWindow::processNextImage);
+        QMetaObject::invokeMethod(this, &OCRWindow::processNextImage, Qt::QueuedConnection);
         return;
     }
     
@@ -436,14 +439,21 @@ void OCRWindow::onRecognitionFinished(const QString& text, int contextId) {
         }
     }
     
-    updateRightDisplay();
+    // 延迟到主线程更新UI
+    QMetaObject::invokeMethod(this, &OCRWindow::updateRightDisplay, Qt::QueuedConnection);
     
-    // 处理下一个任务
+    // 延迟到下一个事件循环处理任务，避免栈溢出
     qDebug() << "[OCR] 当前任务完成，准备处理下一个";
-    QTimer::singleShot(0, this, &OCRWindow::processNextImage);
+    QMetaObject::invokeMethod(this, &OCRWindow::processNextImage, Qt::QueuedConnection);
 }
 
 void OCRWindow::updateRightDisplay() {
+    // 确保在主线程执行
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, &OCRWindow::updateRightDisplay, Qt::QueuedConnection);
+        return;
+    }
+
     qDebug() << "[OCR] updateRightDisplay: 开始更新显示 线程:" << QThread::currentThread();
     
     if (!m_itemList) {
