@@ -52,6 +52,9 @@ private slots:
     // 视图切换
     void switchView(const QString& value);
 
+    // 右键菜单
+    void showColorContextMenu(const QString& colorHex, const QPoint& globalPos);
+
     // 图片处理
     void processImage(const QString& filePath, const QImage& image = QImage());
     void pasteImage();
@@ -113,6 +116,7 @@ private:
 
     // 状态
     QString m_currentColor = "#D64260";
+    QString m_currentImagePath = "";
     QStringList m_favorites;
     QFrame* m_notification = nullptr;
 };

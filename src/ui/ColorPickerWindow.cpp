@@ -97,6 +97,8 @@ protected:
 
     void paintEvent(QPaintEvent*) override {
         QPainter p(this);
+        // 关键修复：填充一个近乎透明的背景以拦截鼠标事件，防止穿透到下层窗口
+        p.fillRect(rect(), QColor(0, 0, 0, 1));
         p.setRenderHint(QPainter::Antialiasing);
 
         if (m_flashTimer > 0) {
@@ -1130,6 +1132,7 @@ void ColorPickerWindow::extractFromImage() {
 }
 
 void ColorPickerWindow::processImage(const QString& filePath, const QImage& image) {
+    m_currentImagePath = filePath;
     QImage img = image;
     if (img.isNull() && !filePath.isEmpty()) {
         img.load(filePath);
@@ -1295,16 +1298,68 @@ bool ColorPickerWindow::eventFilter(QObject* watched, QEvent* event) {
                 QApplication::clipboard()->setText(color);
                 showNotification("已应用并复制 " + color);
             } else if (me->button() == Qt::RightButton) {
-                addSpecificColorToFavorites(color);
+                showColorContextMenu(color, me->globalPosition().toPoint());
             }
             return true;
         } else if (watched == m_colorLabel) {
             if (me->button() == Qt::LeftButton) copyHexValue();
-            else if (me->button() == Qt::RightButton) addToFavorites();
+            else if (me->button() == Qt::RightButton) showColorContextMenu(m_currentColor, me->globalPosition().toPoint());
             return true;
         }
     }
     return FramelessDialog::eventFilter(watched, event);
+}
+
+void ColorPickerWindow::showColorContextMenu(const QString& colorHex, const QPoint& globalPos) {
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                       "QMenu::item { padding: 6px 20px 6px 10px; border-radius: 3px; } "
+                       "QMenu::item:selected { background-color: #4a90e2; color: white; }");
+
+    menu.addAction(IconHelper::getIcon("copy", "#1abc9c", 18), "复制 HEX 代码", [this, colorHex]() {
+        QApplication::clipboard()->setText(colorHex);
+        showNotification("已复制 HEX: " + colorHex);
+    });
+
+    QColor c(colorHex);
+    QString rgb = QString("rgb(%1, %2, %3)").arg(c.red()).arg(c.green()).arg(c.blue());
+    menu.addAction(IconHelper::getIcon("copy", "#3498db", 18), "复制 RGB 代码", [this, rgb]() {
+        QApplication::clipboard()->setText(rgb);
+        showNotification("已复制 RGB: " + rgb);
+    });
+
+    menu.addAction(IconHelper::getIcon("star", "#f1c40f", 18), "收藏此颜色", [this, colorHex]() {
+        addSpecificColorToFavorites(colorHex);
+    });
+
+    if (!m_currentImagePath.isEmpty() && m_stack->currentWidget() == m_extractScroll) {
+        menu.addSeparator();
+        QString path = m_currentImagePath;
+
+        menu.addAction(IconHelper::getIcon("link", "#9b59b6", 18), "复制图片路径", [this, path]() {
+            QApplication::clipboard()->setText(path);
+            showNotification("已复制路径");
+        });
+
+        menu.addAction(IconHelper::getIcon("file", "#34495e", 18), "复制图片文件", [path]() {
+            QMimeData* data = new QMimeData;
+            QList<QUrl> urls;
+            urls << QUrl::fromLocalFile(path);
+            data->setUrls(urls);
+            QApplication::clipboard()->setMimeData(data);
+        });
+
+        menu.addAction(IconHelper::getIcon("search", "#e67e22", 18), "定位图片文件", [path]() {
+            QProcess::startDetached("explorer.exe", { "/select,", QDir::toNativeSeparators(path) });
+        });
+
+        menu.addAction(IconHelper::getIcon("folder", "#f39c12", 18), "定位文件夹", [path]() {
+            QFileInfo fi(path);
+            QDesktopServices::openUrl(QUrl::fromLocalFile(fi.absolutePath()));
+        });
+    }
+
+    menu.exec(globalPos);
 }
 
 QString ColorPickerWindow::rgbToHex(int r, int g, int b) { return QColor(r, g, b).name().toUpper(); }
