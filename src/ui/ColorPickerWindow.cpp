@@ -195,20 +195,20 @@ protected:
         p.drawRect(colorRect);
 
         p.setPen(Qt::white);
+        p.setRenderHint(QPainter::TextAntialiasing);
         QFont font = p.font();
         font.setBold(true);
         font.setPixelSize(14);
         p.setFont(font);
-        p.drawText(infoRect.left() + 45, infoRect.top() + 20, m_currentColorHex);
+        // HEX 文本，调整垂直位置
+        p.drawText(infoRect.left() + 45, infoRect.top() + 22, m_currentColorHex);
 
         font.setPixelSize(11);
         font.setBold(false);
         p.setFont(font);
         QString rgbText = QString("RGB: %1, %2, %3").arg(centerColor.red()).arg(centerColor.green()).arg(centerColor.blue());
-        p.drawText(infoRect.left() + 45, infoRect.top() + 38, rgbText);
-
-        p.setPen(Qt::gray);
-        p.drawText(infoRect.right() - 85, infoRect.top() + 38, QString("(%1, %2)").arg(globalPos.x()).arg(globalPos.y()));
+        // RGB 文本，移除了坐标显示以防止重叠
+        p.drawText(infoRect.left() + 45, infoRect.top() + 40, rgbText);
 
         // 绘制准星
         p.setPen(QPen(Qt::black, 3));
