@@ -39,19 +39,33 @@ void PathAcquisitionWindow::initUI() {
     leftLayout->setContentsMargins(0, 0, 0, 0);
     leftLayout->setSpacing(15);
 
-    // 拖拽提示区
+    // 拖拽提示区 (使用内部布局和自定义 Label 确保在任意高度下都能完美居中)
     m_dropHint = new QToolButton();
-    m_dropHint->setText("投喂文件/文件夹\n(或点击进行浏览)");
-    m_dropHint->setIcon(IconHelper::getIcon("folder", "#888888", 32));
-    m_dropHint->setIconSize(QSize(32, 32));
-    m_dropHint->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-    m_dropHint->setStyleSheet(
-        "QToolButton { color: #888; font-size: 13px; border: 2px dashed #444; border-radius: 8px; background: #181818; padding: 10px; }"
-        "QToolButton:hover { border-color: #555; background: #202020; color: #ccc; }"
-    );
+    m_dropHint->setObjectName("DropZone");
     m_dropHint->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    
+    auto* dropLayout = new QVBoxLayout(m_dropHint);
+    dropLayout->setContentsMargins(20, 20, 20, 20);
+    dropLayout->setSpacing(15);
+
+    m_dropIconLabel = new QLabel();
+    m_dropIconLabel->setAlignment(Qt::AlignCenter);
+    m_dropIconLabel->setFixedSize(48, 48);
+    m_dropIconLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+
+    m_dropTextLabel = new QLabel("投喂文件/文件夹\n(或点击进行浏览)");
+    m_dropTextLabel->setAlignment(Qt::AlignCenter);
+    m_dropTextLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+
+    dropLayout->addStretch();
+    dropLayout->addWidget(m_dropIconLabel, 0, Qt::AlignCenter);
+    dropLayout->addWidget(m_dropTextLabel, 0, Qt::AlignCenter);
+    dropLayout->addStretch();
+
+    updateDropHintStyle(false); // 初始化样式
+    
     connect(m_dropHint, &QToolButton::clicked, this, &PathAcquisitionWindow::onBrowse);
-    leftLayout->addWidget(m_dropHint, 1); // 占据更多空间
+    leftLayout->addWidget(m_dropHint, 1);
 
     // 选项
     m_recursiveCheck = new QCheckBox("递归遍历文件夹\n(包含所有子目录)");
@@ -90,31 +104,53 @@ void PathAcquisitionWindow::initUI() {
                               "QListWidget::item { padding: 4px; border-bottom: 1px solid #2d2d2d; } "
                               "QListWidget::item:selected { background-color: #3E3E42; color: #FFF; }");
     m_pathList->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_pathList->setCursor(Qt::PointingHandCursor);
     connect(m_pathList, &QListWidget::customContextMenuRequested, this, &PathAcquisitionWindow::onShowContextMenu);
+    connect(m_pathList, &QListWidget::itemDoubleClicked, this, [](QListWidgetItem* item) {
+        QString path = item->text();
+        QProcess::startDetached("explorer.exe", { "/select,", QDir::toNativeSeparators(path) });
+    });
     rightLayout->addWidget(m_pathList);
 
     mainLayout->addWidget(rightPanel);
 }
 
+void PathAcquisitionWindow::updateDropHintStyle(bool dragging) {
+    if (dragging) {
+        m_dropHint->setStyleSheet(
+            "QToolButton#DropZone { border: 2px dashed #3a90ff; border-radius: 8px; background-color: rgba(58, 144, 255, 0.05); }"
+        );
+        m_dropIconLabel->setPixmap(IconHelper::getIcon("folder", "#3a90ff", 48).pixmap(48, 48));
+        m_dropTextLabel->setStyleSheet("color: #3a90ff; font-size: 13px; background: transparent; border: none; font-weight: bold;");
+    } else {
+        m_dropHint->setStyleSheet(
+            "QToolButton#DropZone { border: 2px dashed #444; border-radius: 8px; background: #181818; }"
+            "QToolButton#DropZone:hover { border-color: #555; background: #202020; }"
+        );
+        m_dropIconLabel->setPixmap(IconHelper::getIcon("folder", "#888888", 48).pixmap(48, 48));
+        m_dropTextLabel->setStyleSheet("color: #888; font-size: 13px; background: transparent; border: none;");
+    }
+}
+
 void PathAcquisitionWindow::dragEnterEvent(QDragEnterEvent* event) {
     if (event->mimeData()->hasUrls()) {
         event->acceptProposedAction();
-        m_dropHint->setStyleSheet(
-            "QToolButton { color: #3a90ff; font-size: 13px; border: 2px dashed #3a90ff; border-radius: 8px; padding: 10px; background-color: rgba(58, 144, 255, 0.05); }"
-        );
+        updateDropHintStyle(true);
     }
+}
+
+void PathAcquisitionWindow::dragLeaveEvent(QDragLeaveEvent* event) {
+    Q_UNUSED(event);
+    updateDropHintStyle(false);
 }
 
 void PathAcquisitionWindow::dropEvent(QDropEvent* event) {
     const QMimeData* mimeData = event->mimeData();
     if (mimeData->hasUrls()) {
-        m_currentUrls = mimeData->urls(); // 缓存 URL
-        processStoredUrls(); // 处理并生成结果
+        m_currentUrls = mimeData->urls();
+        processStoredUrls();
     }
-    m_dropHint->setStyleSheet(
-        "QToolButton { color: #888; font-size: 13px; border: 2px dashed #444; border-radius: 8px; background: #181818; padding: 10px; }"
-        "QToolButton:hover { border-color: #555; background: #202020; color: #ccc; }"
-    );
+    updateDropHintStyle(false);
 }
 
 void PathAcquisitionWindow::hideEvent(QHideEvent* event) {
@@ -152,13 +188,6 @@ void PathAcquisitionWindow::processStoredUrls() {
         }
     }
     
-    if (!paths.isEmpty()) {
-        QToolTip::showText(QCursor::pos(), "已提取 " + QString::number(paths.size()) + " 条路径\n右键可复制或定位", this);
-    } else if (!m_currentUrls.isEmpty()) {
-        // 如果处理了 URL 但没有产出（例如空文件夹），也提示一下
-         QToolTip::showText(QCursor::pos(), "没有找到文件", this);
-    }
-    
     m_pathList->scrollToBottom();
 }
 
@@ -172,26 +201,28 @@ void PathAcquisitionWindow::onShowContextMenu(const QPoint& pos) {
                        "QMenu::item { padding: 6px 10px 6px 10px; border-radius: 3px; } "
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
+    // 复制路径 (Copy Path)
     menu.addAction(IconHelper::getIcon("copy", "#1abc9c", 18), "复制路径", [path]() {
         QApplication::clipboard()->setText(path);
     });
 
+    // 复制文件 (Copy File)
     menu.addAction(IconHelper::getIcon("file", "#3498db", 18), "复制文件", [path]() {
-        QMimeData* mimeData = new QMimeData;
+        QMimeData* data = new QMimeData;
         QList<QUrl> urls;
         urls << QUrl::fromLocalFile(path);
-        mimeData->setUrls(urls);
-        QApplication::clipboard()->setMimeData(mimeData);
+        data->setUrls(urls);
+        QApplication::clipboard()->setMimeData(data);
     });
 
     menu.addSeparator();
 
+    // 定位文件 (Locate File)
     menu.addAction(IconHelper::getIcon("search", "#e67e22", 18), "定位文件", [path]() {
-        QString nativePath = QDir::toNativeSeparators(path);
-        // explorer.exe /select,"path"
-        QProcess::startDetached("explorer.exe", { "/select," + nativePath });
+        QProcess::startDetached("explorer.exe", { "/select,", QDir::toNativeSeparators(path) });
     });
 
+    // 定位文件夹 (Locate Folder)
     menu.addAction(IconHelper::getIcon("folder", "#f1c40f", 18), "定位文件夹", [path]() {
         QFileInfo fi(path);
         QString dirPath = fi.isDir() ? path : fi.absolutePath();

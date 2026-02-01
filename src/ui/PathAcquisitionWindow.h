@@ -19,14 +19,18 @@ public:
 
 protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragLeaveEvent(QDragLeaveEvent* event) override;
     void dropEvent(QDropEvent* event) override;
     void hideEvent(QHideEvent* event) override;
 
 private:
     void initUI();
+    void updateDropHintStyle(bool dragging);
 
     QListWidget* m_pathList;
     QToolButton* m_dropHint;
+    QLabel* m_dropIconLabel;
+    QLabel* m_dropTextLabel;
     QCheckBox* m_recursiveCheck;
     QPoint m_dragPos;
     

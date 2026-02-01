@@ -19,6 +19,9 @@
 #include <QTimer>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QMenu>
+#include <QProcess>
+#include <QDesktopServices>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -44,7 +47,7 @@
 #endif
 
 // ----------------------------------------------------------------------------
-// ScreenColorPickerOverlay: 屏幕取色器 (完全重构版)
+// ScreenColorPickerOverlay: 屏幕取色器 (PowerToys 风格，零闪烁稳定版)
 // ----------------------------------------------------------------------------
 class ScreenColorPickerOverlay : public QWidget {
     Q_OBJECT
@@ -52,20 +55,30 @@ public:
     explicit ScreenColorPickerOverlay(std::function<void(QString)> callback, QWidget* parent = nullptr) 
         : QWidget(nullptr), m_callback(callback) 
     {
-        setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool | Qt::WindowDoesNotAcceptFocus);
-        setAttribute(Qt::WA_TranslucentBackground);
-        setAttribute(Qt::WA_NoSystemBackground);
+        setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
         setAttribute(Qt::WA_DeleteOnClose);
+        setAttribute(Qt::WA_NoSystemBackground);
         
+        // 1. 立即捕捉所有屏幕
         QRect totalRect;
         const auto screens = QGuiApplication::screens();
         for (QScreen* screen : screens) {
             totalRect = totalRect.united(screen->geometry());
         }
         setGeometry(totalRect);
+
+        // 创建大尺寸画布并捕捉
+        m_fullCapture = QPixmap(totalRect.size());
+        QPainter p(&m_fullCapture);
+        for (QScreen* screen : screens) {
+            p.drawPixmap(screen->geometry().topLeft() - totalRect.topLeft(), screen->grabWindow(0));
+        }
+        p.end();
+
         setCursor(Qt::BlankCursor);
         setMouseTracking(true);
         
+        // 16ms 刷新率，仅用于同步鼠标位置绘制
         QTimer* timer = new QTimer(this);
         connect(timer, &QTimer::timeout, this, QOverload<>::of(&ScreenColorPickerOverlay::update));
         timer->start(16);
@@ -81,9 +94,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
             if (m_callback) m_callback(m_currentColorHex);
-            // 增加视觉反馈：闪烁一下
-            m_flashTimer = 5; 
-            update();
+            cancelPicker(); // 选中后立即关闭，符合 PowerToys 体验
         } else if (event->button() == Qt::RightButton) {
             cancelPicker();
         }
@@ -97,46 +108,42 @@ protected:
 
     void paintEvent(QPaintEvent*) override {
         QPainter p(this);
-        p.setRenderHint(QPainter::Antialiasing);
-
-        if (m_flashTimer > 0) {
-            p.fillRect(rect(), QColor(255, 255, 255, 40));
-            m_flashTimer--;
-            QTimer::singleShot(30, this, QOverload<>::of(&ScreenColorPickerOverlay::update));
-        }
-        p.setRenderHint(QPainter::TextAntialiasing);
-
+        // 2. 绘制静态背景，彻底消除实时截屏导致的闪烁和延迟
+        p.drawPixmap(0, 0, m_fullCapture);
+        
         QPoint globalPos = QCursor::pos();
-        QScreen *screen = QGuiApplication::screenAt(globalPos);
-        if (!screen) return;
-
-        int grabRadius = 8;
-        int grabSize = grabRadius * 2 + 1;
-
-        int screenX = globalPos.x() - screen->geometry().x();
-        int screenY = globalPos.y() - screen->geometry().y();
-
-        QPixmap capture = screen->grabWindow(0, screenX - grabRadius, screenY - grabRadius, grabSize, grabSize);
-        QImage img = capture.toImage();
-
+        QPoint localPos = mapFromGlobal(globalPos);
+        
+        // 获取相对于捕捉图像的坐标 (考虑多显示器偏移)
+        QPoint capturePos = globalPos - geometry().topLeft();
+        
+        // 获取中心颜色 (使用缓存的 QImage 提高性能)
+        if (m_cachedImage.isNull()) m_cachedImage = m_fullCapture.toImage();
+        
         QColor centerColor = Qt::black;
-        if (img.width() > 0 && img.height() > 0) {
-            int cx = qMin(grabRadius, img.width()/2);
-            int cy = qMin(grabRadius, img.height()/2);
-            centerColor = img.pixelColor(cx, cy);
+        if (capturePos.x() >= 0 && capturePos.x() < m_cachedImage.width() && 
+            capturePos.y() >= 0 && capturePos.y() < m_cachedImage.height()) {
+            centerColor = m_cachedImage.pixelColor(capturePos.x(), capturePos.y());
         }
         m_currentColorHex = centerColor.name().toUpper();
 
+        // 绘制放大镜
+        int grabRadius = 8;
+        int grabSize = grabRadius * 2 + 1;
         int lensSize = 160; 
-        QPoint localPos = mapFromGlobal(globalPos);
         
         int lensX = localPos.x() + 25;
         int lensY = localPos.y() + 25;
-        
         if (lensX + lensSize > width()) lensX = localPos.x() - lensSize - 25;
         if (lensY + lensSize > height()) lensY = localPos.y() - lensSize - 25;
 
         QRect lensRect(lensX, lensY, lensSize, lensSize);
+        p.setRenderHint(QPainter::Antialiasing);
+
+        // 镜头背景阴影
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(0, 0, 0, 150));
+        p.drawRoundedRect(lensRect.adjusted(3, 3, 3, 3), 10, 10);
 
         QPainterPath path;
         path.addRoundedRect(lensRect, 10, 10);
@@ -144,33 +151,41 @@ protected:
         p.setPen(QPen(QColor(100, 100, 100), 2));
         p.drawPath(path);
 
+        // 绘制像素网格
         p.save();
         p.setClipRect(lensRect.adjusted(2, 2, -2, -50)); 
         
         int blockSize = lensSize / grabSize; 
-        int drawStartX = lensX + (lensSize - img.width() * blockSize) / 2;
-        int drawStartY = lensY + (lensSize - img.height() * blockSize) / 2;
+        int drawStartX = lensX + (lensSize - grabSize * blockSize) / 2;
+        int drawStartY = lensY + (lensSize - grabSize * blockSize) / 2;
 
-        for(int y=0; y<img.height(); ++y) {
-            for(int x=0; x<img.width(); ++x) {
-                p.fillRect(drawStartX + x * blockSize, drawStartY + y * blockSize, blockSize, blockSize, img.pixelColor(x,y));
-                p.setPen(QPen(QColor(0,0,0, 40), 1));
-                p.drawRect(drawStartX + x * blockSize, drawStartY + y * blockSize, blockSize, blockSize);
+        for(int y = -grabRadius; y <= grabRadius; ++y) {
+            for(int x = -grabRadius; x <= grabRadius; ++x) {
+                int px = capturePos.x() + x;
+                int py = capturePos.y() + y;
+                QColor c = Qt::black;
+                if (px >= 0 && px < m_cachedImage.width() && py >= 0 && py < m_cachedImage.height()) {
+                    c = m_cachedImage.pixelColor(px, py);
+                }
+                
+                int targetX = drawStartX + (x + grabRadius) * blockSize;
+                int targetY = drawStartY + (y + grabRadius) * blockSize;
+                p.fillRect(targetX, targetY, blockSize, blockSize, c);
+                p.setPen(QPen(QColor(255, 255, 255, 20), 1));
+                p.drawRect(targetX, targetY, blockSize, blockSize);
             }
         }
         
-        int centerX = drawStartX + (img.width()/2) * blockSize;
-        int centerY = drawStartY + (img.height()/2) * blockSize;
+        // 中心红框指示
+        int centerX = drawStartX + grabRadius * blockSize;
+        int centerY = drawStartY + grabRadius * blockSize;
         p.setPen(QPen(Qt::red, 2));
-        p.setBrush(Qt::NoBrush);
         p.drawRect(centerX, centerY, blockSize, blockSize);
-        p.setPen(QPen(Qt::white, 1)); 
-        p.drawRect(centerX-1, centerY-1, blockSize+2, blockSize+2);
         p.restore();
 
+        // 信息栏
         QRect infoRect = lensRect;
         infoRect.setTop(lensRect.bottom() - 50);
-        
         p.setPen(QPen(QColor(60, 60, 60), 1));
         p.drawLine(infoRect.left(), infoRect.top(), infoRect.right(), infoRect.top());
 
@@ -180,21 +195,22 @@ protected:
         p.drawRect(colorRect);
 
         p.setPen(Qt::white);
+        p.setRenderHint(QPainter::TextAntialiasing);
         QFont font = p.font();
         font.setBold(true);
         font.setPixelSize(14);
         p.setFont(font);
-        p.drawText(infoRect.left() + 45, infoRect.top() + 20, m_currentColorHex);
+        // HEX 文本，调整垂直位置
+        p.drawText(infoRect.left() + 45, infoRect.top() + 22, m_currentColorHex);
 
         font.setPixelSize(11);
         font.setBold(false);
         p.setFont(font);
         QString rgbText = QString("RGB: %1, %2, %3").arg(centerColor.red()).arg(centerColor.green()).arg(centerColor.blue());
-        p.drawText(infoRect.left() + 45, infoRect.top() + 38, rgbText);
+        // RGB 文本，移除了坐标显示以防止重叠
+        p.drawText(infoRect.left() + 45, infoRect.top() + 40, rgbText);
 
-        p.setPen(Qt::gray);
-        p.drawText(infoRect.right() - 85, infoRect.top() + 38, QString("(%1, %2)").arg(globalPos.x()).arg(globalPos.y()));
-
+        // 绘制准星
         p.setPen(QPen(Qt::black, 3));
         int cl = 15; 
         p.drawLine(localPos.x() - cl, localPos.y(), localPos.x() - 4, localPos.y());
@@ -210,7 +226,6 @@ protected:
     }
 
 private:
-    int m_flashTimer = 0;
     void cancelPicker() {
         releaseMouse();
         releaseKeyboard();
@@ -219,6 +234,8 @@ private:
 
     std::function<void(QString)> m_callback;
     QString m_currentColorHex = "#FFFFFF";
+    QPixmap m_fullCapture;
+    QImage m_cachedImage;
 };
 
 // ----------------------------------------------------------------------------
@@ -1130,6 +1147,7 @@ void ColorPickerWindow::extractFromImage() {
 }
 
 void ColorPickerWindow::processImage(const QString& filePath, const QImage& image) {
+    m_currentImagePath = filePath;
     QImage img = image;
     if (img.isNull() && !filePath.isEmpty()) {
         img.load(filePath);
@@ -1295,16 +1313,68 @@ bool ColorPickerWindow::eventFilter(QObject* watched, QEvent* event) {
                 QApplication::clipboard()->setText(color);
                 showNotification("已应用并复制 " + color);
             } else if (me->button() == Qt::RightButton) {
-                addSpecificColorToFavorites(color);
+                showColorContextMenu(color, me->globalPosition().toPoint());
             }
             return true;
         } else if (watched == m_colorLabel) {
             if (me->button() == Qt::LeftButton) copyHexValue();
-            else if (me->button() == Qt::RightButton) addToFavorites();
+            else if (me->button() == Qt::RightButton) showColorContextMenu(m_currentColor, me->globalPosition().toPoint());
             return true;
         }
     }
     return FramelessDialog::eventFilter(watched, event);
+}
+
+void ColorPickerWindow::showColorContextMenu(const QString& colorHex, const QPoint& globalPos) {
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                       "QMenu::item { padding: 6px 20px 6px 10px; border-radius: 3px; } "
+                       "QMenu::item:selected { background-color: #4a90e2; color: white; }");
+
+    menu.addAction(IconHelper::getIcon("copy", "#1abc9c", 18), "复制 HEX 代码", [this, colorHex]() {
+        QApplication::clipboard()->setText(colorHex);
+        showNotification("已复制 HEX: " + colorHex);
+    });
+
+    QColor c(colorHex);
+    QString rgb = QString("rgb(%1, %2, %3)").arg(c.red()).arg(c.green()).arg(c.blue());
+    menu.addAction(IconHelper::getIcon("copy", "#3498db", 18), "复制 RGB 代码", [this, rgb]() {
+        QApplication::clipboard()->setText(rgb);
+        showNotification("已复制 RGB: " + rgb);
+    });
+
+    menu.addAction(IconHelper::getIcon("star", "#f1c40f", 18), "收藏此颜色", [this, colorHex]() {
+        addSpecificColorToFavorites(colorHex);
+    });
+
+    if (!m_currentImagePath.isEmpty() && m_stack->currentWidget() == m_extractScroll) {
+        menu.addSeparator();
+        QString path = m_currentImagePath;
+        
+        menu.addAction(IconHelper::getIcon("link", "#9b59b6", 18), "复制图片路径", [this, path]() {
+            QApplication::clipboard()->setText(path);
+            showNotification("已复制路径");
+        });
+
+        menu.addAction(IconHelper::getIcon("file", "#34495e", 18), "复制图片文件", [path]() {
+            QMimeData* data = new QMimeData;
+            QList<QUrl> urls;
+            urls << QUrl::fromLocalFile(path);
+            data->setUrls(urls);
+            QApplication::clipboard()->setMimeData(data);
+        });
+
+        menu.addAction(IconHelper::getIcon("search", "#e67e22", 18), "定位图片文件", [path]() {
+            QProcess::startDetached("explorer.exe", { "/select,", QDir::toNativeSeparators(path) });
+        });
+
+        menu.addAction(IconHelper::getIcon("folder", "#f39c12", 18), "定位文件夹", [path]() {
+            QFileInfo fi(path);
+            QDesktopServices::openUrl(QUrl::fromLocalFile(fi.absolutePath()));
+        });
+    }
+
+    menu.exec(globalPos);
 }
 
 QString ColorPickerWindow::rgbToHex(int r, int g, int b) { return QColor(r, g, b).name().toUpper(); }
