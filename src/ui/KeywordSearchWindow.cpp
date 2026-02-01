@@ -15,6 +15,209 @@
 #include <QMessageBox>
 #include <QSettings>
 #include <QMenu>
+#include <QGraphicsDropShadowEffect>
+#include <QPropertyAnimation>
+#include <QScrollArea>
+
+// ----------------------------------------------------------------------------
+// KeywordSearchHistory 相关辅助类 (复刻 FileSearchHistoryPopup 逻辑)
+// ----------------------------------------------------------------------------
+class KeywordChip : public QFrame {
+    Q_OBJECT
+public:
+    KeywordChip(const QString& text, QWidget* parent = nullptr) : QFrame(parent), m_text(text) {
+        setAttribute(Qt::WA_StyledBackground);
+        setCursor(Qt::PointingHandCursor);
+        setObjectName("KeywordChip");
+
+        auto* layout = new QHBoxLayout(this);
+        layout->setContentsMargins(10, 6, 10, 6);
+        layout->setSpacing(10);
+
+        auto* lbl = new QLabel(text);
+        lbl->setStyleSheet("border: none; background: transparent; color: #DDD; font-size: 13px;");
+        layout->addWidget(lbl);
+        layout->addStretch();
+
+        auto* btnDel = new QPushButton();
+        btnDel->setIcon(IconHelper::getIcon("close", "#666", 16));
+        btnDel->setIconSize(QSize(10, 10));
+        btnDel->setFixedSize(16, 16);
+        btnDel->setCursor(Qt::PointingHandCursor);
+        btnDel->setStyleSheet(
+            "QPushButton { background-color: transparent; border-radius: 4px; padding: 0px; }"
+            "QPushButton:hover { background-color: #E74C3C; }"
+        );
+
+        connect(btnDel, &QPushButton::clicked, this, [this](){ emit deleted(m_text); });
+        layout->addWidget(btnDel);
+
+        setStyleSheet(
+            "#KeywordChip { background-color: transparent; border: none; border-radius: 4px; }"
+            "#KeywordChip:hover { background-color: #3E3E42; }"
+        );
+    }
+
+    void mousePressEvent(QMouseEvent* e) override {
+        if(e->button() == Qt::LeftButton) emit clicked(m_text);
+        QFrame::mousePressEvent(e);
+    }
+
+signals:
+    void clicked(const QString& text);
+    void deleted(const QString& text);
+private:
+    QString m_text;
+};
+
+class KeywordSearchHistoryPopup : public QWidget {
+    Q_OBJECT
+public:
+    enum Type { Path, Keyword };
+
+    explicit KeywordSearchHistoryPopup(KeywordSearchWindow* window, QLineEdit* edit, Type type)
+        : QWidget(window->window(), Qt::Popup | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
+    {
+        m_window = window;
+        m_edit = edit;
+        m_type = type;
+        setAttribute(Qt::WA_TranslucentBackground);
+
+        auto* rootLayout = new QVBoxLayout(this);
+        rootLayout->setContentsMargins(12, 12, 12, 12);
+
+        auto* container = new QFrame();
+        container->setObjectName("PopupContainer");
+        container->setStyleSheet(
+            "#PopupContainer { background-color: #252526; border: 1px solid #444; border-radius: 10px; }"
+        );
+        rootLayout->addWidget(container);
+
+        auto* shadow = new QGraphicsDropShadowEffect(container);
+        shadow->setBlurRadius(20); shadow->setXOffset(0); shadow->setYOffset(5);
+        shadow->setColor(QColor(0, 0, 0, 120));
+        container->setGraphicsEffect(shadow);
+
+        auto* layout = new QVBoxLayout(container);
+        layout->setContentsMargins(12, 12, 12, 12);
+        layout->setSpacing(10);
+
+        auto* top = new QHBoxLayout();
+        auto* icon = new QLabel();
+        icon->setPixmap(IconHelper::getIcon("clock", "#888").pixmap(14, 14));
+        icon->setStyleSheet("border: none; background: transparent;");
+        top->addWidget(icon);
+
+        auto* title = new QLabel(m_type == Path ? "最近扫描路径" : "最近查找内容");
+        title->setStyleSheet("color: #888; font-weight: bold; font-size: 11px; background: transparent; border: none;");
+        top->addWidget(title);
+        top->addStretch();
+        auto* clearBtn = new QPushButton("清空");
+        clearBtn->setCursor(Qt::PointingHandCursor);
+        clearBtn->setStyleSheet("QPushButton { background: transparent; color: #666; border: none; font-size: 11px; } QPushButton:hover { color: #E74C3C; }");
+        connect(clearBtn, &QPushButton::clicked, [this](){
+            clearAllHistory();
+            refreshUI();
+        });
+        top->addWidget(clearBtn);
+        layout->addLayout(top);
+
+        auto* scroll = new QScrollArea();
+        scroll->setWidgetResizable(true);
+        scroll->setStyleSheet(
+            "QScrollArea { background-color: transparent; border: none; }"
+            "QScrollArea > QWidget > QWidget { background-color: transparent; }"
+        );
+        scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+        m_chipsWidget = new QWidget();
+        m_chipsWidget->setStyleSheet("background-color: transparent;");
+        m_vLayout = new QVBoxLayout(m_chipsWidget);
+        m_vLayout->setContentsMargins(0, 0, 0, 0);
+        m_vLayout->setSpacing(2);
+        m_vLayout->addStretch();
+        scroll->setWidget(m_chipsWidget);
+        layout->addWidget(scroll);
+
+        m_opacityAnim = new QPropertyAnimation(this, "windowOpacity");
+        m_opacityAnim->setDuration(200);
+    }
+
+    void clearAllHistory() {
+        QString key = (m_type == Path) ? "pathList" : "keywordList";
+        QSettings settings("RapidNotes", "KeywordSearchHistory");
+        settings.setValue(key, QStringList());
+    }
+
+    void removeEntry(const QString& text) {
+        QString key = (m_type == Path) ? "pathList" : "keywordList";
+        QSettings settings("RapidNotes", "KeywordSearchHistory");
+        QStringList history = settings.value(key).toStringList();
+        history.removeAll(text);
+        settings.setValue(key, history);
+    }
+
+    QStringList getHistory() const {
+        QString key = (m_type == Path) ? "pathList" : "keywordList";
+        QSettings settings("RapidNotes", "KeywordSearchHistory");
+        return settings.value(key).toStringList();
+    }
+
+    void refreshUI() {
+        QLayoutItem* item;
+        while ((item = m_vLayout->takeAt(0))) {
+            if(item->widget()) item->widget()->deleteLater();
+            delete item;
+        }
+        m_vLayout->addStretch();
+
+        QStringList history = getHistory();
+        if(history.isEmpty()) {
+            auto* lbl = new QLabel("暂无历史记录");
+            lbl->setAlignment(Qt::AlignCenter);
+            lbl->setStyleSheet("color: #555; font-style: italic; margin: 20px; border: none;");
+            m_vLayout->insertWidget(0, lbl);
+        } else {
+            for(const QString& val : history) {
+                auto* chip = new KeywordChip(val);
+                chip->setFixedHeight(32);
+                connect(chip, &KeywordChip::clicked, this, [this](const QString& v){
+                    m_edit->setText(v);
+                    close();
+                });
+                connect(chip, &KeywordChip::deleted, this, [this](const QString& v){
+                    removeEntry(v);
+                    refreshUI();
+                });
+                m_vLayout->insertWidget(m_vLayout->count() - 1, chip);
+            }
+        }
+
+        int targetWidth = m_edit->width();
+        int contentHeight = qMin(410, (int)history.size() * 34 + 60);
+        resize(targetWidth + 24, contentHeight);
+    }
+
+    void showAnimated() {
+        refreshUI();
+        QPoint pos = m_edit->mapToGlobal(QPoint(0, m_edit->height()));
+        move(pos.x() - 12, pos.y() - 7);
+        setWindowOpacity(0);
+        show();
+        m_opacityAnim->setStartValue(0);
+        m_opacityAnim->setEndValue(1);
+        m_opacityAnim->start();
+    }
+
+private:
+    KeywordSearchWindow* m_window;
+    QLineEdit* m_edit;
+    Type m_type;
+    QWidget* m_chipsWidget;
+    QVBoxLayout* m_vLayout;
+    QPropertyAnimation* m_opacityAnim;
+};
 
 KeywordSearchWindow::KeywordSearchWindow(QWidget* parent) : FramelessDialog("查找关键字", parent) {
     resize(900, 700);
@@ -448,58 +651,17 @@ void KeywordSearchWindow::addHistoryEntry(HistoryType type, const QString& text)
     settings.setValue(key, history);
 }
 
-QStringList KeywordSearchWindow::getHistory(HistoryType type) const {
-    QString key = (type == Path) ? "pathList" : "keywordList";
-    QSettings settings("RapidNotes", "KeywordSearchHistory");
-    return settings.value(key).toStringList();
-}
-
-void KeywordSearchWindow::removeHistoryEntry(HistoryType type, const QString& text) {
-    QString key = (type == Path) ? "pathList" : "keywordList";
-    QSettings settings("RapidNotes", "KeywordSearchHistory");
-    QStringList history = settings.value(key).toStringList();
-    history.removeAll(text);
-    settings.setValue(key, history);
-}
-
-void KeywordSearchWindow::clearHistory(HistoryType type) {
-    QString key = (type == Path) ? "pathList" : "keywordList";
-    QSettings settings("RapidNotes", "KeywordSearchHistory");
-    settings.setValue(key, QStringList());
-}
 
 void KeywordSearchWindow::onShowHistory() {
     auto* edit = qobject_cast<ClickableLineEdit*>(sender());
     if (!edit) return;
 
-    HistoryType type = (edit == m_pathEdit) ? Path : Keyword;
-    QStringList history = getHistory(type);
+    KeywordSearchHistoryPopup::Type type = (edit == m_pathEdit) ?
+        KeywordSearchHistoryPopup::Path : KeywordSearchHistoryPopup::Keyword;
 
-    QMenu menu(this);
-    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
-                       "QMenu::item { padding: 6px 12px; border-radius: 3px; } "
-                       "QMenu::item:selected { background-color: #007ACC; color: white; }");
-
-    if (history.isEmpty()) {
-        QAction* empty = menu.addAction("暂无历史记录");
-        empty->setEnabled(false);
-    } else {
-        for (const QString& item : history) {
-            QAction* act = menu.addAction(item);
-            connect(act, &QAction::triggered, this, [edit, item]() {
-                edit->setText(item);
-            });
-
-            // 增加一个右键或小按钮删除单个记录（菜单里不好做，暂时简单点，只做点击填入）
-            // 如果需要完全复刻 FileSearchHistoryPopup，代码量会很大。
-            // 鉴于用户说“如同‘查找文件’里的双击输入框显示历史记录”，我应该尽量贴近。
-        }
-        menu.addSeparator();
-        QAction* clearAct = menu.addAction(IconHelper::getIcon("trash", "#F44336", 14), "清空历史记录");
-        connect(clearAct, &QAction::triggered, this, [this, type]() {
-            clearHistory(type);
-        });
-    }
-
-    menu.exec(edit->mapToGlobal(QPoint(0, edit->height())));
+    auto* popup = new KeywordSearchHistoryPopup(this, edit, type);
+    popup->setAttribute(Qt::WA_DeleteOnClose);
+    popup->showAnimated();
 }
+
+#include "KeywordSearchWindow.moc"

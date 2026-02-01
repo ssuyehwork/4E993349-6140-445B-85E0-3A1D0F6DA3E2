@@ -35,9 +35,6 @@ private:
     // 历史记录管理
     enum HistoryType { Path, Keyword };
     void addHistoryEntry(HistoryType type, const QString& text);
-    QStringList getHistory(HistoryType type) const;
-    void removeHistoryEntry(HistoryType type, const QString& text);
-    void clearHistory(HistoryType type);
     bool isTextFile(const QString& filePath);
     void log(const QString& msg, const QString& type = "info");
     void highlightResult(const QString& keyword);
