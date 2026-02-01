@@ -35,6 +35,8 @@ void TagManagerWindow::initUI() {
 
     // Table
     m_tagTable = new QTableWidget(0, 2);
+    m_tagTable->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_tagTable->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_tagTable->setHorizontalHeaderLabels({"标签名称", "使用次数"});
     m_tagTable->horizontalHeader()->setStretchLastSection(false);
     m_tagTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);

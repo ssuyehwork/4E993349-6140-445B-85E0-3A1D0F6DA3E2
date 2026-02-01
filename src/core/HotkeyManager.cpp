@@ -1,6 +1,7 @@
 #include "HotkeyManager.h"
 #include <QCoreApplication>
 #include <QDebug>
+#include <QSettings>
 
 HotkeyManager& HotkeyManager::instance() {
     static HotkeyManager inst;
@@ -36,6 +37,30 @@ void HotkeyManager::unregisterHotkey(int id) {
 #ifdef Q_OS_WIN
     UnregisterHotKey(nullptr, id);
 #endif
+}
+
+void HotkeyManager::reapplyHotkeys() {
+    QSettings hotkeys("RapidNotes", "Hotkeys");
+    
+    // 注销旧热键
+    unregisterHotkey(1);
+    unregisterHotkey(2);
+    unregisterHotkey(3);
+    
+    // 注册新热键（带默认值）
+    uint q_mods = hotkeys.value("quickWin_mods", 0x0001).toUInt();  // Alt
+    uint q_vk   = hotkeys.value("quickWin_vk", 0x20).toUInt();     // Space
+    registerHotkey(1, q_mods, q_vk);
+    
+    uint f_mods = hotkeys.value("favorite_mods", 0x0002 | 0x0004).toUInt(); // Ctrl+Shift
+    uint f_vk   = hotkeys.value("favorite_vk", 0x45).toUInt();              // E
+    registerHotkey(2, f_mods, f_vk);
+    
+    uint s_mods = hotkeys.value("screenshot_mods", 0x0002 | 0x0001).toUInt(); // Ctrl+Alt
+    uint s_vk   = hotkeys.value("screenshot_vk", 0x41).toUInt();               // A
+    registerHotkey(3, s_mods, s_vk);
+    
+    qDebug() << "[HotkeyManager] 热键配置已更新。";
 }
 
 bool HotkeyManager::nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) {

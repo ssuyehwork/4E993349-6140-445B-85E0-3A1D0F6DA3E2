@@ -128,7 +128,7 @@ public:
             "QScrollArea { background-color: transparent; border: none; }"
             "QScrollArea > QWidget > QWidget { background-color: transparent; }"
         );
-        scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
         m_chipsWidget = new QWidget();
@@ -332,6 +332,8 @@ void KeywordSearchWindow::initUI() {
 
     // --- 日志展示区域 ---
     m_logDisplay = new QTextBrowser();
+    m_logDisplay->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_logDisplay->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_logDisplay->setReadOnly(true);
     m_logDisplay->setUndoRedoEnabled(false);
     m_logDisplay->setOpenLinks(false);

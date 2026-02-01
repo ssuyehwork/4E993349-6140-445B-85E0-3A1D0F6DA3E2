@@ -797,7 +797,7 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
         auto* scroll = new QScrollArea();
         scroll->setWidgetResizable(true);
         scroll->setFrameShape(QFrame::NoFrame);
-        scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         content = new QWidget();
         content->setStyleSheet("background: transparent;");

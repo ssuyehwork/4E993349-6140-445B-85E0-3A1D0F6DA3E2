@@ -15,6 +15,7 @@ public:
     
     bool registerHotkey(int id, uint modifiers, uint vk);
     void unregisterHotkey(int id);
+    void reapplyHotkeys();
 
     bool nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) override;
 

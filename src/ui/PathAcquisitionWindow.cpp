@@ -100,6 +100,8 @@ void PathAcquisitionWindow::initUI() {
     rightLayout->addWidget(listLabel);
 
     m_pathList = new QListWidget(this);
+    m_pathList->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_pathList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_pathList->setStyleSheet("QListWidget { background-color: #252526; border: 1px solid #333; border-radius: 6px; color: #AAA; padding: 5px; font-size: 12px; outline: none; } "
                               "QListWidget::item { padding: 4px; border-bottom: 1px solid #2d2d2d; } "
                               "QListWidget::item:selected { background-color: #3E3E42; color: #FFF; }");

@@ -88,6 +88,8 @@ void OCRWindow::initUI() {
     middleLayout->addWidget(listLabel);
 
     m_itemList = new QListWidget();
+    m_itemList->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_itemList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_itemList->setStyleSheet(
         "QListWidget { background: #222; border: 1px solid #333; border-radius: 4px; color: #ddd; }"
         "QListWidget::item { height: 32px; padding-left: 5px; }"
@@ -119,6 +121,8 @@ void OCRWindow::initUI() {
     rightLayout->addWidget(m_progressBar);
 
     m_ocrResult = new QTextEdit();
+    m_ocrResult->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_ocrResult->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_ocrResult->setReadOnly(true);
     m_ocrResult->setPlaceholderText("选择左侧项目查看识别结果...");
     m_ocrResult->setStyleSheet("QTextEdit { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #eee; font-size: 13px; padding: 10px; line-height: 1.4; }");

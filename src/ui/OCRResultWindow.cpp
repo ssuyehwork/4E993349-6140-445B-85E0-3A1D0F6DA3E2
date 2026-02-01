@@ -31,6 +31,8 @@ OCRResultWindow::OCRResultWindow(const QImage& image, QWidget* parent)
     layout->setSpacing(12);
 
     m_textEdit = new QPlainTextEdit();
+    m_textEdit->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_textEdit->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_textEdit->setPlaceholderText("正在识别中...");
     m_textEdit->setStyleSheet(R"(
         QPlainTextEdit {

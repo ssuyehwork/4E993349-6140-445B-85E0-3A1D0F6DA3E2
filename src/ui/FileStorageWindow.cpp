@@ -45,6 +45,8 @@ void FileStorageWindow::initUI() {
 
     // Status List
     m_statusList = new QListWidget();
+    m_statusList->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_statusList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_statusList->setStyleSheet("QListWidget { background-color: #252526; border: 1px solid #333; border-radius: 6px; color: #BBB; padding: 5px; font-size: 11px; } "
                                 "QListWidget::item { padding: 4px; border-bottom: 1px solid #2d2d2d; }");
     contentLayout->addWidget(m_statusList);
