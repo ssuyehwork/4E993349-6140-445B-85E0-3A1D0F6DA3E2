@@ -200,13 +200,8 @@ int main(int argc, char *argv[]) {
     // 5. 开启全局键盘钩子 (支持快捷键重映射)
     KeyboardHook::instance().start();
 
-    // 6. 注册全局热键
-    // Alt+Space (0x0001 = MOD_ALT, 0x20 = VK_SPACE)
-    HotkeyManager::instance().registerHotkey(1, 0x0001, 0x20);
-    // Ctrl+Shift+E (0x0002 = MOD_CONTROL, 0x0004 = MOD_SHIFT, 0x45 = 'E')
-    HotkeyManager::instance().registerHotkey(2, 0x0002 | 0x0004, 0x45);
-    // Ctrl+Alt+A (0x0002 = MOD_CONTROL, 0x0001 = MOD_ALT, 0x41 = 'A')
-    HotkeyManager::instance().registerHotkey(3, 0x0002 | 0x0001, 0x41);
+    // 6. 注册全局热键 (从配置加载)
+    HotkeyManager::instance().reapplyHotkeys();
     
     QObject::connect(&HotkeyManager::instance(), &HotkeyManager::hotkeyPressed, [&](int id){
         if (id == 1) {

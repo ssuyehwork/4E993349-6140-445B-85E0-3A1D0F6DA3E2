@@ -10,15 +10,68 @@
 #include <QLineEdit>
 #include <QToolTip>
 
+#include <QKeyEvent>
+#include "../core/HotkeyManager.h"
+
+// --- HotkeyEdit 辅助类 ---
+class HotkeyEdit : public QLineEdit {
+    Q_OBJECT
+public:
+    HotkeyEdit(QWidget* parent = nullptr) : QLineEdit(parent) {
+        setReadOnly(true);
+        setAlignment(Qt::AlignCenter);
+        setPlaceholderText("按下快捷键组合...");
+        setStyleSheet("background-color: #1e1e1e; border: 1px solid #333; color: #3b8ed0; font-weight: bold; padding: 4px; border-radius: 4px;");
+    }
+
+    void setHotkey(uint mods, uint vk, const QString& display) {
+        m_mods = mods;
+        m_vk = vk;
+        setText(display);
+    }
+
+    uint getMods() const { return m_mods; }
+    uint getVk() const { return m_vk; }
+
+protected:
+    void keyPressEvent(QKeyEvent* event) override {
+        int key = event->key();
+        if (key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Alt || key == Qt::Key_Meta || key == Qt::Key_CapsLock) {
+            return;
+        }
+
+        uint mods = 0;
+        QStringList modStrings;
+        if (event->modifiers() & Qt::ControlModifier) { mods |= 0x0002; modStrings << "Ctrl"; }
+        if (event->modifiers() & Qt::AltModifier) { mods |= 0x0001; modStrings << "Alt"; }
+        if (event->modifiers() & Qt::ShiftModifier) { mods |= 0x0004; modStrings << "Shift"; }
+        if (event->modifiers() & Qt::MetaModifier) { mods |= 0x0008; modStrings << "Win"; }
+
+        // 至少需要一个修饰符，或者 F1-F12
+        if (mods == 0 && (key < Qt::Key_F1 || key > Qt::Key_F12)) return;
+
+        m_mods = mods;
+        m_vk = event->nativeVirtualKey();
+
+        QString keyName = QKeySequence(key).toString();
+        modStrings << keyName;
+        setText(modStrings.join(" + "));
+    }
+
+private:
+    uint m_mods = 0;
+    uint m_vk = 0;
+};
+
 SettingsWindow::SettingsWindow(QWidget* parent) : FramelessDialog("系统设置", parent) {
-    setFixedSize(450, 400);
+    setFixedSize(450, 500);
     initSettingsUI();
 }
 
 void SettingsWindow::initSettingsUI() {
     auto* layout = new QVBoxLayout(m_contentArea);
-    layout->setContentsMargins(20, 20, 20, 20);
-    layout->setSpacing(20);
+    layout->setContentsMargins(20, 15, 20, 15);
+    layout->setSpacing(15);
 
     // 1. 密码管理部分
     auto* pwdGroup = new QGroupBox("安全设置", m_contentArea);
@@ -54,36 +107,73 @@ void SettingsWindow::initSettingsUI() {
     pwdLayout->addWidget(btnRemove);
     layout->addWidget(pwdGroup);
 
-    // 2. 快捷键设置部分 (目前仅展示，或实现简单的显示)
-    auto* hkGroup = new QGroupBox("全局快捷键 (当前仅供查看)", m_contentArea);
-    hkGroup->setStyleSheet("QGroupBox { color: #aaa; font-weight: bold; border: 1px solid #444; border-radius: 8px; margin-top: 10px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 3px; }");
+    // 2. 快捷键设置部分
+    auto* hkGroup = new QGroupBox("全局快捷键", m_contentArea);
+    hkGroup->setStyleSheet("QGroupBox { color: #aaa; font-weight: bold; border: 1px solid #444; border-radius: 8px; margin-top: 5px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 3px; }");
     auto* hkLayout = new QFormLayout(hkGroup);
     hkLayout->setLabelAlignment(Qt::AlignRight);
+    hkLayout->setVerticalSpacing(12);
 
-    auto addHkRow = [&](const QString& label, const QString& current) {
-        auto* edit = new QLineEdit(current);
-        edit->setReadOnly(true);
-        edit->setStyleSheet("background-color: #1e1e1e; border: 1px solid #333; color: #888; padding: 4px; border-radius: 4px;");
-        hkLayout->addRow(label, edit);
-    };
+    QSettings hotkeys("RapidNotes", "Hotkeys");
 
-    addHkRow("激活极速窗口:", "Alt + Space");
-    addHkRow("快速收藏/加星:", "Ctrl + Shift + E");
-    addHkRow("屏幕截图识别:", "Ctrl + Alt + A");
+    m_hkQuickWin = new HotkeyEdit();
+    m_hkQuickWin->setHotkey(hotkeys.value("quickWin_mods", 0x0001).toUInt(),
+                            hotkeys.value("quickWin_vk", 0x20).toUInt(),
+                            hotkeys.value("quickWin_display", "Alt + Space").toString());
+
+    m_hkFavorite = new HotkeyEdit();
+    m_hkFavorite->setHotkey(hotkeys.value("favorite_mods", 0x0002 | 0x0004).toUInt(),
+                             hotkeys.value("favorite_vk", 0x45).toUInt(),
+                             hotkeys.value("favorite_display", "Ctrl + Shift + E").toString());
+
+    m_hkScreenshot = new HotkeyEdit();
+    m_hkScreenshot->setHotkey(hotkeys.value("screenshot_mods", 0x0002 | 0x0001).toUInt(),
+                               hotkeys.value("screenshot_vk", 0x41).toUInt(),
+                               hotkeys.value("screenshot_display", "Ctrl + Alt + A").toString());
+
+    hkLayout->addRow("激活极速窗口:", m_hkQuickWin);
+    hkLayout->addRow("快速收藏/加星:", m_hkFavorite);
+    hkLayout->addRow("屏幕截图识别:", m_hkScreenshot);
 
     layout->addWidget(hkGroup);
     layout->addStretch();
 
-    // 底部关闭按钮
+    // 底部按钮
     auto* bottomLayout = new QHBoxLayout();
     bottomLayout->addStretch();
+
+    auto* btnSave = new QPushButton("保存设置");
+    btnSave->setFixedSize(100, 32);
+    btnSave->setAutoDefault(false);
+    btnSave->setStyleSheet("QPushButton { background-color: #2cc985; color: white; border: none; border-radius: 4px; font-weight: bold; } QPushButton:hover { background-color: #229c67; }");
+    connect(btnSave, &QPushButton::clicked, this, &SettingsWindow::saveHotkeys);
+    bottomLayout->addWidget(btnSave);
+
     auto* btnClose = new QPushButton("关闭");
-    btnClose->setFixedSize(80, 30);
+    btnClose->setFixedSize(80, 32);
     btnClose->setAutoDefault(false);
-    btnClose->setStyleSheet("QPushButton { background-color: #4a90e2; color: white; border: none; border-radius: 4px; } QPushButton:hover { background-color: #357abd; }");
+    btnClose->setStyleSheet("QPushButton { background-color: #444; color: white; border: none; border-radius: 4px; } QPushButton:hover { background-color: #555; }");
     connect(btnClose, &QPushButton::clicked, this, &QDialog::accept);
     bottomLayout->addWidget(btnClose);
+
     layout->addLayout(bottomLayout);
+}
+
+void SettingsWindow::saveHotkeys() {
+    QSettings hotkeys("RapidNotes", "Hotkeys");
+
+    auto saveOne = [&](const QString& prefix, HotkeyEdit* edit) {
+        hotkeys.setValue(prefix + "_mods", edit->getMods());
+        hotkeys.setValue(prefix + "_vk", edit->getVk());
+        hotkeys.setValue(prefix + "_display", edit->text());
+    };
+
+    saveOne("quickWin", qobject_cast<HotkeyEdit*>(m_hkQuickWin));
+    saveOne("favorite", qobject_cast<HotkeyEdit*>(m_hkFavorite));
+    saveOne("screenshot", qobject_cast<HotkeyEdit*>(m_hkScreenshot));
+
+    HotkeyManager::instance().reapplyHotkeys();
+    QMessageBox::information(this, "成功", "设置已保存并立即生效。");
 }
 
 void SettingsWindow::handleSetPassword() {
