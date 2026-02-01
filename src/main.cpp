@@ -198,12 +198,31 @@ int main(int argc, char *argv[]) {
     KeyboardHook::instance().start();
 
     // 6. 注册全局热键
-    // Alt+Space (0x0001 = MOD_ALT, 0x20 = VK_SPACE)
-    HotkeyManager::instance().registerHotkey(1, 0x0001, 0x20);
-    // Ctrl+Shift+E (0x0002 = MOD_CONTROL, 0x0004 = MOD_SHIFT, 0x45 = 'E')
-    HotkeyManager::instance().registerHotkey(2, 0x0002 | 0x0004, 0x45);
-    // Ctrl+Alt+A (0x0002 = MOD_CONTROL, 0x0001 = MOD_ALT, 0x41 = 'A')
-    HotkeyManager::instance().registerHotkey(3, 0x0002 | 0x0001, 0x41);
+    auto registerAllHotkeys = [&]() {
+        QSettings hkSettings("RapidNotes", "Hotkeys");
+
+        // ID 1: QuickWindow (Default Alt+Space: 0x01, 0x20)
+        HotkeyManager::instance().unregisterHotkey(1);
+        uint qwMods = hkSettings.value("QuickWinMods", 0x0001).toUInt();
+        uint qwVk = hkSettings.value("QuickWinVk", 0x20).toUInt();
+        if (qwVk != 0) HotkeyManager::instance().registerHotkey(1, qwMods, qwVk);
+
+        // ID 2: Favorite (Default Ctrl+Shift+E: 0x02|0x04, 0x45)
+        HotkeyManager::instance().unregisterHotkey(2);
+        uint favMods = hkSettings.value("FavoriteMods", 0x0002 | 0x0004).toUInt();
+        uint favVk = hkSettings.value("FavoriteVk", 0x45).toUInt();
+        if (favVk != 0) HotkeyManager::instance().registerHotkey(2, favMods, favVk);
+
+        // ID 3: Screenshot (Default Ctrl+Alt+A: 0x02|0x01, 0x41)
+        HotkeyManager::instance().unregisterHotkey(3);
+        uint ssMods = hkSettings.value("ScreenshotMods", 0x0002 | 0x0001).toUInt();
+        uint ssVk = hkSettings.value("ScreenshotVk", 0x41).toUInt();
+        if (ssVk != 0) HotkeyManager::instance().registerHotkey(3, ssMods, ssVk);
+
+        qDebug() << "[Main] 热键重新注册完成";
+    };
+
+    registerAllHotkeys();
     
     QObject::connect(&HotkeyManager::instance(), &HotkeyManager::hotkeyPressed, [&](int id){
         if (id == 1) {
@@ -270,6 +289,10 @@ int main(int argc, char *argv[]) {
     QObject::connect(tray, &SystemTray::showSettings, [=](){
         SettingsWindow* settingsWin = new SettingsWindow();
         settingsWin->setAttribute(Qt::WA_DeleteOnClose);
+        // 当设置窗口保存并应用时，立即更新全局热键
+        QObject::connect(settingsWin, &QDialog::accepted, [=](){
+            registerAllHotkeys();
+        });
         settingsWin->show();
     });
     QObject::connect(tray, &SystemTray::quitApp, &a, &QApplication::quit);
