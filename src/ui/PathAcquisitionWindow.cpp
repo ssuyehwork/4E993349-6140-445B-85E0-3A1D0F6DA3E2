@@ -16,6 +16,7 @@
 #include <QAction>
 #include <QProcess>
 #include <QDesktopServices>
+#include <QFileDialog>
 
 PathAcquisitionWindow::PathAcquisitionWindow(QWidget* parent) : FramelessDialog("路径提取", parent) {
     setAcceptDrops(true);
@@ -39,13 +40,17 @@ void PathAcquisitionWindow::initUI() {
     leftLayout->setSpacing(15);
 
     // 拖拽提示区
-    m_dropHint = new QLabel("📁 投喂文件/文件夹\n(自动提取路径)");
-    m_dropHint->setAlignment(Qt::AlignCenter);
+    m_dropHint = new QToolButton();
+    m_dropHint->setText("投喂文件/文件夹\n(或点击进行浏览)");
+    m_dropHint->setIcon(IconHelper::getIcon("folder", "#888888", 32));
+    m_dropHint->setIconSize(QSize(32, 32));
+    m_dropHint->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
     m_dropHint->setStyleSheet(
-        "QLabel { color: #888; font-size: 13px; border: 2px dashed #444; border-radius: 8px; background: #181818; }"
-        "QLabel:hover { border-color: #555; background: #202020; }"
+        "QToolButton { color: #888; font-size: 13px; border: 2px dashed #444; border-radius: 8px; background: #181818; padding: 10px; }"
+        "QToolButton:hover { border-color: #555; background: #202020; color: #ccc; }"
     );
-    // m_dropHint->setFixedHeight(120); // 让它自适应或者固定高度
+    m_dropHint->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    connect(m_dropHint, &QToolButton::clicked, this, &PathAcquisitionWindow::onBrowse);
     leftLayout->addWidget(m_dropHint, 1); // 占据更多空间
 
     // 选项
@@ -94,7 +99,9 @@ void PathAcquisitionWindow::initUI() {
 void PathAcquisitionWindow::dragEnterEvent(QDragEnterEvent* event) {
     if (event->mimeData()->hasUrls()) {
         event->acceptProposedAction();
-        m_dropHint->setStyleSheet("color: #3a90ff; font-size: 12px; border: 2px dashed #3a90ff; border-radius: 8px; padding: 10px; background-color: rgba(58, 144, 255, 0.05);");
+        m_dropHint->setStyleSheet(
+            "QToolButton { color: #3a90ff; font-size: 13px; border: 2px dashed #3a90ff; border-radius: 8px; padding: 10px; background-color: rgba(58, 144, 255, 0.05); }"
+        );
     }
 }
 
@@ -104,7 +111,16 @@ void PathAcquisitionWindow::dropEvent(QDropEvent* event) {
         m_currentUrls = mimeData->urls(); // 缓存 URL
         processStoredUrls(); // 处理并生成结果
     }
-    m_dropHint->setStyleSheet("QLabel { color: #888; font-size: 13px; border: 2px dashed #444; border-radius: 8px; background: #181818; } QLabel:hover { border-color: #555; background: #202020; }");
+    m_dropHint->setStyleSheet(
+        "QToolButton { color: #888; font-size: 13px; border: 2px dashed #444; border-radius: 8px; background: #181818; padding: 10px; }"
+        "QToolButton:hover { border-color: #555; background: #202020; color: #ccc; }"
+    );
+}
+
+void PathAcquisitionWindow::hideEvent(QHideEvent* event) {
+    m_currentUrls.clear();
+    m_pathList->clear();
+    FramelessDialog::hideEvent(event);
 }
 
 void PathAcquisitionWindow::processStoredUrls() {
@@ -137,10 +153,10 @@ void PathAcquisitionWindow::processStoredUrls() {
     }
     
     if (!paths.isEmpty()) {
-        QToolTip::showText(QCursor::pos(), "✅ 已提取 " + QString::number(paths.size()) + " 条路径\n右键可复制或定位", this);
+        QToolTip::showText(QCursor::pos(), "已提取 " + QString::number(paths.size()) + " 条路径\n右键可复制或定位", this);
     } else if (!m_currentUrls.isEmpty()) {
         // 如果处理了 URL 但没有产出（例如空文件夹），也提示一下
-         QToolTip::showText(QCursor::pos(), "⚠️ 没有找到文件", this);
+         QToolTip::showText(QCursor::pos(), "没有找到文件", this);
     }
     
     m_pathList->scrollToBottom();
@@ -185,3 +201,31 @@ void PathAcquisitionWindow::onShowContextMenu(const QPoint& pos) {
     menu.exec(m_pathList->mapToGlobal(pos));
 }
 
+void PathAcquisitionWindow::onBrowse() {
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                       "QMenu::item { padding: 6px 10px 6px 10px; border-radius: 3px; } "
+                       "QMenu::item:selected { background-color: #4a90e2; color: white; }");
+
+    menu.addAction(IconHelper::getIcon("file", "#3498db", 18), "选择文件", [this]() {
+        QStringList filePaths = QFileDialog::getOpenFileNames(this, "选择文件", "", "所有文件 (*.*)");
+        if (!filePaths.isEmpty()) {
+            m_currentUrls.clear();
+            for (const QString& path : filePaths) {
+                m_currentUrls << QUrl::fromLocalFile(path);
+            }
+            processStoredUrls();
+        }
+    });
+
+    menu.addAction(IconHelper::getIcon("folder", "#f1c40f", 18), "选择文件夹", [this]() {
+        QString dirPath = QFileDialog::getExistingDirectory(this, "选择文件夹", "");
+        if (!dirPath.isEmpty()) {
+            m_currentUrls.clear();
+            m_currentUrls << QUrl::fromLocalFile(dirPath);
+            processStoredUrls();
+        }
+    });
+
+    menu.exec(QCursor::pos());
+}
