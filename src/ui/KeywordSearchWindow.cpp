@@ -87,7 +87,7 @@ void KeywordSearchWindow::initUI() {
     // --- 按钮区域 ---
     auto* btnLayout = new QHBoxLayout();
     auto* searchBtn = new QPushButton(" 智能搜索");
-    searchBtn->setIcon(IconHelper::getIcon("search", "#FFF", 16));
+    searchBtn->setIcon(IconHelper::getIcon("find_keyword", "#FFF", 16));
     searchBtn->setStyleSheet("QPushButton { background: #007ACC; border: none; border-radius: 4px; padding: 8px 20px; color: #FFF; font-weight: bold; } QPushButton:hover { background: #0098FF; }");
     connect(searchBtn, &QPushButton::clicked, this, &KeywordSearchWindow::onSearch);
 
@@ -260,7 +260,7 @@ void KeywordSearchWindow::onSearch() {
         }
 
         QMetaObject::invokeMethod(this, [this, scannedFiles, foundFiles, keyword, caseSensitive]() {
-            log(QString("\n✅ 搜索完成! 扫描 %1 个文件，找到 %2 个匹配\n").arg(scannedFiles).arg(foundFiles), "success");
+            log(QString("\n搜索完成! 扫描 %1 个文件，找到 %2 个匹配\n").arg(scannedFiles).arg(foundFiles), "success");
             m_statusLabel->setText(QString("完成: 找到 %1 个文件").arg(foundFiles));
             m_progressBar->hide();
             highlightResult(keyword);
@@ -360,7 +360,7 @@ void KeywordSearchWindow::onReplace() {
                     in << newContent;
                     modifiedFiles++;
                     QMetaObject::invokeMethod(this, [this, fileName]() {
-                        log("✅ 已修改: " + fileName, "success");
+                        log("已修改: " + fileName, "success");
                     });
                 }
                 file.close();
@@ -368,7 +368,7 @@ void KeywordSearchWindow::onReplace() {
         }
 
         QMetaObject::invokeMethod(this, [this, modifiedFiles]() {
-            log(QString("\n✨ 替换完成! 修改了 %1 个文件").arg(modifiedFiles), "success");
+            log(QString("\n替换完成! 修改了 %1 个文件").arg(modifiedFiles), "success");
             m_statusLabel->setText(QString("完成: 修改了 %1 个文件").arg(modifiedFiles));
             m_progressBar->hide();
             QMessageBox::information(this, "完成", QString("已修改 %1 个文件\n备份于: %2").arg(modifiedFiles).arg(QFileInfo(m_lastBackupPath).fileName()));

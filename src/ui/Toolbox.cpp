@@ -49,7 +49,7 @@ void Toolbox::initUI() {
     contentLayout->addWidget(btnSearchFile);
 
     // 关键字搜索工具
-    auto* btnSearchKeyword = createToolButton("查找关键字", "edit", "#3498db");
+    auto* btnSearchKeyword = createToolButton("查找关键字", "find_keyword", "#3498db");
     connect(btnSearchKeyword, &QPushButton::clicked, this, &Toolbox::showKeywordSearchRequested);
     contentLayout->addWidget(btnSearchKeyword);
 

@@ -103,7 +103,13 @@ void PathAcquisitionWindow::initUI() {
                               "QListWidget::item { padding: 4px; border-bottom: 1px solid #2d2d2d; } "
                               "QListWidget::item:selected { background-color: #3E3E42; color: #FFF; }");
     m_pathList->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_pathList->setCursor(Qt::PointingHandCursor);
     connect(m_pathList, &QListWidget::customContextMenuRequested, this, &PathAcquisitionWindow::onShowContextMenu);
+    connect(m_pathList, &QListWidget::itemDoubleClicked, this, [](QListWidgetItem* item) {
+        QString path = item->text();
+        QString nativePath = QDir::toNativeSeparators(path);
+        QProcess::startDetached("explorer.exe", { "/select," + nativePath });
+    });
     rightLayout->addWidget(m_pathList);
 
     mainLayout->addWidget(rightPanel);
