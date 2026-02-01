@@ -7,7 +7,7 @@
 
 Toolbox::Toolbox(QWidget* parent) : FramelessDialog("工具箱", parent) {
     setObjectName("ToolboxLauncher");
-    setFixedSize(300, 480);
+    setFixedSize(300, 530);
 
     initUI();
 }
@@ -47,6 +47,10 @@ void Toolbox::initUI() {
     auto* btnSearchFile = createToolButton("查找文件", "search", "#95a5a6");
     connect(btnSearchFile, &QPushButton::clicked, this, &Toolbox::showFileSearchRequested);
     contentLayout->addWidget(btnSearchFile);
+
+    auto* btnSearchKeyword = createToolButton("查找关键字", "typesetting", "#3498db");
+    connect(btnSearchKeyword, &QPushButton::clicked, this, &Toolbox::showKeywordSearchRequested);
+    contentLayout->addWidget(btnSearchKeyword);
 
     auto* btnPicker = createToolButton("吸取颜色", "screen_picker", "#ff6b81");
     connect(btnPicker, &QPushButton::clicked, this, &Toolbox::showColorPickerRequested);

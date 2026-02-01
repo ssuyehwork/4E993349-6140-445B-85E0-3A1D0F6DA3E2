@@ -19,6 +19,7 @@ signals:
     void showTagManagerRequested();
     void showFileStorageRequested();
     void showFileSearchRequested();
+    void showKeywordSearchRequested();
     void showColorPickerRequested();
 
 private:

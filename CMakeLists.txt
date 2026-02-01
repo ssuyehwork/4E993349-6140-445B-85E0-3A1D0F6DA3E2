@@ -42,6 +42,8 @@ set(SOURCES
     src/ui/OCRWindow.cpp
     src/ui/OCRResultWindow.h
     src/ui/OCRResultWindow.cpp
+    src/ui/KeywordSearchWindow.h
+    src/ui/KeywordSearchWindow.cpp
     src/ui/PathAcquisitionWindow.cpp
     src/ui/FileStorageWindow.h
     src/ui/FileStorageWindow.cpp

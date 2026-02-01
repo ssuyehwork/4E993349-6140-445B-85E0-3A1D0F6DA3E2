@@ -25,6 +25,7 @@
 #include "ui/TimePasteWindow.h"
 #include "ui/PasswordGeneratorWindow.h"
 #include "ui/OCRWindow.h"
+#include "ui/KeywordSearchWindow.h"
 #include "ui/PathAcquisitionWindow.h"
 #include "ui/FileStorageWindow.h"
 #include "ui/TagManagerWindow.h"
@@ -126,6 +127,7 @@ int main(int argc, char *argv[]) {
     TimePasteWindow* timePasteWin = new TimePasteWindow();
     PasswordGeneratorWindow* passwordGenWin = new PasswordGeneratorWindow();
     OCRWindow* ocrWin = new OCRWindow();
+    KeywordSearchWindow* keywordSearchWin = new KeywordSearchWindow();
     PathAcquisitionWindow* pathAcqWin = new PathAcquisitionWindow();
     TagManagerWindow* tagMgrWin = new TagManagerWindow();
     FileStorageWindow* fileStorageWin = new FileStorageWindow();
@@ -161,6 +163,7 @@ int main(int argc, char *argv[]) {
     QObject::connect(toolbox, &Toolbox::showTimePasteRequested, [=](){ toggleWindow(timePasteWin); });
     QObject::connect(toolbox, &Toolbox::showPasswordGeneratorRequested, [=](){ toggleWindow(passwordGenWin); });
     QObject::connect(toolbox, &Toolbox::showOCRRequested, [=](){ toggleWindow(ocrWin); });
+    QObject::connect(toolbox, &Toolbox::showKeywordSearchRequested, [=](){ toggleWindow(keywordSearchWin); });
     QObject::connect(toolbox, &Toolbox::showPathAcquisitionRequested, [=](){ toggleWindow(pathAcqWin); });
     QObject::connect(toolbox, &Toolbox::showTagManagerRequested, [=](){
         tagMgrWin->refreshData();
