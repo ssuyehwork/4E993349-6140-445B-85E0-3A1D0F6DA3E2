@@ -28,12 +28,13 @@ private slots:
     void onClearLog();
     void onResultDoubleClicked(const QModelIndex& index);
     void onShowHistory();
+    void onSwapSearchReplace();
 
 private:
     void initUI();
     
     // 历史记录管理
-    enum HistoryType { Path, Keyword };
+    enum HistoryType { Path, Keyword, Replace };
     void addHistoryEntry(HistoryType type, const QString& text);
     bool isTextFile(const QString& filePath);
     void log(const QString& msg, const QString& type = "info");
@@ -42,7 +43,7 @@ private:
     ClickableLineEdit* m_pathEdit;
     QLineEdit* m_filterEdit;
     ClickableLineEdit* m_searchEdit;
-    QLineEdit* m_replaceEdit;
+    ClickableLineEdit* m_replaceEdit;
     QCheckBox* m_caseCheck;
     QTextBrowser* m_logDisplay;
     QProgressBar* m_progressBar;

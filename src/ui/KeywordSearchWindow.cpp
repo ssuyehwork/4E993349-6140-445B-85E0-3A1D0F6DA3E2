@@ -73,7 +73,7 @@ private:
 class KeywordSearchHistoryPopup : public QWidget {
     Q_OBJECT
 public:
-    enum Type { Path, Keyword };
+    enum Type { Path, Keyword, Replace };
 
     explicit KeywordSearchHistoryPopup(KeywordSearchWindow* window, QLineEdit* edit, Type type) 
         : QWidget(window->window(), Qt::Popup | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint) 
@@ -108,7 +108,12 @@ public:
         icon->setStyleSheet("border: none; background: transparent;");
         top->addWidget(icon);
 
-        auto* title = new QLabel(m_type == Path ? "最近扫描路径" : "最近查找内容");
+        QString titleStr = "最近记录";
+        if (m_type == Path) titleStr = "最近扫描路径";
+        else if (m_type == Keyword) titleStr = "最近查找内容";
+        else if (m_type == Replace) titleStr = "最近替换内容";
+
+        auto* title = new QLabel(titleStr);
         title->setStyleSheet("color: #888; font-weight: bold; font-size: 11px; background: transparent; border: none;");
         top->addWidget(title);
         top->addStretch();
@@ -145,13 +150,19 @@ public:
     }
 
     void clearAllHistory() {
-        QString key = (m_type == Path) ? "pathList" : "keywordList";
+        QString key = "keywordList";
+        if (m_type == Path) key = "pathList";
+        else if (m_type == Replace) key = "replaceList";
+
         QSettings settings("RapidNotes", "KeywordSearchHistory");
         settings.setValue(key, QStringList());
     }
 
     void removeEntry(const QString& text) {
-        QString key = (m_type == Path) ? "pathList" : "keywordList";
+        QString key = "keywordList";
+        if (m_type == Path) key = "pathList";
+        else if (m_type == Replace) key = "replaceList";
+
         QSettings settings("RapidNotes", "KeywordSearchHistory");
         QStringList history = settings.value(key).toStringList();
         history.removeAll(text);
@@ -159,7 +170,10 @@ public:
     }
 
     QStringList getHistory() const {
-        QString key = (m_type == Path) ? "pathList" : "keywordList";
+        QString key = "keywordList";
+        if (m_type == Path) key = "pathList";
+        else if (m_type == Replace) key = "replaceList";
+
         QSettings settings("RapidNotes", "KeywordSearchHistory");
         return settings.value(key).toStringList();
     }
@@ -266,6 +280,15 @@ void KeywordSearchWindow::initUI() {
     filterLayout->addWidget(m_filterEdit);
     configLayout->addLayout(filterLayout);
 
+    // 查找与替换内容组合
+    auto* srContainer = new QWidget();
+    auto* srHLayout = new QHBoxLayout(srContainer);
+    srHLayout->setContentsMargins(0, 0, 0, 0);
+    srHLayout->setSpacing(10);
+
+    auto* srInputsLayout = new QVBoxLayout();
+    srInputsLayout->setSpacing(10);
+
     // 查找内容
     auto* searchLayout = new QHBoxLayout();
     m_searchEdit = new ClickableLineEdit();
@@ -273,19 +296,38 @@ void KeywordSearchWindow::initUI() {
     m_searchEdit->setStyleSheet("QLineEdit { background: #252526; border: 1px solid #333; border-radius: 4px; padding: 6px; color: #EEE; }");
     connect(m_searchEdit, &QLineEdit::returnPressed, this, &KeywordSearchWindow::onSearch);
     connect(m_searchEdit, &ClickableLineEdit::doubleClicked, this, &KeywordSearchWindow::onShowHistory);
-    searchLayout->addWidget(new QLabel("查找内容:"));
+    QLabel* searchLbl = new QLabel("查找内容:");
+    searchLbl->setFixedWidth(60);
+    searchLayout->addWidget(searchLbl);
     searchLayout->addWidget(m_searchEdit);
-    configLayout->addLayout(searchLayout);
+    srInputsLayout->addLayout(searchLayout);
 
     // 替换内容
     auto* replaceLayout = new QHBoxLayout();
-    m_replaceEdit = new QLineEdit();
-    m_replaceEdit->setPlaceholderText("替换为 (可选)...");
+    m_replaceEdit = new ClickableLineEdit();
+    m_replaceEdit->setPlaceholderText("替换为 (双击查看历史)...");
     m_replaceEdit->setStyleSheet("QLineEdit { background: #252526; border: 1px solid #333; border-radius: 4px; padding: 6px; color: #EEE; }");
     connect(m_replaceEdit, &QLineEdit::returnPressed, this, &KeywordSearchWindow::onSearch);
-    replaceLayout->addWidget(new QLabel("替换内容:"));
+    connect(m_replaceEdit, &ClickableLineEdit::doubleClicked, this, &KeywordSearchWindow::onShowHistory);
+    QLabel* replaceLbl = new QLabel("替换内容:");
+    replaceLbl->setFixedWidth(60);
+    replaceLayout->addWidget(replaceLbl);
     replaceLayout->addWidget(m_replaceEdit);
-    configLayout->addLayout(replaceLayout);
+    srInputsLayout->addLayout(replaceLayout);
+
+    srHLayout->addLayout(srInputsLayout, 1);
+
+    // 交换按钮
+    auto* swapBtn = new QPushButton();
+    swapBtn->setFixedSize(32, 60);
+    swapBtn->setCursor(Qt::PointingHandCursor);
+    swapBtn->setToolTip("交换查找与替换内容");
+    swapBtn->setIcon(IconHelper::getIcon("swap", "#AAA", 20));
+    swapBtn->setStyleSheet("QPushButton { background: #3E3E42; border: none; border-radius: 4px; } QPushButton:hover { background: #4E4E52; }");
+    connect(swapBtn, &QPushButton::clicked, this, &KeywordSearchWindow::onSwapSearchReplace);
+    srHLayout->addWidget(swapBtn);
+
+    configLayout->addWidget(srContainer);
 
     // 选项
     auto* optionLayout = new QHBoxLayout();
@@ -407,6 +449,7 @@ void KeywordSearchWindow::log(const QString& msg, const QString& type) {
 void KeywordSearchWindow::onSearch() {
     QString rootDir = m_pathEdit->text().trimmed();
     QString keyword = m_searchEdit->text().trimmed();
+    QString replaceText = m_replaceEdit->text().trimmed();
     if (rootDir.isEmpty() || keyword.isEmpty()) {
         QMessageBox::warning(this, "提示", "目录和查找内容不能为空!");
         return;
@@ -415,6 +458,9 @@ void KeywordSearchWindow::onSearch() {
     // 保存历史记录
     addHistoryEntry(Path, rootDir);
     addHistoryEntry(Keyword, keyword);
+    if (!replaceText.isEmpty()) {
+        addHistoryEntry(Replace, replaceText);
+    }
 
     m_logDisplay->clear();
     m_progressBar->show();
@@ -498,12 +544,19 @@ void KeywordSearchWindow::highlightResult(const QString& keyword) {
 }
 
 void KeywordSearchWindow::onReplace() {
-    QString rootDir = m_pathEdit->text();
-    QString keyword = m_searchEdit->text();
-    QString replaceText = m_replaceEdit->text();
+    QString rootDir = m_pathEdit->text().trimmed();
+    QString keyword = m_searchEdit->text().trimmed();
+    QString replaceText = m_replaceEdit->text().trimmed();
     if (rootDir.isEmpty() || keyword.isEmpty()) {
         QMessageBox::warning(this, "提示", "目录和查找内容不能为空!");
         return;
+    }
+
+    // 保存历史记录
+    addHistoryEntry(Path, rootDir);
+    addHistoryEntry(Keyword, keyword);
+    if (!replaceText.isEmpty()) {
+        addHistoryEntry(Replace, replaceText);
     }
 
     if (QMessageBox::question(this, "确认", "确定执行批量替换？操作不可逆（虽然会有备份）。") != QMessageBox::Yes) {
@@ -642,9 +695,19 @@ void KeywordSearchWindow::hideEvent(QHideEvent* event) {
 void KeywordSearchWindow::onResultDoubleClicked(const QModelIndex& index) {
 }
 
+void KeywordSearchWindow::onSwapSearchReplace() {
+    QString searchTxt = m_searchEdit->text();
+    QString replaceTxt = m_replaceEdit->text();
+    m_searchEdit->setText(replaceTxt);
+    m_replaceEdit->setText(searchTxt);
+}
+
 void KeywordSearchWindow::addHistoryEntry(HistoryType type, const QString& text) {
     if (text.isEmpty()) return;
-    QString key = (type == Path) ? "pathList" : "keywordList";
+    QString key = "keywordList";
+    if (type == Path) key = "pathList";
+    else if (type == Replace) key = "replaceList";
+
     QSettings settings("RapidNotes", "KeywordSearchHistory");
     QStringList history = settings.value(key).toStringList();
     history.removeAll(text);
@@ -658,8 +721,9 @@ void KeywordSearchWindow::onShowHistory() {
     auto* edit = qobject_cast<ClickableLineEdit*>(sender());
     if (!edit) return;
 
-    KeywordSearchHistoryPopup::Type type = (edit == m_pathEdit) ? 
-        KeywordSearchHistoryPopup::Path : KeywordSearchHistoryPopup::Keyword;
+    KeywordSearchHistoryPopup::Type type = KeywordSearchHistoryPopup::Keyword;
+    if (edit == m_pathEdit) type = KeywordSearchHistoryPopup::Path;
+    else if (edit == m_replaceEdit) type = KeywordSearchHistoryPopup::Replace;
     
     auto* popup = new KeywordSearchHistoryPopup(this, edit, type);
     popup->setAttribute(Qt::WA_DeleteOnClose);
