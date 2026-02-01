@@ -535,9 +535,9 @@ private:
 // ----------------------------------------------------------------------------
 
 ColorPickerWindow::ColorPickerWindow(QWidget* parent)
-    : FramelessDialog("选取颜色", parent)
+    : FramelessDialog("吸取颜色", parent)
 {
-    setWindowTitle("选取颜色");
+    setWindowTitle("吸取颜色");
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Window);
     setFixedSize(1400, 900);
     setAcceptDrops(true);
@@ -667,9 +667,9 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
         connect(btn, &QPushButton::clicked, cmd);
         toolsFrame->addWidget(btn);
     };
-    createToolBtn("palette", [this](){ openColorPicker(); }, "#3b8ed0", "色盘");
+    createToolBtn("palette", [this](){ openColorPicker(); }, "#3b8ed0", "打开专业色盘");
     createToolBtn("screen_picker", [this](){ startScreenPicker(); }, "#9b59b6", "颜色选取器");
-    createToolBtn("pixel_ruler", [this](){ openPixelRuler(); }, "#e67e22", "间距测量");
+    createToolBtn("pixel_ruler", [this](){ openPixelRuler(); }, "#e67e22", "屏幕像素测量");
     createToolBtn("image", [this](){ extractFromImage(); }, "#2ecc71", "从图片提取颜色");
     createToolBtn("star", [this](){ addToFavorites(); }, "#f39c12", "收藏当前颜色");
     l->addLayout(toolsFrame);
@@ -865,7 +865,7 @@ void ColorPickerWindow::createRightPanel(QWidget* parent) {
     iconHint->setStyleSheet("border: none; background: transparent;");
     hl->addWidget(iconHint);
 
-    auto* hint = new QLabel("拖放图片到软件任意位置\n\n或\n\nCtrl+V 粘贴\n点击左侧图片图标");
+    auto* hint = new QLabel("拖放图片到软件任意位置\n\n或\n\nCtrl+V 粘贴\n点击左侧相机图标");
     hint->setStyleSheet("color: #666; font-size: 16px; border: none; background: transparent; margin-top: 10px;");
     hint->setAlignment(Qt::AlignCenter);
     hl->addWidget(hint);

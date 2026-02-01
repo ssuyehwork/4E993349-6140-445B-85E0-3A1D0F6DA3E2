@@ -1602,7 +1602,7 @@ void QuickWindow::showToolboxMenu(const QPoint& pos) {
                        "QMenu::icon { margin-left: 6px; } "
                        "QMenu::item:selected { background-color: #4a90e2; color: white; }");
 
-    QAction* autoCatAction = menu.addAction(IconHelper::getIcon("zap", "#aaaaaa", 18), "剪贴板自动归档到当前分类");
+    QAction* autoCatAction = menu.addAction(IconHelper::getIcon("zap", "#aaaaaa", 18), "新数据自动归档到指定分类");
     autoCatAction->setCheckable(true);
     autoCatAction->setChecked(m_autoCategorizeClipboard);
     connect(autoCatAction, &QAction::triggered, [this](bool checked){

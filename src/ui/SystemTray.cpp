@@ -10,7 +10,7 @@ SystemTray::SystemTray(QObject* parent) : QObject(parent) {
     
     // 复刻 Python 版：使用渲染的悬浮球作为托盘图标
     m_trayIcon->setIcon(FloatingBall::generateBallIcon());
-    m_trayIcon->setToolTip("快速笔记 (RapidNotes)");
+    m_trayIcon->setToolTip("快速笔记");
 
     m_menu = new QMenu();
     m_menu->setStyleSheet(

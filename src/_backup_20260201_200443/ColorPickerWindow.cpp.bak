@@ -667,7 +667,7 @@ void ColorPickerWindow::createLeftPanel(QWidget* parent) {
         connect(btn, &QPushButton::clicked, cmd);
         toolsFrame->addWidget(btn);
     };
-    createToolBtn("palette", [this](){ openColorPicker(); }, "#3b8ed0", "色盘");
+    createToolBtn("palette", [this](){ openColorPicker(); }, "#3b8ed0", "打开专业色盘");
     createToolBtn("screen_picker", [this](){ startScreenPicker(); }, "#9b59b6", "颜色选取器");
     createToolBtn("pixel_ruler", [this](){ openPixelRuler(); }, "#e67e22", "间距测量");
     createToolBtn("image", [this](){ extractFromImage(); }, "#2ecc71", "从图片提取颜色");
