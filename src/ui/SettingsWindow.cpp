@@ -168,9 +168,9 @@ void SettingsWindow::saveHotkeys() {
         hotkeys.setValue(prefix + "_display", edit->text());
     };
 
-    saveOne("quickWin", qobject_cast<HotkeyEdit*>(m_hkQuickWin));
-    saveOne("favorite", qobject_cast<HotkeyEdit*>(m_hkFavorite));
-    saveOne("screenshot", qobject_cast<HotkeyEdit*>(m_hkScreenshot));
+    saveOne("quickWin", m_hkQuickWin);
+    saveOne("favorite", m_hkFavorite);
+    saveOne("screenshot", m_hkScreenshot);
     
     HotkeyManager::instance().reapplyHotkeys();
     QMessageBox::information(this, "成功", "设置已保存并立即生效。");

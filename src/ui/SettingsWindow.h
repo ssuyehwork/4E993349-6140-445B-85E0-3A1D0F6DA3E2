@@ -6,6 +6,7 @@
 #include <QKeySequence>
 
 class QLineEdit;
+class HotkeyEdit;
 
 class SettingsWindow : public FramelessDialog {
     Q_OBJECT
@@ -22,9 +23,9 @@ private:
     void initSettingsUI();
     
     // UI elements for Hotkeys
-    QLineEdit* m_hkQuickWin;
-    QLineEdit* m_hkFavorite;
-    QLineEdit* m_hkScreenshot;
+    HotkeyEdit* m_hkQuickWin;
+    HotkeyEdit* m_hkFavorite;
+    HotkeyEdit* m_hkScreenshot;
 };
 
 #endif // SETTINGSWINDOW_H
