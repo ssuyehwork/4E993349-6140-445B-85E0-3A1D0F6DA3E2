@@ -235,6 +235,4 @@ void SettingsWindow::handleRemovePassword() {
     verifyDlg->deleteLater();
 }
 
-void SettingsWindow::saveHotkeys() {
-    // 预留以后实现
-}
+#include "SettingsWindow.moc"
