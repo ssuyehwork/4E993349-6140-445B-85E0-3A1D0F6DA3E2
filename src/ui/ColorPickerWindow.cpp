@@ -19,6 +19,9 @@
 #include <QTimer>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QMenu>
+#include <QProcess>
+#include <QDesktopServices>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
