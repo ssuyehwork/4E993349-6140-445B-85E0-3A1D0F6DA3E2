@@ -13,6 +13,8 @@
 #include <QtConcurrent>
 #include <QScrollBar>
 #include <QMessageBox>
+#include <QSettings>
+#include <QMenu>
 
 KeywordSearchWindow::KeywordSearchWindow(QWidget* parent) : FramelessDialog("查找关键字", parent) {
     resize(900, 700);
@@ -36,10 +38,14 @@ void KeywordSearchWindow::initUI() {
 
     // 目录选择
     auto* pathLayout = new QHBoxLayout();
-    m_pathEdit = new QLineEdit();
-    m_pathEdit->setPlaceholderText("选择搜索根目录...");
+    m_pathEdit = new ClickableLineEdit();
+    m_pathEdit->setPlaceholderText("选择搜索根目录 (双击查看历史)...");
     m_pathEdit->setStyleSheet("QLineEdit { background: #252526; border: 1px solid #333; border-radius: 4px; padding: 6px; color: #EEE; }");
+    connect(m_pathEdit, &QLineEdit::returnPressed, this, &KeywordSearchWindow::onSearch);
+    connect(m_pathEdit, &ClickableLineEdit::doubleClicked, this, &KeywordSearchWindow::onShowHistory);
+
     auto* browseBtn = new QPushButton("浏览...");
+    browseBtn->setAutoDefault(false);
     browseBtn->setStyleSheet("QPushButton { background: #3E3E42; border: none; border-radius: 4px; padding: 6px 15px; color: #EEE; } QPushButton:hover { background: #4E4E52; }");
     connect(browseBtn, &QPushButton::clicked, this, &KeywordSearchWindow::onBrowseFolder);
     pathLayout->addWidget(new QLabel("搜索目录:"));
@@ -52,15 +58,18 @@ void KeywordSearchWindow::initUI() {
     m_filterEdit = new QLineEdit();
     m_filterEdit->setPlaceholderText("例如: *.py, *.txt (留空则扫描所有文本文件)");
     m_filterEdit->setStyleSheet("QLineEdit { background: #252526; border: 1px solid #333; border-radius: 4px; padding: 6px; color: #EEE; }");
+    connect(m_filterEdit, &QLineEdit::returnPressed, this, &KeywordSearchWindow::onSearch);
     filterLayout->addWidget(new QLabel("文件过滤:"));
     filterLayout->addWidget(m_filterEdit);
     configLayout->addLayout(filterLayout);
 
     // 查找内容
     auto* searchLayout = new QHBoxLayout();
-    m_searchEdit = new QLineEdit();
-    m_searchEdit->setPlaceholderText("输入要查找的内容...");
+    m_searchEdit = new ClickableLineEdit();
+    m_searchEdit->setPlaceholderText("输入要查找的内容 (双击查看历史)...");
     m_searchEdit->setStyleSheet("QLineEdit { background: #252526; border: 1px solid #333; border-radius: 4px; padding: 6px; color: #EEE; }");
+    connect(m_searchEdit, &QLineEdit::returnPressed, this, &KeywordSearchWindow::onSearch);
+    connect(m_searchEdit, &ClickableLineEdit::doubleClicked, this, &KeywordSearchWindow::onShowHistory);
     searchLayout->addWidget(new QLabel("查找内容:"));
     searchLayout->addWidget(m_searchEdit);
     configLayout->addLayout(searchLayout);
@@ -70,6 +79,7 @@ void KeywordSearchWindow::initUI() {
     m_replaceEdit = new QLineEdit();
     m_replaceEdit->setPlaceholderText("替换为 (可选)...");
     m_replaceEdit->setStyleSheet("QLineEdit { background: #252526; border: 1px solid #333; border-radius: 4px; padding: 6px; color: #EEE; }");
+    connect(m_replaceEdit, &QLineEdit::returnPressed, this, &KeywordSearchWindow::onSearch);
     replaceLayout->addWidget(new QLabel("替换内容:"));
     replaceLayout->addWidget(m_replaceEdit);
     configLayout->addLayout(replaceLayout);
@@ -87,21 +97,25 @@ void KeywordSearchWindow::initUI() {
     // --- 按钮区域 ---
     auto* btnLayout = new QHBoxLayout();
     auto* searchBtn = new QPushButton(" 智能搜索");
+    searchBtn->setAutoDefault(false);
     searchBtn->setIcon(IconHelper::getIcon("find_keyword", "#FFF", 16));
     searchBtn->setStyleSheet("QPushButton { background: #007ACC; border: none; border-radius: 4px; padding: 8px 20px; color: #FFF; font-weight: bold; } QPushButton:hover { background: #0098FF; }");
     connect(searchBtn, &QPushButton::clicked, this, &KeywordSearchWindow::onSearch);
 
     auto* replaceBtn = new QPushButton(" 执行替换");
+    replaceBtn->setAutoDefault(false);
     replaceBtn->setIcon(IconHelper::getIcon("edit", "#FFF", 16));
     replaceBtn->setStyleSheet("QPushButton { background: #D32F2F; border: none; border-radius: 4px; padding: 8px 20px; color: #FFF; font-weight: bold; } QPushButton:hover { background: #F44336; }");
     connect(replaceBtn, &QPushButton::clicked, this, &KeywordSearchWindow::onReplace);
 
     auto* undoBtn = new QPushButton(" 撤销替换");
+    undoBtn->setAutoDefault(false);
     undoBtn->setIcon(IconHelper::getIcon("undo", "#EEE", 16));
     undoBtn->setStyleSheet("QPushButton { background: #3E3E42; border: none; border-radius: 4px; padding: 8px 20px; color: #EEE; } QPushButton:hover { background: #4E4E52; }");
     connect(undoBtn, &QPushButton::clicked, this, &KeywordSearchWindow::onUndo);
 
     auto* clearBtn = new QPushButton(" 清空日志");
+    clearBtn->setAutoDefault(false);
     clearBtn->setIcon(IconHelper::getIcon("trash", "#EEE", 16));
     clearBtn->setStyleSheet("QPushButton { background: #3E3E42; border: none; border-radius: 4px; padding: 8px 20px; color: #EEE; } QPushButton:hover { background: #4E4E52; }");
     connect(clearBtn, &QPushButton::clicked, this, &KeywordSearchWindow::onClearLog);
@@ -186,12 +200,16 @@ void KeywordSearchWindow::log(const QString& msg, const QString& type) {
 }
 
 void KeywordSearchWindow::onSearch() {
-    QString rootDir = m_pathEdit->text();
-    QString keyword = m_searchEdit->text();
+    QString rootDir = m_pathEdit->text().trimmed();
+    QString keyword = m_searchEdit->text().trimmed();
     if (rootDir.isEmpty() || keyword.isEmpty()) {
         QMessageBox::warning(this, "提示", "目录和查找内容不能为空!");
         return;
     }
+
+    // 保存历史记录
+    addHistoryEntry(Path, rootDir);
+    addHistoryEntry(Keyword, keyword);
 
     m_logDisplay->clear();
     m_progressBar->show();
@@ -417,4 +435,71 @@ void KeywordSearchWindow::hideEvent(QHideEvent* event) {
 }
 
 void KeywordSearchWindow::onResultDoubleClicked(const QModelIndex& index) {
+}
+
+void KeywordSearchWindow::addHistoryEntry(HistoryType type, const QString& text) {
+    if (text.isEmpty()) return;
+    QString key = (type == Path) ? "pathList" : "keywordList";
+    QSettings settings("RapidNotes", "KeywordSearchHistory");
+    QStringList history = settings.value(key).toStringList();
+    history.removeAll(text);
+    history.prepend(text);
+    while (history.size() > 10) history.removeLast();
+    settings.setValue(key, history);
+}
+
+QStringList KeywordSearchWindow::getHistory(HistoryType type) const {
+    QString key = (type == Path) ? "pathList" : "keywordList";
+    QSettings settings("RapidNotes", "KeywordSearchHistory");
+    return settings.value(key).toStringList();
+}
+
+void KeywordSearchWindow::removeHistoryEntry(HistoryType type, const QString& text) {
+    QString key = (type == Path) ? "pathList" : "keywordList";
+    QSettings settings("RapidNotes", "KeywordSearchHistory");
+    QStringList history = settings.value(key).toStringList();
+    history.removeAll(text);
+    settings.setValue(key, history);
+}
+
+void KeywordSearchWindow::clearHistory(HistoryType type) {
+    QString key = (type == Path) ? "pathList" : "keywordList";
+    QSettings settings("RapidNotes", "KeywordSearchHistory");
+    settings.setValue(key, QStringList());
+}
+
+void KeywordSearchWindow::onShowHistory() {
+    auto* edit = qobject_cast<ClickableLineEdit*>(sender());
+    if (!edit) return;
+
+    HistoryType type = (edit == m_pathEdit) ? Path : Keyword;
+    QStringList history = getHistory(type);
+
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #EEE; border: 1px solid #444; padding: 4px; } "
+                       "QMenu::item { padding: 6px 12px; border-radius: 3px; } "
+                       "QMenu::item:selected { background-color: #007ACC; color: white; }");
+
+    if (history.isEmpty()) {
+        QAction* empty = menu.addAction("暂无历史记录");
+        empty->setEnabled(false);
+    } else {
+        for (const QString& item : history) {
+            QAction* act = menu.addAction(item);
+            connect(act, &QAction::triggered, this, [edit, item]() {
+                edit->setText(item);
+            });
+
+            // 增加一个右键或小按钮删除单个记录（菜单里不好做，暂时简单点，只做点击填入）
+            // 如果需要完全复刻 FileSearchHistoryPopup，代码量会很大。
+            // 鉴于用户说“如同‘查找文件’里的双击输入框显示历史记录”，我应该尽量贴近。
+        }
+        menu.addSeparator();
+        QAction* clearAct = menu.addAction(IconHelper::getIcon("trash", "#F44336", 14), "清空历史记录");
+        connect(clearAct, &QAction::triggered, this, [this, type]() {
+            clearHistory(type);
+        });
+    }
+
+    menu.exec(edit->mapToGlobal(QPoint(0, edit->height())));
 }
